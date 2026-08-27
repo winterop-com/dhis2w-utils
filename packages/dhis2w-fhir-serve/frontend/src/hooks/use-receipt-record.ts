@@ -68,7 +68,7 @@ export interface ReceiptRecordState {
  *
  * FOUR READS, AND EACH ONE CAN BE THE MISSING ONE. The stored resource comes from
  * `GET /QuestionnaireResponse/{id}` - that is the receipt, and without it there is nothing. The
- * lifecycle, the capture warnings, and DHIS2's import report come from `GET /spool`, because none of
+ * lifecycle, the capture warnings, and DHIS2's import report come from `GET /facade/spool`, because none of
  * the three are QuestionnaireResponse elements. The *questions* come from a read of the served
  * `Questionnaire`, which is the one that is allowed to fail: a receipt outlives the guide that
  * produced it, so a form recompiled since the capture degrades the answers to link ids and values

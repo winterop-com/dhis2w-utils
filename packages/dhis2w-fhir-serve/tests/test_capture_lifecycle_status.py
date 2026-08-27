@@ -128,7 +128,7 @@ async def test_nothing_is_spooled_when_the_dial_is_off(
         headers={"content-type": FHIR_JSON},
     )
 
-    listing = (await capture_client.get("/spool")).json()
+    listing = (await capture_client.get("/facade/spool")).json()
 
     assert listing["total"] == 0
     assert list((capture_project.project_root / ".serve" / "responses" / "received").glob("*.json")) == []
@@ -164,7 +164,7 @@ async def test_a_stored_marked_submission_is_a_queued_receipt_like_any_other(
         headers={"content-type": FHIR_JSON},
     )
 
-    listing = (await dialled_client.get("/spool")).json()
+    listing = (await dialled_client.get("/facade/spool")).json()
 
     assert listing["counts"]["received"] == 1
     row = listing["responses"][0]

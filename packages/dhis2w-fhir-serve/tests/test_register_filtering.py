@@ -18,7 +18,7 @@ Five claims carry the file, and they are the five a filter has to hold to before
   called equality must not mean two things.
 - **An attribute this register does not filter on is refused, by name.** Empty would read as "nobody
   holds that", which is a different and false statement.
-- **The filterable set is declared ahead of the request**, at `/metadata` in prose and at `/uiconfig`
+- **The filterable set is declared ahead of the request**, at `/metadata` in prose and at `/facade/uiconfig`
   as values, per register, carrying the attribute's name, its DHIS2 value type, the ValueSet a coded
   one is drawn from, and the tracked entity types that declare it. That last is what a screen
   narrowed to one type of a register reads: the register filters on the union of its types, and a
@@ -439,7 +439,7 @@ async def test_each_register_filters_on_its_own_types_attributes(live_facade: ht
 def test_the_uiconfig_declares_what_each_register_filters_on(capture_project: FhirProject) -> None:
     """A screen drawing the control reads the attributes as values - the uid, the name, the type, the vocabulary.
 
-    Read through `tracked_entities_config`, which is the whole of what `GET /uiconfig` answers with
+    Read through `tracked_entities_config`, which is the whole of what `GET /facade/uiconfig` answers with
     for the register; `test_ui_config_endpoint.py` holds the endpoint and the rest of the document.
     """
     index = TrackedEntityIndex.from_store(capture_project, load_compiled_store(capture_project))

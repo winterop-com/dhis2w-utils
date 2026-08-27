@@ -1,4 +1,4 @@
-"""`GET /whoami` - the one address whose whole answer is who this server just decided the caller is.
+"""`GET /facade/whoami` - the one address whose whole answer is who this server just decided the caller is.
 
 WHY AN ADDRESS FOR IT. Every other route on this facade answers a question about the guide or about
 the instance, and who is asking is a fact the route needs rather than the fact it reports. A caller
@@ -17,11 +17,11 @@ same OperationOutcome, the same `WWW-Authenticate` challenge, no second vocabula
 IT NAMES A CALLER ONLY WHERE A POSTURE IS CONFIGURED, and under `auth = "none"` it says so in those
 words. A server that checks nobody has nobody to name, and one that answered with an anonymous
 caller would be inventing an identity to report - so the answer is a 404 that states the posture it
-is missing rather than one naming an invented person. It is a route of its own rather than a fall
-through to the read catch-all, because that catch-all would answer that this server does not serve
-the resource type `whoami`, and `whoami` is a fixed path this project documents rather than a
-resource type anybody asked for. `serve_routers` picks which of the two routers is mounted, beside
-every other mount-time decision.
+is missing rather than one naming an invented person. It is a route of its own rather than a path
+left unmounted, because an unmounted path answers the facade mount's own 404 and says only that
+there is nothing here - and `whoami` is a fixed path this project documents rather than one nobody
+asked for. `serve_routers` picks which of the two routers is mounted, beside every other mount-time
+decision.
 
 WHAT IT NAMES, PER POSTURE. `dhis2` answers the username the instance gave `GET /api/me`; `jwt`
 answers the claim `[serve.jwt] username_claim` names, which is the same value a receipt is stamped
@@ -42,8 +42,11 @@ from dhis2w_fhir_serve.auth import RequestIdentity, UnauthenticatedError, challe
 from dhis2w_fhir_serve.errors import ServeError
 from dhis2w_fhir_serve.routes.context import serve_context
 
-#: Where the answer is served from. One lowercase segment, so no FHIR resource type can collide.
+#: Where the answer is served from, under the facade API's mount.
 WHOAMI_PATH = "/whoami"
+
+#: What this operation is grouped under in the facade API's document.
+WHOAMI_TAG = "Caller"
 
 #: What the `token` posture calls its caller, having been handed a deployment's secret and not a person.
 TOKEN_CALLER_NAME = "the bearer of one of this deployment's tokens"
@@ -88,7 +91,20 @@ class AuthenticatedCaller(BaseModel):
     where the credential named a deployment rather than anybody."""
 
 
-@router.get(WHOAMI_PATH)
+@router.get(
+    WHOAMI_PATH,
+    tags=[WHOAMI_TAG],
+    summary="Name the caller",
+    description=(
+        "Answers who this server established the caller to be, under the posture that established "
+        "them. Guarded in every scope, so a credential this server does not accept is refused here "
+        "with 401 rather than answered with nobody - which is what makes this the place to check a "
+        'credential before doing anything with it. Under `[serve] auth = "none"` the address '
+        "answers 404 saying which posture is missing, because a server that checks nobody has "
+        "nobody to name."
+    ),
+    response_description="Who the credential named, and what to call them in a sentence.",
+)
 async def read_authenticated_caller(request: Request) -> AuthenticatedCaller:
     """Name the caller the authentication check just established, or refuse as that check refuses."""
     identity = request_identity(request)
@@ -107,7 +123,17 @@ async def read_authenticated_caller(request: Request) -> AuthenticatedCaller:
     return authenticated_caller(identity)
 
 
-@refusal_router.get(WHOAMI_PATH)
+@refusal_router.get(
+    WHOAMI_PATH,
+    tags=[WHOAMI_TAG],
+    summary="Name the caller",
+    description=(
+        'This process runs `[serve] auth = "none"` and establishes no caller, so the address '
+        "answers 404 naming the posture that is missing rather than an invented identity. A process "
+        "started under any other posture answers this address with the caller it established."
+    ),
+    response_description="Never answered under this posture; the refusal names the missing posture.",
+)
 async def refuse_to_name_a_caller() -> AuthenticatedCaller:
     """Refuse the address under `auth = "none"`, naming the posture that is missing rather than a caller."""
     raise NoPostureNamesNobodyError

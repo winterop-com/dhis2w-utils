@@ -1,4 +1,4 @@
-"""Paging and quarantine over the two spool reads: `GET /spool` and `GET /QuestionnaireResponse`.
+"""Paging and quarantine over the two spool reads: `GET /facade/spool` and `GET /QuestionnaireResponse`.
 
 A facade that has taken ten thousand submissions must not answer either read with all of them, and
 must not answer either with a 500 because one file on disk is no longer a receipt. Both properties
@@ -84,7 +84,7 @@ async def test_the_spool_listing_pages_and_states_one_total_throughout(paged_cli
     """A walk reads every receipt once, newest first, and every page states the whole listing's total."""
     walked: list[str] = []
     totals: list[int] = []
-    next_url: str | None = "/spool?_count=3"
+    next_url: str | None = "/facade/spool?_count=3"
     while next_url is not None:
         body = (await paged_client.get(next_url)).json()
         walked.extend(row["response_id"] for row in body["responses"])
@@ -97,7 +97,7 @@ async def test_the_spool_listing_pages_and_states_one_total_throughout(paged_cli
 
 async def test_a_spool_page_links_back_to_the_one_before_it(paged_client: httpx.AsyncClient) -> None:
     """`previous` returns a client to the page it came from, which is what makes a walk reversible."""
-    first = (await paged_client.get("/spool?_count=3")).json()
+    first = (await paged_client.get("/facade/spool?_count=3")).json()
     second = (await paged_client.get(_path_and_query(first["next_url"]))).json()
 
     assert first["previous_url"] is None
@@ -108,7 +108,7 @@ async def test_a_spool_page_links_back_to_the_one_before_it(paged_client: httpx.
 
 async def test_the_spool_counts_are_the_whole_spool_rather_than_the_page(paged_client: httpx.AsyncClient) -> None:
     """A queue depth that changed with the page you were looking at would be no queue depth at all."""
-    body = (await paged_client.get("/spool?_count=2")).json()
+    body = (await paged_client.get("/facade/spool?_count=2")).json()
 
     assert len(body["responses"]) == 2
     assert body["counts"] == {
@@ -122,7 +122,7 @@ async def test_the_spool_counts_are_the_whole_spool_rather_than_the_page(paged_c
 
 async def test_a_page_this_server_did_not_mint_is_refused(paged_client: httpx.AsyncClient) -> None:
     """`page` is a link to follow, not a number a client composes."""
-    response = await paged_client.get("/spool?page=17")
+    response = await paged_client.get("/facade/spool?page=17")
 
     assert response.status_code == 400
     assert "is not a page of this listing" in response.json()["issue"][0]["diagnostics"]
@@ -130,7 +130,7 @@ async def test_a_page_this_server_did_not_mint_is_refused(paged_client: httpx.As
 
 async def test_a_count_that_is_not_a_number_of_rows_is_refused(paged_client: httpx.AsyncClient) -> None:
     """A malformed query is refused; an ambitious one is served the limit."""
-    response = await paged_client.get("/spool?_count=none")
+    response = await paged_client.get("/facade/spool?_count=none")
 
     assert response.status_code == 400
     assert "not a number of rows" in response.json()["issue"][0]["diagnostics"]
@@ -170,7 +170,7 @@ async def test_a_corrupt_file_costs_one_row_and_is_named_rather_than_failing_the
     spool = ResponseSpool.at(compiled_project.project_root)
     (spool.directory_for(ResponseLifecycle.RECEIVED) / "receipt-03.json").write_text("{not json", encoding="utf-8")
 
-    body = (await paged_client.get("/spool?_count=50")).json()
+    body = (await paged_client.get("/facade/spool?_count=50")).json()
 
     assert body["total"] == SEEDED_RECEIPTS - 1
     assert body["counts"]["malformed"] == 1

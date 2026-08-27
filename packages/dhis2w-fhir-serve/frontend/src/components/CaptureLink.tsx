@@ -24,7 +24,7 @@ export function CaptureLink({
     enrollment,
     className,
 }: {
-    /** The DHIS2 instance's address, as `/uiconfig` states it, or null when the run resolved none. */
+    /** The DHIS2 instance's address, as `/facade/uiconfig` states it, or null when the run resolved none. */
     baseUrl: string | null
     /** The person's DHIS2 tracked entity uid - the same uid this page is already showing. */
     trackedEntityUid: string

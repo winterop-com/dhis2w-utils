@@ -810,7 +810,7 @@ place this repository has already paid to get right:
   into one drain.
 - `receipt_event_uid` and the whole correction identity derivation would need a second
   reading.
-- `d2w fhir spool`, `d2w fhir requeue`, and `GET /spool` would page over two receipt
+- `d2w fhir spool`, `d2w fhir requeue`, and `GET /facade/spool` would page over two receipt
   shapes.
 - The capture UI's Responses and ResponseDetail pages would render two.
 - `test_fhir_conversion_roundtrip.py` grades every example response cell for cell

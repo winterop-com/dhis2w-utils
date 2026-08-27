@@ -18,7 +18,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
  * THE PROJECT OFFERS NO BASEMAP (`basemaps = []`). A suite that fetched real tiles would be
  * asserting on somebody else's uptime and would make an offline test run reach the internet, so the
  * browser here draws the boundary-only map. The layer control over a real offer is covered by
- * uiconfig.spec.ts, which states its own layers over `/uiconfig` and fulfils their tiles in the
+ * uiconfig.spec.ts, which states its own layers over `/facade/uiconfig` and fulfils their tiles in the
  * browser; the tiles-on style itself is covered by src/lib/basemap.test.ts.
  *
  * WHAT THE MAP IS ASSERTED ON. Headless chromium here renders WebGL through SwiftShader, so the
@@ -240,7 +240,7 @@ test('the captured-here section joins the spool to the unit the capture named', 
     // the join under test is listing-field to selection, so the spec locates itself from the
     // receipt rather than assuming the draw.
     const receiptId = await generateAndPost(request, 'BfMAe6Itzgt', 77)
-    const listing = await (await request.get('/spool')).json()
+    const listing = await (await request.get('/facade/spool')).json()
     const receipt = listing.responses.find(
         (candidate: { response_id: string }) => candidate.response_id === receiptId,
     )
@@ -266,7 +266,7 @@ test('a long form label in the receipts is shown in full, not truncated', async 
     // prefix as every other Child Programme form.
     const longTitle = 'Child Programme - Baby Postnatal'
     const receiptId = await generateAndPost(request, 'ZzYYXq4fJie', 41)
-    const listing = await (await request.get('/spool')).json()
+    const listing = await (await request.get('/facade/spool')).json()
     const receipt = listing.responses.find(
         (candidate: { response_id: string }) => candidate.response_id === receiptId,
     )
@@ -289,7 +289,7 @@ test('a unit with no captures says so instead of showing a zero', async ({ page,
     // one at a time, so nothing posts between the read and the assertion. The listing pages, and
     // bareness is a claim about the whole spool, so every page is read before a unit is called bare.
     const used = new Set<string | null | undefined>()
-    let spoolUrl: string | null = '/spool?_count=500'
+    let spoolUrl: string | null = '/facade/spool?_count=500'
     while (spoolUrl) {
         const listing: {
             responses: { organisation_unit?: string | null }[]
@@ -534,7 +534,7 @@ test('a unit with no geometry anywhere near it says so rather than framing on no
 })
 
 test('the served settings offer no tile layer, and the map honours that', async ({ page }) => {
-    const settings = await page.request.get('/uiconfig')
+    const settings = await page.request.get('/facade/uiconfig')
 
     expect(settings.status()).toBe(200)
     // The instance address is deliberately not asserted: whether this machine resolves a profile

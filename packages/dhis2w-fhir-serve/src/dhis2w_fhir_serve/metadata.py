@@ -4,7 +4,7 @@ The statement describes what this process serves, so it is built in the lifespan
 from then on. Rebuilding it per request would re-read nothing new: the compiled store is fixed for
 the life of the process. It states no spool count for the opposite reason - `d2w fhir forward` moves
 receipts while this server runs, so a number frozen at startup is wrong within minutes, and no number
-is better than a wrong one. `GET /spool` answers that question against the directory as it now is.
+is better than a wrong one. `GET /facade/spool` answers that question against the directory as it now is.
 """
 
 from __future__ import annotations

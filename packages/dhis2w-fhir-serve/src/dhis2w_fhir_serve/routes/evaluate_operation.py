@@ -1,4 +1,4 @@
-"""`POST /$evaluate` - the same evaluation as `/evaluate`, answered as the `Parameters` resource FHIR asks for.
+"""`POST /$evaluate` - the same evaluation as `/facade/evaluate`, answered as the `Parameters` resource FHIR asks for.
 
 THE ADDRESS IS SYSTEM-LEVEL, because what is evaluated is not one resource type's business. FHIR
 spells an operation at the service base `[base]/$op`, and this one runs over whatever the request
@@ -19,13 +19,13 @@ the parser stopped on.
 
 A DEFINE THAT MATCHED NOTHING IS ABSENT, and that is FHIR's own answer rather than a fact thrown
 away. FHIR has no empty collection: a value is present or the element is not there, which
-`dhis2w_fhir_engine.r4.resources` states as the rule every model here is built on. `POST /evaluate`
+`dhis2w_fhir_engine.r4.resources` states as the rule every model here is built on. `POST /facade/evaluate`
 keeps the distinction between "matched nothing" and "was not run", because its own shape can carry
 it; this one cannot, and inventing a spelling for it would be this server writing FHIR nobody else
 reads.
 
 PARAMETERS IN IS CANONICAL, AND THE PLAIN JSON BODY IS ALSO READ. An operation's input is a
-`Parameters` resource and that is what this address documents, but the same body `/evaluate` takes is
+`Parameters` resource and that is what this address documents, but the same body `/facade/evaluate` takes is
 accepted here too - the two endpoints run the same evaluation over the same three contexts, and
 making a caller rewrite a body to change which shape comes back would be a difference about nothing.
 Which one arrived is decided by `resourceType`, and nothing else about the request changes.
@@ -77,7 +77,7 @@ EVALUATE_OPERATION_PATH = "/$evaluate"
 #: The resource type an operation's input arrives as, which is what tells the two bodies apart.
 PARAMETERS_RESOURCE_TYPE = "Parameters"
 
-#: The input parameters, named the way the `/evaluate` body names its fields.
+#: The input parameters, named the way the `/facade/evaluate` body names its fields.
 LANGUAGE_PARAMETER = "language"
 SOURCE_PARAMETER = "source"
 EXPRESSION_PARAMETER = "expression"
@@ -108,7 +108,7 @@ router = APIRouter()
 async def evaluate_operation(request: Request) -> Response:
     """Evaluate one source over one resource, answering the defines as a `Parameters` resource.
 
-    The evaluation runs off the event loop for the reason `POST /evaluate` does: parsing a grammar
+    The evaluation runs off the event loop for the reason `POST /facade/evaluate` does: parsing a grammar
     and walking an expression tree is blocking, CPU-bound work, and a facade doing it inline would
     stall every other request it is serving.
     """
@@ -127,7 +127,7 @@ def evaluation_ask(parameters: Parameters) -> EvaluationRequest:
     `language` and `source` are required, because an evaluation with neither is not a narrower
     question - it is no question. `expression` names one define, and `context` names the one resource
     the expression may reach; both are optional and both mean here exactly what they mean in the
-    `/evaluate` body.
+    `/facade/evaluate` body.
     """
     stated = parameters.parameter or []
     language = _language(_text(stated, LANGUAGE_PARAMETER))
@@ -164,7 +164,7 @@ def evaluation_parameters(outcome: EvaluationOutcome) -> Parameters:
 async def _asked(request: Request) -> EvaluationRequest:
     """The evaluation this request asks for, read from whichever of the two bodies arrived.
 
-    The posted document never leaves this function: it is a `Parameters` or it is a `/evaluate`
+    The posted document never leaves this function: it is a `Parameters` or it is a `/facade/evaluate`
     request, and either way it is a model before anything else is done with it.
     """
     try:
@@ -174,7 +174,7 @@ async def _asked(request: Request) -> EvaluationRequest:
     if not isinstance(posted, dict):
         raise BadOperationError(
             "`$evaluate` takes a Parameters resource naming `language` and `source`, or the same JSON body "
-            "`POST /evaluate` takes"
+            "`POST /facade/evaluate` takes"
         )
     body: dict[str, Any] = posted
     try:
@@ -191,7 +191,7 @@ def _unreadable(error: ValidationError) -> str:
     where = ".".join(str(part) for part in first["loc"]) or "the body"
     return (
         f"`$evaluate` could not read this request at `{where}`: {first['msg']}. Post a Parameters resource "
-        f"naming `{LANGUAGE_PARAMETER}` and `{SOURCE_PARAMETER}`, or the same JSON body `POST /evaluate` takes"
+        f"naming `{LANGUAGE_PARAMETER}` and `{SOURCE_PARAMETER}`, or the same JSON body `POST /facade/evaluate` takes"
     )
 
 
@@ -222,7 +222,7 @@ def _language(stated: str | None) -> EvaluationLanguage:
 def _context(parameter: ParametersParameter | None) -> EvaluationContext | None:
     """The one resource an expression may reach, read from the `context` parameter's own parts.
 
-    Three kinds and no fourth, refused by name the way the `/evaluate` body's discriminated union
+    Three kinds and no fourth, refused by name the way the `/facade/evaluate` body's discriminated union
     refuses one: a request naming a kind this server does not offer never reaches the engine.
     """
     if parameter is None:

@@ -1,4 +1,4 @@
-"""`GET /spool` - the receipt tree with its lifecycle, for the capture UI's Responses page.
+"""`GET /facade/spool` - the receipt tree with its lifecycle, for the capture UI's Responses page.
 
 WHY THIS IS NOT FHIR, STATED ONCE SO NOBODY HAS TO RE-DERIVE IT.
 
@@ -17,10 +17,11 @@ still have nowhere honest to go. A facade-owned record with no FHIR analogue is 
 what it is. So this is a plain typed JSON endpoint, `application/json`, and its shape is Pydantic
 models rather than a Bundle.
 
-The path is a single lowercase segment, exactly like `/metadata`. FHIR resource types are
-PascalCase, so `/spool` can never shadow one, and the router mounts with the other fixed paths -
-ahead of `/{resource_type}`, which would otherwise claim it and answer "this server does not serve
-the resource type `spool`".
+AND SO IT LIVES UNDER `/facade`, which is where every answer of that kind lives. The base URL is
+FHIR's and its contract is the CapabilityStatement; this facade's own API is a different contract at
+a different address, published as OpenAPI at `/facade/openapi.json`. Two APIs, two documents, one
+process. `dhis2w_fhir_serve.routes` states the mounting and `docs/fhir/design/endpoint-naming.md`
+states the rule a new endpoint is placed by.
 
 Every read re-reads the directory. `d2w fhir forward` moves files while this server runs, so a
 listing built from anything else is stale by design; see `dhis2w_fhir_serve.spool`.
@@ -34,10 +35,12 @@ would be no queue depth at all.
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from dhis2w_fhir.r4 import Extension, QuestionnaireResponse, QuestionnaireResponseItem
 from dhis2w_fhir.service import ForwardImportOutcome, WithdrawalRecord
 from dhis2w_fhir.spool import ForwardRefusalRecord, QuarantinedFile
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, ConfigDict, ValidationError
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
@@ -57,8 +60,11 @@ from dhis2w_fhir_serve.spool import (
     requested_page_size,
 )
 
-#: Where the listing is served from. One lowercase segment, so no FHIR resource type can collide.
+#: Where the listing is served from, under the facade API's mount.
 SPOOL_PATH = "/spool"
+
+#: What this operation is grouped under in the facade API's document.
+SPOOL_TAG = "Receipts"
 
 #: The prefix a Location reference carries before the DHIS2 organisation-unit uid.
 LOCATION_REFERENCE_PREFIX = "Location/"
@@ -285,18 +291,50 @@ class SpoolListing(BaseModel):
     next_url: str | None = None
 
 
-@router.get(SPOOL_PATH)
-async def read_spool(request: Request) -> SpoolListing:
+@router.get(
+    SPOOL_PATH,
+    tags=[SPOOL_TAG],
+    summary="List the stored receipts",
+    description=(
+        "One page of this project's receipts, newest first, each with the lifecycle state its file "
+        "is currently in and whatever DHIS2 said about it. The spool directory is re-read on every "
+        "call, so a `d2w fhir forward` run in another process shows up on the next request with "
+        "nothing restarted.\n\n"
+        "`total` is the whole listing on every page of one walk, and the per-state counts are the "
+        "whole spool rather than the page - a queue depth that changed with the page you were "
+        "looking at would be no queue depth at all. Walk the pages by following `next_url`; the page "
+        "token is this server's to mint and not a number to compose."
+    ),
+    response_description="One page of receipts, the whole spool's counts, and the links either side of the page.",
+)
+async def read_spool(
+    request: Request,
+    count_parameter: Annotated[
+        str | None,
+        Query(
+            alias=COUNT_PARAMETER,
+            description="How many receipts this page carries. Out-of-range values are clamped.",
+        ),
+    ] = None,
+    page_parameter: Annotated[
+        str | None,
+        Query(alias=PAGE_PARAMETER, description="An opaque cursor, taken from a previous page's `next_url`."),
+    ] = None,
+) -> SpoolListing:
     """Answer one page of the receipts, re-reading the spool directory as it does.
 
     The read runs off the event loop. Every fact in a listing comes from `stat`ing and parsing files,
     which is blocking work, and a facade doing it inline would stall every other request it is
     serving - including the capture that is trying to write into the same directory.
+
+    Both parameters are read as text rather than as numbers on purpose: an unreadable `_count` is a
+    client asking for a page size this server does not offer, and it is answered with the default
+    page rather than with a 422 about a listing that has one.
     """
     context = serve_context(request)
     naming = capture_state(request).naming
-    count = requested_page_size(request.query_params.get(COUNT_PARAMETER))
-    cursor = requested_cursor(request.query_params.get(PAGE_PARAMETER))
+    count = requested_page_size(count_parameter)
+    cursor = requested_cursor(page_parameter)
     reading = await run_in_threadpool(context.spool.search)
     counts = SpoolCounts(
         received=sum(1 for receipt in reading.receipts if receipt.lifecycle is ResponseLifecycle.RECEIVED),

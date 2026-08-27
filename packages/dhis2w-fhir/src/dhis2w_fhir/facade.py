@@ -1,10 +1,12 @@
 """A typed async client for a `d2w fhir serve` facade: read it, fill a form, submit a capture, evaluate an expression.
 
-The facade publishes no OpenAPI document - `create_app` sets `openapi_url=None`, and `/metadata` is
-the contract instead - so a generated client is not available and this one is hand-written against
-the routes `dhis2w_fhir_serve.routes` mounts. Every method here answers a model rather than a parsed
-document, and every refusal arrives as a `FacadeError` carrying the `OperationOutcome` the facade
-stated its reason in.
+This client is hand-written against the routes `dhis2w_fhir_serve.routes` mounts. The base URL is a
+FHIR endpoint whose contract is the CapabilityStatement at `/metadata` and which publishes no OpenAPI
+document at all, so a generated client was never on offer for the surface most of these methods read.
+The facade's own API under `/facade` does publish one, at `/facade/openapi.json` - it is the contract
+to read when writing against those endpoints directly, and `evaluate` below is this client's one
+method that calls them. Every method here answers a model rather than a parsed document, and every
+refusal arrives as a `FacadeError` carrying the `OperationOutcome` the facade stated its reason in.
 
 WHAT THIS IS FOR. An integrator holding a filled form wants three lines, not a request builder:
 construct a `FacadeClient`, hand `submit_response` the document, read the receipt id off what comes
@@ -23,8 +25,8 @@ the published form, and wrote it to disk durably. Nothing has reached DHIS2 - `d
 what drains the queue into an instance, and until it runs the receipt is a promise about bytes the
 facade is holding.
 
-THE EVALUATION SHAPES ARE MIRRORED, NOT IMPORTED. `POST /evaluate` is the facade's own endpoint and
-its request and response models are defined in `dhis2w_fhir_serve.evaluation` and
+THE EVALUATION SHAPES ARE MIRRORED, NOT IMPORTED. `POST /facade/evaluate` is the facade's own endpoint
+and its request and response models are defined in `dhis2w_fhir_serve.evaluation` and
 `dhis2w_fhir_serve.routes.evaluate`, which this package cannot import: `dhis2w-fhir-serve` depends on
 `dhis2w-fhir`, so the arrow points one way only. `EvaluationRequest`, `EvaluationOutcome`, and the
 three context shapes below mirror those definitions field for field, and those two modules are the
@@ -59,6 +61,7 @@ __all__ = [
     "BASIC_SCHEME",
     "BEARER_SCHEME",
     "DHIS2_PERSONAL_ACCESS_TOKEN_SCHEME",
+    "FACADE_API_PATH",
     "FHIR_JSON_MEDIA_TYPE",
     "BearerToken",
     "CaptureReceipt",
@@ -83,8 +86,16 @@ __all__ = [
 #: What the facade answers every FHIR route with, and the only media type its capture route reads.
 FHIR_JSON_MEDIA_TYPE = "application/fhir+json"
 
-#: What the facade's own routes - `/evaluate`, `/spool`, `/whoami` - answer, which is not FHIR.
+#: What the facade's own routes under the mount below answer, which is not FHIR.
 JSON_MEDIA_TYPE = "application/json"
+
+#: Where the facade's own API is mounted, beside the FHIR base URL this client otherwise reads.
+#:
+#: The FHIR surface is at the base URL and its contract is `/metadata`; the receipts, the settings,
+#: the caller, the evaluator, and the vocabularies are a different API under this prefix, described
+#: by its own OpenAPI document at `{base}/facade/openapi.json`. `dhis2w_fhir_serve.routes` spells the
+#: same string as the path its sub-application is mounted at.
+FACADE_API_PATH = "/facade"
 
 #: The `Authorization` scheme the `token` and `jwt` postures take, spelled as `dhis2w_fhir_serve.auth` spells it.
 BEARER_SCHEME = "Bearer"
@@ -434,8 +445,9 @@ class FacadeClient:
     `httpx.AsyncClient` and it borrows that one, leaving it open at exit - which is what a caller
     pooling several clients, or a test driving the application in-process, wants.
 
-    Every request carries `Accept: application/fhir+json`, except the facade's own `/evaluate`,
-    which is not a FHIR route and answers plain JSON. Every non-2xx raises `FacadeError`.
+    Every request carries `Accept: application/fhir+json`, except `POST /facade/evaluate`, which is
+    on the facade's own API rather than the FHIR surface and answers plain JSON. Every non-2xx raises
+    `FacadeError`.
     """
 
     def __init__(
@@ -594,7 +606,7 @@ class FacadeClient:
         )
         answered = await self._request(
             "POST",
-            "/evaluate",
+            f"{FACADE_API_PATH}/evaluate",
             accept=JSON_MEDIA_TYPE,
             content_type=JSON_MEDIA_TYPE,
             content=request.model_dump_json(exclude_none=True).encode(),

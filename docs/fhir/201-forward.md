@@ -1123,7 +1123,7 @@ The notes are the run recording what it had to interpret - the same honesty
 the capture path's warnings carry - so a payload's translation is auditable
 after the fact.
 
-A rejection, as the served spool reports it afterwards (`GET /spool`, the
+A rejection, as the served spool reports it afterwards (`GET /facade/spool`, the
 same envelope the capture UI's Responses page reads):
 
 ```json

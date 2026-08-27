@@ -24,7 +24,7 @@ import {
  * than floating over it: the app has not read anything yet, so there is nothing behind it to see,
  * and a dialog over an empty frame would only be a dialog over an empty frame.
  *
- * SUBMITTING ASKS THE SERVER WHO THIS IS, and nothing is kept until it answers. `GET /whoami`
+ * SUBMITTING ASKS THE SERVER WHO THIS IS, and nothing is kept until it answers. `GET /facade/whoami`
  * carries the authentication check under every scope, so it is the one address that gives a verdict
  * on a credential without doing anything with it. The alternative - storing what was typed and
  * finding out at the next request - is unbearable under the default `write` scope, where every read

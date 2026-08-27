@@ -580,7 +580,7 @@ async def test_the_enrollment_listing_names_the_program_and_the_organisation_uni
     """The picker's feed: the enrollment, joined to the names this guide publishes."""
     _read_route(_entity())
 
-    listing = (await live_client.get(f"/tracked-entities/{_PERSON_UID}/enrollments")).json()
+    listing = (await live_client.get(f"/facade/tracked-entities/{_PERSON_UID}/enrollments")).json()
 
     assert listing["tracked_entity_uid"] == _PERSON_UID
     assert listing["enrollments"] == [
@@ -614,7 +614,7 @@ async def test_a_completed_enrollment_is_listed_and_marked(live_client: httpx.As
         )
     )
 
-    listing = (await live_client.get(f"/tracked-entities/{_PERSON_UID}/enrollments")).json()
+    listing = (await live_client.get(f"/facade/tracked-entities/{_PERSON_UID}/enrollments")).json()
 
     assert listing["enrollments"][0]["status"] == "COMPLETED"
     assert listing["enrollments"][0]["active"] is False
@@ -624,7 +624,7 @@ async def test_the_enrollment_read_never_names_a_program(live_client: httpx.Asyn
     """BUGS.md 72: a program the person is not enrolled in answers 404 claiming the person is gone."""
     read = _read_route(_entity())
 
-    await live_client.get(f"/tracked-entities/{_PERSON_UID}/enrollments")
+    await live_client.get(f"/facade/tracked-entities/{_PERSON_UID}/enrollments")
 
     assert "program" not in read.calls[0].request.url.params
 
@@ -632,7 +632,7 @@ async def test_the_enrollment_read_never_names_a_program(live_client: httpx.Asyn
 async def test_a_compiled_run_refuses_patient_as_not_supported(capture_client: httpx.AsyncClient) -> None:
     """No live client, so no instance to ask - stated as the FHIR refusal, not as an empty result."""
     search = await capture_client.get("/Patient?identifier=anything")
-    listing = await capture_client.get(f"/tracked-entities/{_PERSON_UID}/enrollments")
+    listing = await capture_client.get(f"/facade/tracked-entities/{_PERSON_UID}/enrollments")
 
     assert search.status_code == 404
     assert search.json()["issue"][0]["code"] == "not-supported"
@@ -813,7 +813,7 @@ async def test_the_enrollment_listing_is_read_as_the_caller(pass_through_facade:
     read = _read_route(_entity())
 
     answered = await pass_through_facade.get(
-        f"/tracked-entities/{_PERSON_UID}/enrollments", headers={"Authorization": _CALLER_BASIC}
+        f"/facade/tracked-entities/{_PERSON_UID}/enrollments", headers={"Authorization": _CALLER_BASIC}
     )
 
     assert answered.status_code == 200
@@ -827,7 +827,7 @@ async def test_an_evaluation_over_a_registered_entity_is_read_as_the_caller(
     read = _read_route(_entity())
 
     answered = await pass_through_facade.post(
-        "/evaluate",
+        "/facade/evaluate",
         json={
             "language": "fhirpath",
             "source": "Patient.id",

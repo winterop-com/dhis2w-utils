@@ -3,7 +3,7 @@
 `docs/fhir/design/ips.md` section 9, phase 2. Mocked (respx); no live stack. The store is the
 compiled capture fixture, whose stage form `ZzYYXq4fJie` is the seeded Baby Postnatal form - so the
 data elements mapped here are real immunisation elements and the projection a dose is read through
-is the very one `GET /tracked-entities/{uid}/events` answers with.
+is the very one `GET /facade/tracked-entities/{uid}/events` answers with.
 
 Every other test in this package runs against a project whose `[ips] enabled` is false, which is
 where the additive claim is proven: the suite passes unchanged, so a project that publishes no

@@ -32,11 +32,11 @@ skips its ownership and access-level model outright without writing a break-the-
 A loud refusal is the only honest answer to "this caller cannot be authorized here".
 
 WHICH READS. Exactly the register reads a caller asks for: the tracked entity read, the identifier
-search, the listing and its counts, the enrollment listing, and the entity `/evaluate` names as its
+search, the listing and its counts, the enrollment listing, and the entity `/facade/evaluate` names as its
 context. `dhis2w_fhir_serve.register.wire` takes a `RegisterReader` rather than a `Dhis2Client`
 precisely so that one channel can be swapped per request.
 
-WHICH READS ARE NOT. The startup store build, `/uiconfig`'s instance address, and `d2w fhir forward`'s
+WHICH READS ARE NOT. The startup store build, `/facade/uiconfig`'s instance address, and `d2w fhir forward`'s
 drain read and write as the facade's own profile, and that is correct: none of them acts on behalf of
 a request. The store is one snapshot of the published guide, shared by every caller and holding no
 tracked entity data; the drain is the deployment's own act under the forwarding profile. Those are

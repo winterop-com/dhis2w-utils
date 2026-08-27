@@ -358,7 +358,7 @@ class SpoolState(StrEnum):  # dhis2w_fhir.spool - what the drain and the withdra
 ```
 
 The two enums are the same layout read by two packages, and they name the same four states. A
-withdrawn receipt is counted by `d2w fhir spool` and by `GET /spool` alike, the listing row
+withdrawn receipt is counted by `d2w fhir spool` and by `GET /facade/spool` alike, the listing row
 carries the record of the delete, and the capture UI states it - the serve-side half of section
 3.7. `packages/dhis2w-fhir-serve/tests/test_spool_directory.py` asserts the two vocabularies
 level, so a fifth state added to one package fails until the other has it too.
@@ -555,7 +555,7 @@ receipt is never rewritten, and the import report that said what it landed stays
 `forwarded/` - two answers to two questions. A dry run is the default, because a terminal act
 is the one that most deserves a rehearsal.
 
-The served facade names the same four. `ResponseLifecycle` carries `WITHDRAWN`, `GET /spool`
+The served facade names the same four. `ResponseLifecycle` carries `WITHDRAWN`, `GET /facade/spool`
 counts it and lists the row, and `ResponseSpool.withdrawal_record` reads the record beside the
 receipt - which is the one sidecar that is not an import report, so it is read out of `withdrawn/`
 by its own accessor rather than parsed as the report it is not. The receipt itself still reads
@@ -635,7 +635,7 @@ event leg does not. Registrations come after both, and the cascade comes last.
 | 2 | **[SHIPPED] Report aggregate overwrites.** When a drain posts an aggregate cell a prior forwarded receipt already covered, say so in the run report. Spool-local; no wire change, no config. | 1 | Turns a silent clobber into a visible one. DHIS2 cannot tell us, so the spool must. |
 | 2a | **[SHIPPED] Decide what a drain does about an overwrite.** `[forward] overwrites` on `ForwardConfig`, `"allow"` by default, with `--overwrites` overriding it for one run. `"refuse"` sends no payload holding an already-sent cell and leaves the response queued with a refusal record naming each. | 2 | Slice 2 made the overwrite visible; this is the posture a deployment takes about it (D8). |
 | 3 | **[SHIPPED] Both correction dials, defaulting off.** `[forward] corrections` and `[forward] withdrawals` are on `ForwardConfig` with `--corrections` and `--withdrawals` on `d2w fhir forward`, resolved in `forward_responses` and stated by the run. The facade reads the same two keys at capture: an `amended` or `entered-in-error` submission is refused with a 422 naming the key while the dial is off, and stored like any other receipt where it is on. | - | Control ships before capability. |
-| 4 | **[SHIPPED] Withdraw an event, CLI only.** `d2w fhir withdraw <response-id>` reads the forwarded receipt, recomputes `receipt_event_uid`, posts `importStrategy=DELETE`, writes the record beside `withdrawn/`, and moves the receipt in after it. Dry run by default. `d2w fhir spool` and `GET /spool` both count the fourth state, the listing row carries the record of the delete, and the capture UI states what the instance keeps. | 3 | The smallest slice that delivers real capability - one object, no cascade, no wire-contract change. Introduces the fourth state. |
+| 4 | **[SHIPPED] Withdraw an event, CLI only.** `d2w fhir withdraw <response-id>` reads the forwarded receipt, recomputes `receipt_event_uid`, posts `importStrategy=DELETE`, writes the record beside `withdrawn/`, and moves the receipt in after it. Dry run by default. `d2w fhir spool` and `GET /facade/spool` both count the fourth state, the listing row carries the record of the delete, and the capture UI states what the instance keeps. | 3 | The smallest slice that delivers real capability - one object, no cascade, no wire-contract change. Introduces the fourth state. |
 | 5 | **`basedOn` on the wire.** Parse it, resolve the chain to its root, refuse an `amended` or `entered-in-error` receipt whose `basedOn` names nothing this spool forwarded - a second capture-time check, on top of slice 3's, for the submissions a dial-on project now receives. No strategy change yet. | 3 | The correction is recorded and validated before it is applied. |
 | 6 | **Tracker event corrections.** Derive the event UID from the `basedOn` root, post `importStrategy=UPDATE`, require a complete value set. | 5 | The one genuinely new mechanism in the whole plan. |
 | 7 | **Withdraw an event through the facade.** Accept `entered-in-error` submissions; the forwarder translates. Calls slice 4's service layer. | 4, 5 | Where the design actually lands for withdrawals. |

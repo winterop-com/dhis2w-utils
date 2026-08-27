@@ -117,7 +117,7 @@ async def test_the_receipts_this_project_already_holds_are_still_served(viewer_c
 
 async def test_the_spool_still_counts_what_it_holds(viewer_client: httpx.AsyncClient) -> None:
     """The queue is a fact about receipts already taken, and a drain of them is still ahead."""
-    body = (await viewer_client.get("/spool")).json()
+    body = (await viewer_client.get("/facade/spool")).json()
 
     assert body["total"] == 1
 
@@ -132,9 +132,9 @@ async def test_the_read_shaped_operation_still_answers(viewer_client: httpx.Asyn
 
 async def test_the_settings_the_screens_read_carry_the_posture(viewer_client: httpx.AsyncClient) -> None:
     """The screens gate their Submit on this, so a form says the fact rather than posting into a refusal."""
-    assert (await viewer_client.get("/uiconfig")).json()["capture"] is False
+    assert (await viewer_client.get("/facade/uiconfig")).json()["capture"] is False
 
 
 async def test_a_capturing_server_states_the_same_flag_the_other_way(capture_client: httpx.AsyncClient) -> None:
     """Always stated, never inferred from absence - the screens read one field either way."""
-    assert (await capture_client.get("/uiconfig")).json()["capture"] is True
+    assert (await capture_client.get("/facade/uiconfig")).json()["capture"] is True

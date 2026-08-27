@@ -5,7 +5,7 @@
  * unit, a Questionnaire is a data set, a program, or one of its stages, a concept of the data
  * dictionary is a data element. Reading one here answers "what did the guide publish", and the very
  * next question is "what does the instance hold", which until now meant copying eleven characters
- * into a search box. The address of the instance comes from `/uiconfig` - the profile this serve
+ * into a search box. The address of the instance comes from `/facade/uiconfig` - the profile this serve
  * run resolved - so the links exist exactly when the server knows which instance to point at, and
  * not at all when it does not.
  *

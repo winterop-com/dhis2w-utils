@@ -19,20 +19,22 @@ what a valid capture is ([The capture contract](401-capture-contract.md)).
 - evaluate a FHIRPath expression, a CQL library, or a compiled ELM library over
   what the facade serves with `$evaluate`, and read the answer as `Parameters`
 - post a capture and read every kind of answer the server gives
-- read the two facade endpoints a capture client acts on, `/spool` and
-  `/uiconfig`
+- read the two endpoints of the facade's own API a capture client acts on,
+  `/facade/spool` and `/facade/uiconfig`, whose contract is
+  `/facade/openapi.json`
 
 **The runnable version of this page** is
 [`examples/fhir/client/consume_facade.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/consume_facade.py) -
 plain httpx against a served project, walking discovery, search, `$generate`, a
-capture, the receipt, and `/spool` end to end. Point it at your own facade with
+capture, the receipt, and `/facade/spool` end to end. Point it at your own facade with
 `uv run python examples/fhir/client/consume_facade.py http://localhost:8123`.
 The rest of that directory is the library path: `generate_ig.py` builds a guide
 from Python and `forward_spool.py` drains one. In Python, `FacadeClient` from
 `dhis2w_fhir` is the typed path over the parts of this page a capture client
 lives in: `/metadata`, the reads and the searches, `$generate`, the post and its
 receipt, and an evaluation. `$translate`, `$summary`, the tracked-entity
-endpoints, `/spool`, and `/uiconfig` are addresses a caller asks for itself.
+endpoints, `/facade/spool`, and `/facade/uiconfig` are addresses a caller asks
+for itself.
 [`examples/fhir/client/send_with_the_client.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/send_with_the_client.py)
 is the same submit-and-read-back loop with no request built by hand, and four
 files beside it take the rest of that client one at a time:
@@ -58,10 +60,12 @@ documented in [the `dhis2w_fhir_serve` API reference](api-dhis2w-fhir-serve.md).
 
 ## Discovery: `/metadata`
 
-The facade's only contract - it publishes no OpenAPI document. A `kind
-#instance` CapabilityStatement that instantiates the IG's own
-`D2CaptureServer` requirements statement, narrowed to what this store
-actually holds:
+The FHIR surface's whole contract, and the base URL publishes no OpenAPI
+document beside it: a `kind #instance` CapabilityStatement that instantiates the
+IG's own `D2CaptureServer` requirements statement, narrowed to what this store
+actually holds. (The facade's own API is the other surface this process serves,
+under `/facade`, and it has a document of its own - see
+[the facade's own API](#facade-api).)
 
 ```console
 $ curl -s localhost:8389/metadata | jq '.software, .implementation.description'
@@ -95,13 +99,16 @@ $ curl -s -H 'Accept: application/fhir+xml' localhost:8389/Questionnaire/BfMAe6I
 The test is one question, deliberately: does any media range in the header admit
 JSON? `*/*`, `application/*`, `application/json`, `application/fhir+json`, and
 every other `application/…+json` do, so an absent header, a browser's header,
-and a `curl` with no flags are all answered exactly as before. Only a client
-that named formats and named no JSON among them meets the 406. The facade's own
-endpoints negotiate nothing, because they answer about this facade rather than
-with resources out of it: `/spool` and `/uiconfig` below,
-`/tracked-entities/{uid}/enrollments`, `/evaluate`, `/terminology/lookup` and
-`/terminology/validate-code`, `/whoami`, and `/cds-services` all answer plain
-`application/json` whatever a request asked for.
+and a `curl` with no flags are all answered exactly as an absent header is. Only
+a client that named formats and named no JSON among them meets the 406. The
+facade's own API negotiates nothing, because it answers about this facade rather
+than with resources out of it: everything under `/facade` - the spool and the
+run's settings [below](#facade-api), the enrollment listing, the evaluator, the
+two terminology reads, the caller - answers plain `application/json` whatever a
+request asked for, and so does `/cds-services`, whose path CDS Hooks fixes at
+the base URL. The one exception is the record at
+`/facade/tracked-entities/{uid}/events`, which answers a FHIR `Bundle` as
+`application/fhir+json`.
 
 **`_format` overrides the header, which is what makes a FHIR query a link.**
 R4 defines the parameter for the client that cannot set an `Accept` - the one
@@ -429,7 +436,7 @@ rides the listing's links the way `_tag` does.
 
 Which attributes a register filters on is what the published registration forms
 of its types ask - the same values every record it hands back already carries -
-and it is declared per register at `/metadata` and at `/uiconfig`, so a client
+and it is declared per register at `/metadata` and at `/facade/uiconfig`, so a client
 reads the set before it searches. There is no configuration key narrowing it:
 a dial that hid a filter over data the server hands over anyway would read like
 a control and not be one. An attribute a request names and this register does
@@ -663,17 +670,17 @@ attributes an identifier keys on, in place of the ones DHIS2 declares unique.
 Both are explained for the person editing the file in
 [Configure serving](301-serving.md#tracked_entities).
 
-## `/tracked-entities/{uid}/enrollments`: which programs a person is in
+## `/facade/tracked-entities/{uid}/enrollments`: which programs a person is in
 
 A capture client that has found a person still has to answer a stage form
-against one of that person's enrollments. This is the list it picks from, and
-it is typed JSON on a lowercase path rather than a FHIR resource: whether a
-DHIS2 enrollment is an `EpisodeOfCare` or a `CarePlan` is
+against one of that person's enrollments. This is the list it picks from, and it
+is typed JSON under [the facade's own API](#facade-api) rather than a FHIR
+resource: whether a DHIS2 enrollment is an `EpisodeOfCare` or a `CarePlan` is
 [still an open decision](design/roadmap.md), and settling it inside
 a picker's data feed would settle it by accident.
 
 ```console
-$ curl -s localhost:8391/tracked-entities/PLoWmEuLJl2/enrollments | jq .
+$ curl -s localhost:8391/facade/tracked-entities/PLoWmEuLJl2/enrollments | jq .
 {
   "tracked_entity_uid": "PLoWmEuLJl2",
   "enrollments": [
@@ -707,7 +714,7 @@ the same `not-supported` OperationOutcome, with `enrollments` in the slot the
 resource type occupies there:
 
 ```console
-$ curl -s localhost:8389/tracked-entities/PLoWmEuLJl2/enrollments
+$ curl -s localhost:8389/facade/tracked-entities/PLoWmEuLJl2/enrollments
 {"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`enrollments` is answered from the DHIS2 instance this facade runs against. This facade serves a compiled implementation guide, so it holds no register to search. Run `d2w fhir serve --live` to search one."}]}
 ```
 
@@ -718,7 +725,7 @@ one person you already have.
 
 A UID the instance does not hold is a 404 here, as on any read.
 
-## `/tracked-entities/{uid}/events`: what has happened to one of them
+## `/facade/tracked-entities/{uid}/events`: what has happened to one of them
 
 The register says who somebody is. This says what the instance holds about
 them: every event of every enrollment that tracked entity has, newest first,
@@ -740,18 +747,18 @@ the project publishes as `Device`, and whose record is three hourly temperature
 readings:
 
 ```console
-$ curl -s 'localhost:8391/tracked-entities/geghdTobFoE/events?_count=1' | jq .
+$ curl -s 'localhost:8391/facade/tracked-entities/geghdTobFoE/events?_count=1' | jq .
 {
   "resourceType": "Bundle",
   "type": "searchset",
   "total": 3,
   "link": [
-    { "relation": "self", "url": "http://localhost:8391/tracked-entities/geghdTobFoE/events?_count=1&page=bzA" },
-    { "relation": "next", "url": "http://localhost:8391/tracked-entities/geghdTobFoE/events?_count=1&page=bzE" }
+    { "relation": "self", "url": "http://localhost:8391/facade/tracked-entities/geghdTobFoE/events?_count=1&page=bzA" },
+    { "relation": "next", "url": "http://localhost:8391/facade/tracked-entities/geghdTobFoE/events?_count=1&page=bzE" }
   ],
   "entry": [
     {
-      "fullUrl": "http://localhost:8391/tracked-entities/geghdTobFoE/events/Jb3VgYmqRpD",
+      "fullUrl": "http://localhost:8391/facade/tracked-entities/geghdTobFoE/events/Jb3VgYmqRpD",
       "resource": {
         "resourceType": "QuestionnaireResponse",
         "id": "Jb3VgYmqRpD",
@@ -786,7 +793,7 @@ $ curl -s 'localhost:8391/tracked-entities/geghdTobFoE/events?_count=1' | jq .
 ```
 
 `id` is the DHIS2 event UID and `fullUrl` is where that one document is served
-- `GET /tracked-entities/{uid}/events/{eventUid}` answers it on its own.
+- `GET /facade/tracked-entities/{uid}/events/{eventUid}` answers it on its own.
 `QuestionnaireResponse/{id}` is deliberately *not* that address: that one
 answers the spool, where a document of the same id is a receipt of what a client
 sent rather than what DHIS2 now holds.
@@ -813,8 +820,8 @@ listing, `_count` clamped at
 `_count=0` answers how long the record is and returns nobody's events:
 
 ```console
-$ curl -s 'localhost:8391/tracked-entities/geghdTobFoE/events?_count=0'
-{"resourceType":"Bundle","type":"searchset","total":3,"link":[{"relation":"self","url":"http://localhost:8391/tracked-entities/geghdTobFoE/events?_count=0"}]}
+$ curl -s 'localhost:8391/facade/tracked-entities/geghdTobFoE/events?_count=0'
+{"resourceType":"Bundle","type":"searchset","total":3,"link":[{"relation":"self","url":"http://localhost:8391/facade/tracked-entities/geghdTobFoE/events?_count=0"}]}
 ```
 
 `total` is every event this caller may see, counted under their own
@@ -823,7 +830,7 @@ refused rather than ignored, because a parameter this server cannot apply,
 ignored, would answer a narrower question with the whole record.
 
 ```console
-$ curl -s 'localhost:8391/tracked-entities/geghdTobFoE/events?programStage=PsTempRead1'
+$ curl -s 'localhost:8391/facade/tracked-entities/geghdTobFoE/events?programStage=PsTempRead1'
 {"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"invalid","diagnostics":"`programStage` is not a search parameter this server answers `events` on: it answers `_count`, `page`"}]}
 ```
 
@@ -840,7 +847,7 @@ own, for a project that publishes who its subjects are and not what was recorded
 about them:
 
 ```console
-$ curl -s 'localhost:8391/tracked-entities/geghdTobFoE/events'
+$ curl -s 'localhost:8391/facade/tracked-entities/geghdTobFoE/events'
 {"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this facade serves no `events`: this project publishes who its tracked entities are and not what was recorded about them; set `[serve.tracked_entities] events = true` in fhir.toml and serve again"}]}
 ```
 
@@ -922,7 +929,7 @@ problem, an allergy, or a medication. Immunizations is the one section a project
 maps, through
 [`[ips.sections.immunizations]`](301-what-goes-in.md#ips-sections) - the data
 element is the vaccine and its value is the dose - and the doses come off the
-same record `/tracked-entities/{uid}/events` serves. `Immunization.vaccineCode`
+same record `/facade/tracked-entities/{uid}/events` serves. `Immunization.vaccineCode`
 carries the data element's own DHIS2 coding, under the namespace
 [`D2Section_CM`](401-terminology-and-conceptmaps.md#the-sections-a-recorded-value-feeds)
 maps out of. Every entry is addressed by a `urn:uuid` derived from the DHIS2
@@ -1060,10 +1067,11 @@ client reads `GET /CodeSystem/{id}` and `GET /ValueSet/{id}` and walks them.
 people where a project publishes summaries, and `$evaluate` at the service base.
 
 **Two plain reads answer the questions those operations would have.**
-`GET /terminology/lookup?system=&code=` says what one code means, and
-`GET /terminology/validate-code?code=` with either a `valueset` or a `system`
+`GET /facade/terminology/lookup?system=&code=` says what one code means, and
+`GET /facade/terminology/validate-code?code=` with either a `valueset` or a `system`
 says whether a code is in a published value set or is a code of a published
-system at all. Both are typed JSON on lowercase paths and both answer about this
+system at all. Both are typed JSON under [the facade's own
+API](#facade-api) and both answer about this
 project's own vocabularies and nothing else - a SNOMED CT or a LOINC code comes
 back as a code this server publishes no system for, which is true and more useful
 than a guess. They are not `$lookup` and `$validate-code` because answering those
@@ -1288,7 +1296,7 @@ collection - a value is present or the element is not there - so an expression
 matching nothing answers `{"resourceType": "Parameters"}` and a library answers
 only the defines that had something to say.
 
-**The sibling that keeps what `Parameters` cannot carry.** `POST /evaluate`
+**The sibling that keeps what `Parameters` cannot carry.** `POST /facade/evaluate`
 answers this project's own JSON for the same evaluation: one row per define
 whether or not it answered, so "matched nothing" and "was not run" stay apart,
 and diagnostics as fields rather than as prose. It is what the capture UI's
@@ -1305,7 +1313,7 @@ $ curl -s localhost:8389/'$evaluate' -H 'Content-Type: application/json' \
 
 A `Parameters` body is what the operation documents and what a FHIR client
 should send; the plain body is read for the convenience of a caller already
-posting to `/evaluate`.
+posting to `/facade/evaluate`.
 
 ## Posting a capture
 
@@ -1402,16 +1410,63 @@ Reading receipts back is plain FHIR - `GET /QuestionnaireResponse/{id}`
 answers the submission verbatim in whatever lifecycle state it is in,
 because forwarding a receipt must not expire the id its sender was handed.
 
-## `/spool`: the receipt envelopes
+## The facade's own API {#facade-api}
 
-The one read that is not FHIR, because what it serves are not elements of a
-QuestionnaireResponse: the instant the facade accepted each submission, the
-form kind it was validated as, who it was validated under, its warnings, its
-lifecycle state, and whatever DHIS2 or the drain said about it. Plain
-`application/json`:
+Everything above is FHIR, answered at the base URL, and `/metadata` is the whole
+of what a client needs to find it. Everything this facade answers **about
+itself** is the other API this process serves: the receipts it is holding, the
+settings it was started with, the caller it decided on, the expression
+evaluator, the vocabularies of the guide it serves, and the register listings a
+live run reads per request. Those are not resources of any R4 type, so they are
+not FHIR - and rather than lodging lowercase paths among the resource types,
+they are an application of their own under `/facade`:
+
+| Address | Answers |
+| --- | --- |
+| `GET /facade/openapi.json` | this API's contract, the way `/metadata` is the FHIR surface's |
+| `GET /facade/docs` | the same document as a page to read and to try requests from |
+| `GET /facade/whoami` | who this server decided the caller is ([Secure the facade](201-secure.md#checking-a-credential-without-spending-one)) |
+| `GET /facade/spool` | the receipt envelopes, below |
+| `GET /facade/uiconfig` | what a screen may know about this run, below |
+| `GET /facade/metadata-health` | the `d2w fhir validate` findings over the served selection, with translation coverage |
+| `POST /facade/evaluate` | the same evaluation as `$evaluate`, in this project's own JSON |
+| `GET /facade/terminology/lookup`, `GET /facade/terminology/validate-code` | the two vocabulary reads above |
+| `GET /facade/tracked-entities/{uid}/enrollments`, `.../events` | the enrollment listing and the record above |
+
+The mount is one lowercase segment precisely so it can never shadow a FHIR
+resource type, which is PascalCase. Everything under it answers plain
+`application/json` and negotiates nothing - except the record, which answers a
+FHIR `Bundle` as `application/fhir+json`, because a Bundle of
+QuestionnaireResponses is a FHIR document however it was asked for and only its
+address is outside FHIR. Refusals are `OperationOutcome` documents here as well,
+so a client reads one refusal shape whichever of the two APIs it met.
+
+`/facade/openapi.json` and the page at `/facade/docs` are readable under every
+`[serve] auth_scope`, for the reason `/metadata` is: a contract nobody may read
+is a contract nobody can meet. Every other address under the mount follows the
+scope like any read - open under `write`, credentialed under `all` - and
+`/facade/whoami` carries the check under both.
+
+The page is the one thing this server serves that reaches another origin: it is
+Swagger UI, and its script and stylesheet come from a public CDN, so a machine
+with no route out serves the page and renders nothing in it. The document is
+this server's own bytes and needs nobody - read `/facade/openapi.json` and open
+it in whatever you already have. `/facade/docs` is the convenience, not the
+contract.
+
+`/cds-services` is not part of this: CDS Hooks fixes discovery at
+`{base}/cds-services` exactly as FHIR fixes `{base}/metadata`, so it stays at
+the base URL beside FHIR. A specification's path is not this facade's to move.
+
+### `/facade/spool`: the receipt envelopes
+
+What it serves are not elements of a QuestionnaireResponse, which is why it is
+not FHIR: the instant the facade accepted each submission, the form kind it was
+validated as, who it was validated under, its warnings, its lifecycle state, and
+whatever DHIS2 or the drain said about it. Plain `application/json`:
 
 ```console
-$ curl -s localhost:8389/spool | jq '{total, counts, next_url}'
+$ curl -s localhost:8389/facade/spool | jq '{total, counts, next_url}'
 {
   "total": 987,
   "counts": {
@@ -1421,9 +1476,9 @@ $ curl -s localhost:8389/spool | jq '{total, counts, next_url}'
     "withdrawn": 0,
     "malformed": 0
   },
-  "next_url": "http://localhost:8389/spool?_count=50&page=bzUwbjk4Nw"
+  "next_url": "http://localhost:8389/facade/spool?_count=50&page=bzUwbjk4Nw"
 }
-$ curl -s localhost:8389/spool | jq '.responses[0]'
+$ curl -s localhost:8389/facade/spool | jq '.responses[0]'
 {
   "response_id": "f066e98e279b47689a145710d1f108a7",
   "received_at": "2026-08-10T18:58:04Z",
@@ -1493,9 +1548,9 @@ rather than the page - a queue depth that changed with the page you were looking
 at would be no queue depth at all.
 
 ```console
-$ curl -s 'localhost:8389/spool?_count=abc'
+$ curl -s 'localhost:8389/facade/spool?_count=abc'
 {"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"invalid","diagnostics":"`_count` was given `abc`, which is not a number of rows"}]}
-$ curl -s 'localhost:8389/spool?page=12'
+$ curl -s 'localhost:8389/facade/spool?page=12'
 {"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"invalid","diagnostics":"`page` is not a page of this listing: its value comes from the `next` or `previous` link of a result, and is not a number a client composes"}]}
 ```
 
@@ -1505,7 +1560,7 @@ Overview and Responses pages read, and the lifecycle states are the spool
 directories those two commands move receipts between - see
 [Forward captures into DHIS2](201-forward.md).
 
-## `/uiconfig`: what the UI is allowed to know
+### `/facade/uiconfig`: what the UI is allowed to know
 
 The handful of run-time settings the capture UI has to act on - today, whether
 this run receives submissions at all, which credential it checks and over which
@@ -1519,7 +1574,7 @@ to whoever runs it, and a browser that could read them would be a browser that
 leaks them.
 
 ```console
-$ curl -s localhost:8389/uiconfig | jq .
+$ curl -s localhost:8389/facade/uiconfig | jq .
 {
   "capture": true,
   "auth": {
@@ -1615,8 +1670,10 @@ attribute binds one, and which of the register's tracked entity types ask it.
 `/metadata` declares the same set in its `d2-attribute` documentation, so a
 screen and a FHIR client read one answer.
 
-Both live on single lowercase path segments precisely so they can never
-shadow a FHIR resource type, which is PascalCase.
+Both of these reads, and every other address under the mount, are listed with
+their parameters and their answer shapes in `/facade/openapi.json` - the
+contract of this API, read at `/facade/docs` by anyone who would rather click
+than parse.
 
 Next: [Identifiers and the D2 extensions](401-identifiers-and-extensions.md)
 - the identifier families and extensions every resource this API serves

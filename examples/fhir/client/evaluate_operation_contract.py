@@ -16,7 +16,7 @@ Three things the definition tells you that a hand-written note would have to rep
    parameter, several values are `part` entries, and a refusal rides an `OperationOutcome`.
 
 The parameter names here are camelCase - `resourceType`, `resourceId`, `expression` - because that is
-what an operation's `Parameters` spells them as. `POST /evaluate` takes the same three contexts under
+what an operation's `Parameters` spells them as. `POST /facade/evaluate` takes the same three contexts under
 this project's own snake_case names; `examples/fhir/client/evaluate_via_facade.py` is that endpoint,
 and `examples/fhir/client/evaluate_as_parameters.py` reads the four rules of the answer shape.
 

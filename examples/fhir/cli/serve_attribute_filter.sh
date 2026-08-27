@@ -79,10 +79,10 @@ curl -s "${BASE}/metadata" \
     | jq -r '.rest[].resource[] | select(.type == "Patient") | .searchParam[]
              | select(.name == "d2-attribute") | .documentation'
 
-# `/uiconfig` states the same set as values, which is what a screen needs to draw the control: the
+# `/facade/uiconfig` states the same set as values, which is what a screen needs to draw the control: the
 # id to filter by, the name to label it, the DHIS2 value type, and - where DHIS2 binds an option
 # set - the canonical of the published ValueSet whose concepts are the choices.
-curl -s "${BASE}/uiconfig" \
+curl -s "${BASE}/facade/uiconfig" \
     | jq -r '.tracked_entities.registers[] | select(.resource == "Patient") | .filter_attributes[]
              | "\(.uid)  \(.name)  \(.value_type)  \(.value_set // "no option set - free text")"'
 

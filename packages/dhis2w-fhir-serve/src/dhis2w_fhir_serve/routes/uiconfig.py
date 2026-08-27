@@ -1,4 +1,4 @@
-"""`GET /uiconfig` - the handful of run-time settings the capture UI is allowed to know.
+"""`GET /facade/uiconfig` - the handful of run-time settings the capture UI is allowed to know.
 
 WHY THIS EXISTS AT ALL. Everything else the UI renders it reads out of FHIR: the forms are
 Questionnaires, the hierarchy is Locations, the server's own identity is the CapabilityStatement.
@@ -20,12 +20,10 @@ WHY NOT `/metadata`. A CapabilityStatement describes the FHIR interface - what a
 search, and post. A tile template is not part of that interface and would have to ride in an
 extension on a document every FHIR client parses, to say something no FHIR client wants.
 
-SO IT IS `/spool`'s SHAPE, FOR `/spool`'s REASONS. A plain typed JSON endpoint, `application/json`,
-Pydantic models rather than a Bundle, on a single lowercase segment. FHIR resource types are
-PascalCase, so `/uiconfig` can never shadow one, and the router mounts with the other fixed paths -
-ahead of `/{resource_type}`, which would otherwise claim it and answer that this server does not
-serve the resource type `uiconfig`. `dhis2w_fhir_serve.routes.spool` argues that choice in full;
-this module inherits it rather than restating it.
+SO IT IS `/spool`'s SHAPE, FOR `/spool`'s REASONS, AT `/spool`'s ADDRESS. A plain typed JSON
+endpoint, `application/json`, Pydantic models rather than a Bundle, served under the facade API's own
+mount rather than at the FHIR base. `dhis2w_fhir_serve.routes.spool` argues that choice in full; this
+module inherits it rather than restating it.
 
 THE AUTHENTICATION POSTURE IS HERE FOR THE SAME REASON `capture` is: it is a fact about how this
 process was started that a screen has to act on, and the screen's alternative is parsing a
@@ -62,8 +60,11 @@ from dhis2w_fhir_serve.routes.context import live_client, serve_context
 if TYPE_CHECKING:
     from dhis2w_fhir_serve.register.surface import RegisterSurface
 
-#: Where the settings are served from. One lowercase segment, so no FHIR resource type can collide.
+#: Where the settings are served from, under the facade API's mount.
 UI_CONFIG_PATH = "/uiconfig"
+
+#: What this operation is grouped under in the facade API's document.
+UI_CONFIG_TAG = "Configuration"
 
 #: The attribution OpenStreetMap's tile policy requires of anything drawing its standard tiles.
 #:
@@ -309,7 +310,22 @@ class UiConfig(BaseModel):
     metadata_health: MetadataHealthUiConfig | None = None
 
 
-@router.get(UI_CONFIG_PATH)
+@router.get(
+    UI_CONFIG_PATH,
+    tags=[UI_CONFIG_TAG],
+    summary="Read how this process was started",
+    description=(
+        "The run-time facts a screen has to act on and no published resource states: whether this "
+        "server receives submissions, which authentication posture it runs and over how much of the "
+        "surface, which raster layers the organisation-unit map may draw, the DHIS2 instance the "
+        "guide was generated from, whether there is a register to navigate to, and whether there is "
+        "an instance behind this run to grade the metadata of.\n\n"
+        "Nothing secret crosses: no token, no realm, no signing key, no claim name, and no "
+        "credential written into the instance address. Read it once - the settings are resolved when "
+        "the process starts, so a server that changed its mind about them has restarted."
+    ),
+    response_description="The settings this process resolved, as far as a screen is allowed to know them.",
+)
 async def read_ui_config(request: Request) -> UiConfig:
     """Answer the run-time settings the UI acts on, resolved for this process."""
     context = serve_context(request)

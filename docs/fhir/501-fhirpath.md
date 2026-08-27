@@ -324,11 +324,11 @@ resources; nothing about it is bound to a document.
 
 Everything above evaluates a document you already hold. A running facade evaluates
 one it holds, which is the difference between checking an expression and asking a
-question of real data. `POST /evaluate` takes the expression and a context naming
-the one resource it may reach:
+question of real data. `POST /facade/evaluate` takes the expression and a context
+naming the one resource it may reach:
 
 ```console
-$ curl -s -X POST http://127.0.0.1:8123/evaluate \
+$ curl -s -X POST http://127.0.0.1:8123/facade/evaluate \
     -H 'Content-Type: application/json' \
     -d '{"language": "fhirpath", "source": "Questionnaire.item.item.count()",
          "context": {"kind": "stored", "resource_type": "Questionnaire",

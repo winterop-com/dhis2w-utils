@@ -14,7 +14,7 @@ register resources R4 gives a person (`register.projection.PERSON_RESOURCE_TYPES
 name on the rest, with the refusal saying which resource this register serves.
 
 **NOTHING NEW IS READ.** The subject is the very resource `GET /{RegisterType}/{uid}` answers with,
-and the doses come out of the record projection `GET /tracked-entities/{uid}/events` runs on. A
+and the doses come out of the record projection `GET /facade/tracked-entities/{uid}/events` runs on. A
 summary is a second reading of reads that already exist and not a third way into DHIS2.
 
 That is two reads of the tracked entity's own address rather than one, and deliberately: each

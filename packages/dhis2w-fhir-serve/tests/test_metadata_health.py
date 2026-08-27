@@ -1,4 +1,4 @@
-"""`GET /metadata-health`: what a live run reports about the instance, and what a compiled run says instead.
+"""`GET /facade/metadata-health`: what a live run reports about the instance, and what a compiled run says instead.
 
 Mocked (respx); no live stack. The instance behind the fixture is seeded with exactly the defects the
 page exists to surface - a name carrying `<`, a form name carrying `<`, a code carrying a space, an
@@ -30,6 +30,7 @@ from dhis2w_fhir_serve.health import (
     field_at_fault,
     translation_coverage,
 )
+from dhis2w_fhir_serve.routes import FACADE_MOUNT_PATH
 from dhis2w_fhir_serve.routes.metadata_health import METADATA_HEALTH_PATH
 from dhis2w_fhir_serve.settings import ServeSettings
 from fastapi import FastAPI
@@ -37,6 +38,10 @@ from fastapi import FastAPI
 _HOST = "https://dhis2.example"
 
 _BASE_URL = "http://serve.test"
+
+#: Where the report is read. The router states the path relative to the mount it is included
+#: under, and this is that path where a request has to be sent.
+METADATA_HEALTH_ADDRESS = f"{FACADE_MOUNT_PATH}{METADATA_HEALTH_PATH}"
 
 _SYSTEM_INFO = {"version": "2.42.0"}
 
@@ -256,7 +261,7 @@ async def test_a_compiled_run_says_there_is_no_instance_behind_it(
     compiled_health_client: httpx.AsyncClient,
 ) -> None:
     """The refusal is a body a screen renders, not a status code it has to interpret."""
-    response = await compiled_health_client.get(METADATA_HEALTH_PATH)
+    response = await compiled_health_client.get(METADATA_HEALTH_ADDRESS)
     assert response.status_code == 200
     body = response.json()
     assert body["available"] is False
@@ -268,17 +273,17 @@ async def test_a_compiled_run_answers_plain_json_rather_than_a_fhir_media_type(
     compiled_health_client: httpx.AsyncClient,
 ) -> None:
     """The route is outside the FHIR group, so it answers `application/json` and never an OperationOutcome."""
-    response = await compiled_health_client.get(METADATA_HEALTH_PATH)
+    response = await compiled_health_client.get(METADATA_HEALTH_ADDRESS)
     assert response.headers["content-type"].startswith("application/json")
 
 
 async def test_the_route_is_not_claimed_by_the_read_catch_all(
     compiled_health_client: httpx.AsyncClient,
 ) -> None:
-    """A hyphen is not a path separator, so `/metadata-health` is neither `/metadata` nor a resource type."""
+    """A hyphen is not a path separator, so `/facade/metadata-health` is neither `/metadata` nor a resource type."""
     metadata = await compiled_health_client.get("/metadata")
     assert metadata.json()["resourceType"] == "CapabilityStatement"
-    health = await compiled_health_client.get(METADATA_HEALTH_PATH)
+    health = await compiled_health_client.get(METADATA_HEALTH_ADDRESS)
     assert "resourceType" not in health.json()
 
 
@@ -286,7 +291,7 @@ async def test_a_live_run_reports_the_findings_the_validator_graded(
     live_health_client: httpx.AsyncClient,
 ) -> None:
     """A name carrying '<' on a selected object is the error it is at the command line."""
-    body = (await live_health_client.get(METADATA_HEALTH_PATH)).json()
+    body = (await live_health_client.get(METADATA_HEALTH_ADDRESS)).json()
     assert body["available"] is True
     hostile = _finding(body, _HOSTILE_ELEMENT, "template-hostile-name", field="name")
     assert hostile["severity"] == "error"
@@ -299,7 +304,7 @@ async def test_a_hostile_form_name_is_reported_as_the_form_name(
     live_health_client: httpx.AsyncClient,
 ) -> None:
     """The two spellings a question carries are graded under one category, and the row says which one."""
-    body = (await live_health_client.get(METADATA_HEALTH_PATH)).json()
+    body = (await live_health_client.get(METADATA_HEALTH_ADDRESS)).json()
     form_name = _finding(body, _HOSTILE_ELEMENT, "template-hostile-name", field="form name")
     assert form_name["message"].startswith("form name ")
     assert form_name["severity"] == "error"
@@ -332,7 +337,7 @@ async def test_a_code_carrying_a_space_is_reported_against_the_code(
     live_health_client: httpx.AsyncClient,
 ) -> None:
     """A DHIS2 code opening with a space is not a FHIR code, and the row names the code as the field."""
-    body = (await live_health_client.get(METADATA_HEALTH_PATH)).json()
+    body = (await live_health_client.get(METADATA_HEALTH_ADDRESS)).json()
     invalid = _finding(body, _SPACED_CODE_ELEMENT, "invalid-code")
     assert invalid["field"] == "code"
     assert invalid["code"] == " BLOOD_PRESSURE"
@@ -342,7 +347,7 @@ async def test_a_code_carrying_a_space_is_reported_against_the_code(
 
 async def test_an_organisation_unit_with_no_code_is_reported(live_health_client: httpx.AsyncClient) -> None:
     """A unit is expected to carry both identifiers, so a missing code is a finding of its own."""
-    body = (await live_health_client.get(METADATA_HEALTH_PATH)).json()
+    body = (await live_health_client.get(METADATA_HEALTH_ADDRESS)).json()
     missing = _finding(body, _UNIT_WITHOUT_CODE, "missing-code")
     assert missing["field"] == "code"
     assert missing["code"] is None
@@ -350,7 +355,7 @@ async def test_an_organisation_unit_with_no_code_is_reported(live_health_client:
 
 async def test_every_finding_states_what_the_grade_costs(live_health_client: httpx.AsyncClient) -> None:
     """A severity word answers nothing on its own, so each row carries the sentence behind it."""
-    body = (await live_health_client.get(METADATA_HEALTH_PATH)).json()
+    body = (await live_health_client.get(METADATA_HEALTH_ADDRESS)).json()
     assert body["findings"]
     assert all(item["cost"] != "" for item in body["findings"])
 
@@ -359,7 +364,7 @@ async def test_the_answer_states_the_posture_the_severities_were_graded_under(
     live_health_client: httpx.AsyncClient,
 ) -> None:
     """The same name is a blocker under one hostile-names posture and a note under the other."""
-    body = (await live_health_client.get(METADATA_HEALTH_PATH)).json()
+    body = (await live_health_client.get(METADATA_HEALTH_ADDRESS)).json()
     assert body["graded_under"].startswith("not set - ")
     assert body["object_count"] > 0
 
@@ -368,13 +373,13 @@ async def test_the_locales_in_use_are_the_ones_the_selection_carries(
     live_health_client: httpx.AsyncClient,
 ) -> None:
     """No system-settings read: an instance is being maintained in the languages written into it."""
-    body = (await live_health_client.get(METADATA_HEALTH_PATH)).json()
+    body = (await live_health_client.get(METADATA_HEALTH_ADDRESS)).json()
     assert body["translations"]["locales"] == ["fr", "fr-CA", "lo"]
 
 
 async def test_coverage_is_counted_per_locale(live_health_client: httpx.AsyncClient) -> None:
     """Each locale states how many selected objects it covers, for the name and for the form name."""
-    body = (await live_health_client.get(METADATA_HEALTH_PATH)).json()
+    body = (await live_health_client.get(METADATA_HEALTH_ADDRESS)).json()
     per_locale = {row["locale"]: row for row in body["translations"]["per_locale"]}
     assert per_locale["fr"]["name_count"] == 2
     assert per_locale["fr"]["form_name_count"] == 1
@@ -386,7 +391,7 @@ async def test_a_locale_few_objects_carry_states_the_objects_that_carry_it(
     live_health_client: httpx.AsyncClient,
 ) -> None:
     """Three translations out of a whole instance is a short list of carriers, not a wall of absence."""
-    body = (await live_health_client.get(METADATA_HEALTH_PATH)).json()
+    body = (await live_health_client.get(METADATA_HEALTH_ADDRESS)).json()
     per_locale = {row["locale"]: row for row in body["translations"]["per_locale"]}
     assert per_locale["fr"]["standing"] == "sparse"
     assert per_locale["fr"]["missing"] == []
@@ -400,13 +405,13 @@ async def test_the_form_named_denominator_counts_only_objects_dhis2_gives_a_form
     live_health_client: httpx.AsyncClient,
 ) -> None:
     """Nothing to translate is nothing to be short of - a form name is a second string only where there is one."""
-    body = (await live_health_client.get(METADATA_HEALTH_PATH)).json()
+    body = (await live_health_client.get(METADATA_HEALTH_ADDRESS)).json()
     assert body["translations"]["form_named_count"] == 2
 
 
 async def test_no_absent_translation_is_graded_as_a_finding(live_health_client: httpx.AsyncClient) -> None:
     """The severities are the validator's own, and the validator grades names and codes - never a translation."""
-    body = (await live_health_client.get(METADATA_HEALTH_PATH)).json()
+    body = (await live_health_client.get(METADATA_HEALTH_ADDRESS)).json()
     counted = body["counts"]["errors"] + body["counts"]["warnings"] + body["counts"]["infos"]
     assert counted == len(body["findings"])
     assert body["translations"]["locales"] != []
@@ -418,13 +423,13 @@ async def test_the_uiconfig_says_a_live_run_can_report_on_its_instance(
     live_health_client: httpx.AsyncClient,
 ) -> None:
     """The navigation asks the settings rather than following a link to find out."""
-    body = (await live_health_client.get("/uiconfig")).json()
+    body = (await live_health_client.get("/facade/uiconfig")).json()
     assert body["metadata_health"] == {"enabled": True}
 
 
 async def test_the_uiconfig_says_a_compiled_run_cannot(compiled_health_client: httpx.AsyncClient) -> None:
     """A compiled run has no instance to grade, and the settings say so before a page is offered."""
-    body = (await compiled_health_client.get("/uiconfig")).json()
+    body = (await compiled_health_client.get("/facade/uiconfig")).json()
     assert body["metadata_health"] == {"enabled": False}
 
 

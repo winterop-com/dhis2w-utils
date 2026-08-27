@@ -14,7 +14,7 @@ export interface UiConfigState {
  *
  * NO ERROR STATE, ON PURPOSE. Every other read in this app keeps its refusal, because a page that
  * cannot load its data has nothing honest to render. This one has: a server that does not answer
- * `/uiconfig` is an older facade or a proxy that swallowed the path, and the right response to both
+ * `/facade/uiconfig` is an older facade or a proxy that swallowed the path, and the right response to both
  * is the boundary-only map - the same thing the setting's own "none" produces. So a failure falls
  * back to `DEFAULT_UI_CONFIG` and the page carries on drawing shapes rather than reporting that it
  * could not find out which tiles to draw under them.
@@ -23,7 +23,7 @@ export interface UiConfigState {
  * to land rather than constructing a tile-less map and rebuilding it a moment later.
  *
  * `enabled` is what the shell holds the read back with while it does not yet know who this server
- * serves. `/uiconfig` is behind the check under `[serve] auth_scope = "all"`, so reading it before a
+ * serves. `/facade/uiconfig` is behind the check under `[serve] auth_scope = "all"`, so reading it before a
  * credential is in hand would be sending a request this server answers 401 to - see `lib/auth`.
  */
 export function useUiConfig(enabled: boolean = true): UiConfigState {

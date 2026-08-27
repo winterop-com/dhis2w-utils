@@ -8,7 +8,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
  * same server for a 201 - so generate-then-post is the capture round trip with
  * the renderer taken out of it. That makes this spec provable today, and it
  * proves the half the renderer cannot: that a receipt reaches the spool, that
- * `/spool` reports it as `received`, and that the Responses page shows it.
+ * `/facade/spool` reports it as `received`, and that the Responses page shows it.
  *
  * The last describe drives the same loop through the renderer instead, which is
  * how a person performs it.
@@ -116,7 +116,7 @@ test('a generated response posts back and shows up as a received receipt', async
 test('the spool listing states the lifecycle and the counts', async ({ request }) => {
     const receiptId = await generateAndPost(request, AGGREGATE_FORM, 11)
 
-    const listing = await request.get('/spool', { headers: { Accept: 'application/json' } })
+    const listing = await request.get('/facade/spool', { headers: { Accept: 'application/json' } })
     expect(listing.status()).toBe(200)
     const body = (await listing.json()) as {
         total: number
@@ -247,7 +247,7 @@ test.describe('filling a form in the browser', () => {
         page,
         request,
     }) => {
-        const before = (await (await request.get('/spool')).json()) as { total: number }
+        const before = (await (await request.get('/facade/spool')).json()) as { total: number }
 
         await page.goto('/#/forms')
         await page
@@ -275,7 +275,7 @@ test.describe('filling a form in the browser', () => {
         await expect(page).toHaveURL(/#\/responses$/)
         await expect(page.getByRole('row').filter({ hasText: 'Child Health' }).first()).toBeVisible()
 
-        const after = (await (await request.get('/spool')).json()) as { total: number }
+        const after = (await (await request.get('/facade/spool')).json()) as { total: number }
         expect(after.total).toBe(before.total + 1)
     })
 })
@@ -814,7 +814,7 @@ test.describe('a stage form answering for a captured registration', () => {
 
         // The stored stage receipt carries the chosen pair - the spool derives both off the
         // resource, so this is the submission as the forwarder will read it.
-        const listing = await request.get('/spool', { headers: { Accept: 'application/json' } })
+        const listing = await request.get('/facade/spool', { headers: { Accept: 'application/json' } })
         expect(listing.status()).toBe(200)
         const spool = (await listing.json()) as {
             responses: {

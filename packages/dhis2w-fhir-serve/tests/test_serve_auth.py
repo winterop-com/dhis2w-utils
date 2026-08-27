@@ -9,7 +9,7 @@ Two things are checked here that are not about one request at all. The startup r
 than a 401 on every caller; and the DHIS2 validator is checked against `respx` for the one property
 that matters most - the header that leaves this process is the CALLER'S, never the runtime's.
 
-`/whoami` gets a section of its own, because it is the one address whose answer is the posture's
+`/facade/whoami` gets a section of its own, because it is the one address whose answer is the posture's
 verdict rather than a resource. The questions there are what each posture names a caller, that the
 verdict is the same under both scopes, and that a run checking nobody serves no such address at all.
 
@@ -55,7 +55,7 @@ from dhis2w_fhir_serve.passthrough import (
     UpstreamRefusalError,
     open_pass_through_client,
 )
-from dhis2w_fhir_serve.routes import serve_routers
+from dhis2w_fhir_serve.routes import FACADE_MOUNT_PATH, serve_routers
 from dhis2w_fhir_serve.routes.whoami import TOKEN_CALLER_NAME, WHOAMI_PATH, authenticated_caller
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import ResponseSpool, StoredResponseEnvelope
@@ -64,6 +64,10 @@ from fastapi.routing import APIRoute
 
 #: The facade's own address in in-process requests, matching the suite's conftest.
 BASE_URL = "http://serve.test"
+
+#: Where a caller asks to be named. The router states the path relative to the mount it is
+#: included under, and this is that path where a request has to be sent.
+WHOAMI_ADDRESS = f"{FACADE_MOUNT_PATH}{WHOAMI_PATH}"
 
 #: The instance a `dhis2` posture checks its callers against, and the credentials one caller sends.
 INSTANCE_URL = "https://play.example.org/dhis"
@@ -325,7 +329,7 @@ async def test_a_token_capture_records_no_submitter(
             headers={"Authorization": "Bearer first-token"},
         )
         assert created.status_code == 201
-        listing = (await http.get("/spool")).json()
+        listing = (await http.get("/facade/spool")).json()
 
     captured = [row for row in listing["responses"] if row["submitted_by"] is not None]
     assert captured == []
@@ -337,7 +341,13 @@ async def test_a_token_capture_records_no_submitter(
 
 
 #: The addresses a `write` scope leaves open, one per surface it is claimed to leave open.
-OPEN_UNDER_WRITE = ("/metadata", "/Questionnaire", "/Questionnaire/d2-pr-anc-visit-q", "/spool", "/uiconfig")
+OPEN_UNDER_WRITE = (
+    "/metadata",
+    "/Questionnaire",
+    "/Questionnaire/d2-pr-anc-visit-q",
+    "/facade/spool",
+    "/facade/uiconfig",
+)
 
 
 @pytest.mark.parametrize("path", OPEN_UNDER_WRITE)
@@ -378,10 +388,33 @@ async def test_the_all_scope_serves_the_same_reads_once_a_credential_arrives(
             assert (await http.get(path, headers=headers)).status_code == 200
 
 
+@pytest.mark.parametrize("scope", [ServeAuthScope.WRITE, ServeAuthScope.ALL])
+async def test_the_facade_apis_own_contract_is_open_in_every_scope(
+    serving_project: FhirProject, deployment_tokens: None, scope: ServeAuthScope
+) -> None:
+    """`/facade/openapi.json` is the mount's `/metadata`: a contract nobody may read is one nobody can meet.
+
+    It carries no credential in either direction and says nothing a request to the FHIR conformance
+    document does not, so no posture puts a check in front of it - which is what keeps the operations
+    it describes reachable by somebody who has not yet worked out how to authenticate to them.
+    """
+    app = create_app(_settings(serving_project, ServeAuth.TOKEN, scope))
+
+    async with _client(app) as http:
+        contract = await http.get(f"{FACADE_MOUNT_PATH}/openapi.json")
+        page = await http.get(f"{FACADE_MOUNT_PATH}/docs")
+
+    assert contract.status_code == 200
+    assert page.status_code == 200
+    assert contract.json()["servers"] == [
+        {"url": FACADE_MOUNT_PATH, "description": "This facade's own API, beside the FHIR base URL."}
+    ]
+
+
 async def test_the_write_scope_guards_the_create_and_nothing_else_that_posts(
     serving_project: FhirProject, deployment_tokens: None
 ) -> None:
-    """`$generate` and `/evaluate` are POSTs that write nothing, so a write scope leaves both open."""
+    """`$generate` and `/facade/evaluate` are POSTs that write nothing, so a write scope leaves both open."""
     app = create_app(_settings(serving_project, ServeAuth.TOKEN, ServeAuthScope.WRITE))
 
     generated: httpx.Response | None = None
@@ -389,7 +422,7 @@ async def test_the_write_scope_guards_the_create_and_nothing_else_that_posts(
     async with _client(app) as http:
         generated = await http.post("/Questionnaire/d2-pr-anc-visit-q/$generate")
         evaluated = await http.post(
-            "/evaluate",
+            "/facade/evaluate",
             json={"expression": "1 + 1", "language": "fhirpath", "context": {"kind": "inline", "resource": {}}},
         )
 
@@ -411,7 +444,7 @@ def test_the_guarded_set_under_write_is_the_create_route_and_the_one_that_names_
 def test_a_server_that_receives_nothing_still_answers_who_is_asking() -> None:
     """Putting a 405 behind a credential would answer "who are you" where the answer is "nothing is taken".
 
-    `/whoami` stays guarded on such a run, because a client with a credential still has a credential
+    `/facade/whoami` stays guarded on such a run, because a client with a credential still has a credential
     to check - and this address is the only thing on a receive-nothing facade that could check it.
     """
     routers = serve_routers(capture=False, auth=ServeAuth.TOKEN, auth_scope=ServeAuthScope.WRITE)
@@ -427,6 +460,8 @@ def test_the_guarded_set_under_all_is_everything_but_the_conformance_document() 
     guarded = {route.path for router in routers.guarded for route in router.routes if isinstance(route, APIRoute)}
 
     assert "/metadata" not in guarded
+    # The facade routers state their paths relative to the mount they are included under, so these
+    # are the addresses `/facade` serves rather than the ones a caller types.
     assert {"/QuestionnaireResponse", "/spool", "/uiconfig", "/{resource_type}"} <= guarded
 
 
@@ -552,7 +587,7 @@ async def test_two_callers_do_not_share_one_cached_identity(
         async with _client(app) as http:
             await http.post("/QuestionnaireResponse", content=body, headers={"Authorization": CALLER_BASIC})
             await http.post("/QuestionnaireResponse", content=body, headers={"Authorization": other})
-            listing = (await http.get("/spool")).json()
+            listing = (await http.get("/facade/spool")).json()
 
     assert sorted(row["submitted_by"] for row in listing["responses"] if row["submitted_by"]) == ["clerk", "nurse"]
 
@@ -570,7 +605,7 @@ async def test_the_validated_username_lands_on_the_receipt(
             headers={"Authorization": CALLER_BASIC},
         )
         assert created.status_code == 201
-        listing = (await http.get("/spool")).json()
+        listing = (await http.get("/facade/spool")).json()
 
     captured = [row for row in listing["responses"] if row["submitted_by"] is not None]
     assert [row["submitted_by"] for row in captured] == ["clerk"]
@@ -611,7 +646,7 @@ def test_the_dhis2_challenge_is_one_a_browser_hands_back_to_the_page() -> None:
 async def test_a_stale_credential_meets_that_challenge_on_the_capture_itself(
     receiving_project: FhirProject, aggregate_response: dict[str, Any]
 ) -> None:
-    """The case `/whoami` cannot cover: a password changed after somebody signed in, met at the submission."""
+    """The case `/facade/whoami` cannot cover: a password changed after somebody signed in, met at the submission."""
     app = create_app(_settings(receiving_project, ServeAuth.DHIS2, ServeAuthScope.WRITE))
 
     with respx.mock(base_url=INSTANCE_URL) as router:
@@ -651,7 +686,7 @@ async def test_the_none_posture_serves_every_caller(
         created = await http.post("/QuestionnaireResponse", content=json.dumps(aggregate_response))
         assert created.status_code == 201
         assert (await http.get("/metadata")).status_code == 200
-        listing = (await http.get("/spool")).json()
+        listing = (await http.get("/facade/spool")).json()
 
     assert [row for row in listing["responses"] if row["submitted_by"] is not None] == []
 
@@ -663,14 +698,14 @@ async def test_the_posture_crosses_to_the_capture_ui_by_name_and_nothing_else_do
     app = create_app(_settings(serving_project, ServeAuth.TOKEN, ServeAuthScope.WRITE))
 
     async with _client(app) as http:
-        body = (await http.get("/uiconfig")).json()
+        body = (await http.get("/facade/uiconfig")).json()
 
     assert body["auth"] == {"posture": "token", "scope": "write", "issuer": None}
     assert DEPLOYMENT_TOKENS not in str(body)
 
 
 # ---------------------------------------------------------------------------------------------
-# `/whoami`: a verdict on a credential, before anything has been done with it.
+# `/facade/whoami`: a verdict on a credential, before anything has been done with it.
 # ---------------------------------------------------------------------------------------------
 
 
@@ -682,7 +717,7 @@ async def test_the_dhis2_posture_names_the_username_the_instance_gave(
     app = create_app(_settings(serving_project, ServeAuth.DHIS2, scope))
 
     async with _client(app) as http:
-        named = await http.get(WHOAMI_PATH, headers={"Authorization": CALLER_BASIC})
+        named = await http.get(WHOAMI_ADDRESS, headers={"Authorization": CALLER_BASIC})
 
     assert named.status_code == 200
     assert named.json() == {"posture": "dhis2", "username": "clerk", "name": "clerk"}
@@ -699,7 +734,7 @@ async def test_credentials_the_instance_refuses_are_refused_at_this_address_too(
         router.get("/api/me").mock(return_value=httpx.Response(401))
         refused: httpx.Response | None = None
         async with _client(app) as http:
-            refused = await http.get(WHOAMI_PATH, headers={"Authorization": CALLER_BASIC})
+            refused = await http.get(WHOAMI_ADDRESS, headers={"Authorization": CALLER_BASIC})
 
     assert refused is not None
     assert refused.status_code == 401
@@ -715,7 +750,7 @@ async def test_a_request_with_no_credential_at_all_is_refused_at_this_address(
     app = create_app(_settings(serving_project, ServeAuth.DHIS2, ServeAuthScope.WRITE))
 
     async with _client(app) as http:
-        refused = await http.get(WHOAMI_PATH)
+        refused = await http.get(WHOAMI_ADDRESS)
 
     assert refused.status_code == 401
     assert "Basic" in refused.json()["issue"][0]["diagnostics"]
@@ -729,8 +764,8 @@ async def test_the_token_posture_names_a_bearer_rather_than_a_person(
     app = create_app(_settings(serving_project, ServeAuth.TOKEN, scope))
 
     async with _client(app) as http:
-        named = await http.get(WHOAMI_PATH, headers={"Authorization": "Bearer first-token"})
-        refused = await http.get(WHOAMI_PATH, headers={"Authorization": f"Bearer {WRONG_TOKEN}"})
+        named = await http.get(WHOAMI_ADDRESS, headers={"Authorization": "Bearer first-token"})
+        refused = await http.get(WHOAMI_ADDRESS, headers={"Authorization": f"Bearer {WRONG_TOKEN}"})
 
     assert named.status_code == 200
     assert named.json() == {"posture": "token", "username": None, "name": TOKEN_CALLER_NAME}
@@ -746,7 +781,7 @@ async def test_the_none_posture_names_the_missing_posture_rather_than_a_caller(s
     app = create_app(_settings(serving_project, ServeAuth.NONE, ServeAuthScope.ALL))
 
     async with _client(app) as http:
-        asked = await http.get(WHOAMI_PATH)
+        asked = await http.get(WHOAMI_ADDRESS)
 
     assert asked.status_code == 404
     diagnostics = asked.json()["issue"][0]["diagnostics"]

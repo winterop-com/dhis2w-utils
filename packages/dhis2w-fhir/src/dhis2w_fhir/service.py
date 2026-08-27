@@ -938,7 +938,7 @@ async def validate_instance_codes(
 
     The same passes, the same graders, and the same severity grading as the command - what it drops
     is the command's own furniture: no profile to open a connection from, no progress reporter, and
-    no report files. `d2w fhir serve`'s `/metadata-health` is the caller this exists for, and a
+    no report files. `d2w fhir serve`'s `/facade/metadata-health` is the caller this exists for, and a
     finding it answers with is a finding the command names in the same words.
 
     `scope` is a selection the caller already resolved through `resolve_validation_scope`, which
@@ -5897,7 +5897,7 @@ def _record_refusals(spooled: Sequence[SpooledResponse], conversion: ConversionR
 
     The receipt stays in `received/` for the next drain to retry, and until now it read in a
     listing exactly like one no drain had touched. The record beside it - the drain's instant, how
-    many drains have refused it so far, and why - is what lets `/spool` and `d2w fhir spool` say
+    many drains have refused it so far, and why - is what lets `/facade/spool` and `d2w fhir spool` say
     the difference. A dry run writes nothing, exactly as it moves nothing; a terminal refusal is
     filed to `rejected/` instead - see `_file_terminal_refusals`.
     """

@@ -6,7 +6,7 @@ stage's published form describes, and a summary is a projection of that record r
 reading of the instance (`docs/fhir/design/ips.md` section 2, and R3: every read behind a summary is
 scoped to one tracked entity). So this module takes the very `RecordProjection` the record surface
 runs on, projects the events of the mapped stages through it, and reads the doses off the documents
-that come back. A value can therefore never be typed one way at `/tracked-entities/{uid}/events` and
+that come back. A value can therefore never be typed one way at `/facade/tracked-entities/{uid}/events` and
 another inside a summary: there is one projection and this is a reader of it.
 
 WHAT A DOSE IS HERE. `[ips.sections.immunizations]` names the stages and, inside them, the data

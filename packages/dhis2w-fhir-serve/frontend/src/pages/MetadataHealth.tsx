@@ -158,12 +158,19 @@ export function MetadataHealth() {
 }
 
 /**
- * A heading that opens what is under it, in the idiom the Server page's unfoldable rows use.
+ * A heading that opens what is under it.
  *
  * The chevron turns, the button carries `aria-expanded`, and the heading itself is the hit area - so
  * a closed section is one line a reader scans and an open one is the same line with its table
  * beneath. `forced` is the filter: while somebody is typing, everything stands open whatever they
  * clicked before, and their own choices come back the moment the box is cleared.
+ *
+ * THE ROW WEARS `.interactive`, WHICH IS THE WHOLE OF WHAT SAYS IT IS A CONTROL. A heading that is
+ * already foreground ink cannot announce itself by darkening on hover: with nothing but the chevron
+ * to go on, every row on this page reads as a label, and the only way to find out otherwise is to
+ * click one. The class is the app's own answer for a row that opens something - the same wash a
+ * card and a menu row take under the pointer, the pointer cursor, and a focus ring drawn inside the
+ * row so a keyboard walking the page sees one whole stop. `index.css` argues it.
  */
 function Unfoldable({
     heading,
@@ -185,7 +192,7 @@ function Unfoldable({
                 type="button"
                 aria-expanded={unfolded}
                 onClick={() => setOpened(!opened)}
-                className="hover:text-foreground focus-visible:ring-ring/50 -mx-1 flex w-full items-center gap-2 rounded px-1 py-1 text-left focus-visible:ring-[3px] focus-visible:outline-none"
+                className="interactive -mx-1 flex w-full items-center gap-2 rounded px-1 py-1 text-left"
             >
                 {unfolded ? (
                     <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden />

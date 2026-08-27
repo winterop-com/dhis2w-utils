@@ -312,7 +312,7 @@ export function Responses() {
  * and could not be read is a capture that is not going to DHIS2 and is not going to appear anywhere
  * else. So it is stated above the table, with the server's own reason per file.
  *
- * THE COUNT AND THE LIST CAN DISAGREE, and the count is the one believed. `/spool` names the files
+ * THE COUNT AND THE LIST CAN DISAGREE, and the count is the one believed. `/facade/spool` names the files
  * it moved aside on the page it answers; a listing walked over several pages, or a server that
  * counted more than it named, leaves a count with nothing under it - which is still worth saying.
  */

@@ -9,7 +9,7 @@ else, so every read below is FHIR and every code path a real client walks is wal
 3. `Questionnaire/{id}/$generate` - a filled draft answering that form's own rules.
 4. `POST /QuestionnaireResponse` - the draft submitted back as a capture.
 5. `QuestionnaireResponse/{id}` - the receipt, which is the submission as it arrived.
-6. `/spool` - the verdict shape: what is queued, forwarded, rejected, malformed.
+6. `/facade/spool` - the verdict shape: what is queued, forwarded, rejected, malformed.
 
 `$generate` and the POST are deliberately paired: the invariant the operation exists for
 is that its own output is immediately postable, so a client can prove a form is answerable
@@ -86,7 +86,7 @@ async def main() -> None:
         # /spool is the one non-FHIR endpoint a client reads: the queue's own verdict, counted by
         # the state each receipt's file is in. It lives on a lowercase segment so it can never
         # shadow a FHIR resource type.
-        spool = (await client.get("/spool", headers={"Accept": "application/json"})).raise_for_status().json()
+        spool = (await client.get("/facade/spool", headers={"Accept": "application/json"})).raise_for_status().json()
         counts = spool["counts"]
         print(
             f"spool: {spool['total']} total - {counts['received']} not yet sent to DHIS2, "

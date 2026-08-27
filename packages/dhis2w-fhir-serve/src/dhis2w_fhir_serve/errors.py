@@ -318,7 +318,7 @@ class UnknownFilterAttributeError(ServeError):
     the FIELD, and a field this register has no column for is a query nobody could ever satisfy - a
     client that read an empty searchset back would take it as "no women are registered here". So the
     refusal states the attributes this register does filter on, which is the same set `/metadata` and
-    `/uiconfig` declare ahead of the request.
+    `/facade/uiconfig` declare ahead of the request.
     """
 
     status_code = 400

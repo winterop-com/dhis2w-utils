@@ -1,6 +1,6 @@
 """Ask a running facade to evaluate an expression - one FHIRPath call and one CQL call, over plain HTTP.
 
-`POST /evaluate` is the facade's own endpoint, not FHIR: it answers `application/json` with typed
+`POST /facade/evaluate` is the facade's own endpoint, not FHIR: it answers `application/json` with typed
 results and real diagnostics, because a parse error's line and column have nowhere to go in a
 `Parameters` resource. So this needs httpx and a served project, and nothing else - no dhis2w
 package, no DHIS2, no engine install of your own.
@@ -111,13 +111,13 @@ async def main() -> None:
 
 
 async def evaluate(client: httpx.AsyncClient, request: dict[str, Any]) -> dict[str, Any]:
-    """One `POST /evaluate`, raising only when the facade refused the request itself.
+    """One `POST /facade/evaluate`, raising only when the facade refused the request itself.
 
     A bad expression is not a refusal: it answers 200 with its diagnostics. What raises here is a
     request this facade cannot serve at all - a stored resource it does not hold, a register it does
     not publish - which arrives as an OperationOutcome with a 4xx status.
     """
-    answered = await client.post("/evaluate", json=request)
+    answered = await client.post("/facade/evaluate", json=request)
     if answered.status_code != 200:
         print(f"  refused: {answered.text[:300]}")
         answered.raise_for_status()

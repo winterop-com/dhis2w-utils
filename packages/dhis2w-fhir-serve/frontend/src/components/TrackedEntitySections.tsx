@@ -45,7 +45,7 @@ export function TrackedEntitySections({
 }: {
     record: TrackedEntityRecordState
     trackedEntityUid: string
-    /** The DHIS2 instance's address, as `/uiconfig` states it, or null when the run resolved none. */
+    /** The DHIS2 instance's address, as `/facade/uiconfig` states it, or null when the run resolved none. */
     dhis2BaseUrl: string | null
 }) {
     const { person, naming, words } = record

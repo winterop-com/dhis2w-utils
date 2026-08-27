@@ -40,7 +40,7 @@ so anything cached would be stale within seconds of a drain.
   (`load_terminology`, `TerminologyState`, `LookedUpCode`, `ValidatedCode`, `ConceptProperty`).
 - Answer a CDS Hooks invocation with cards built from a CQL library (`CdsService`, `CdsDiscovery`,
   `CdsHookRequest`, `CdsHookResponse`, `CdsCard`, `CqlLibraryHookContext`).
-- Page through the receipts a facade holds the way `GET /spool` pages through them (`page_of`,
+- Page through the receipts a facade holds the way `GET /facade/spool` pages through them (`page_of`,
   `SpoolCursor`, `SpoolPage`, `requested_page_size`, `requested_cursor`).
 - Load a project's served resources without an HTTP server (`load_compiled_store`, `ResourceStore`,
   `SearchQuery`, `IdentifierToken`).
@@ -287,6 +287,15 @@ Every router the facade mounts, with what mounting it requires stated as data: w
 which claim every path of their shape and therefore mount last, and where the runtime state the
 handlers read is written and read back.
 
+Two surfaces, two addresses. The base URL is FHIR's and `/metadata` is its contract; the routers that
+answer about the facade itself are mounted as an application of their own at `FACADE_MOUNT_PATH`
+(`/facade`), which publishes its own OpenAPI document at `/facade/openapi.json` and an interactive
+page at `/facade/docs`. Both stay readable under every `[serve] auth_scope`, for the reason
+`/metadata` does. `/cds-services` is the third family and stays at the base URL, because CDS Hooks
+fixes its discovery path there. An application embedding this facade beside its own routes gets the
+order, the split, and the guarded set as values from `serve_routers`, and mounts the facade API under
+whichever prefix it prefers.
+
 ::: dhis2w_fhir_serve.routes
 
 ::: dhis2w_fhir_serve.routes.context
@@ -307,7 +316,7 @@ agent. `BROWSER_SAFE_BASIC_SCHEME` is the constant.
 
 ::: dhis2w_fhir_serve.auth
 
-### Who the caller is (`GET /whoami`)
+### Who the caller is (`GET /facade/whoami`)
 
 The one address whose whole answer is who this server just decided the caller is. It carries the
 authentication check in **every** scope - `write` guards one route and `all` guards all but
@@ -316,15 +325,15 @@ without doing anything with it. Wrong credentials get the same 401, the same Ope
 the same `WWW-Authenticate` challenge every other refusal on this facade gets.
 
 It names a caller only where `[serve] auth` names a posture. Under `auth = "none"` the address
-answers its own 404 - "this server authenticates nobody, so it names nobody: `/whoami` answers a
+answers its own 404 - "this server authenticates nobody, so it names nobody: `/facade/whoami` answers a
 caller only where `[serve] auth` states a posture" - rather than falling through to the read
 catch-all, which would call `whoami` a resource type nobody asked for.
 
 ```console
-$ curl -su clerk:the-right-password http://127.0.0.1:8095/whoami
+$ curl -su clerk:the-right-password http://127.0.0.1:8095/facade/whoami
 {"posture":"dhis2","username":"clerk","name":"clerk"}
 
-$ curl -su clerk:wrong -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8095/whoami
+$ curl -su clerk:wrong -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8095/facade/whoami
 401
 ```
 
@@ -359,7 +368,7 @@ unparsed, so DHIS2 applies its sharing, organisation unit scopes, ownership, and
 person who actually asked. The reads share one pooled connection held on the runtime for the life of
 the process, and that pool carries no credential of its own - `CallerCredentialReader` is the
 per-request pairing of it with one caller's header, and nothing on the path is cached. The startup
-store build, `/uiconfig`, and the forward drain are not on it: none of them acts on behalf of a
+store build, `/facade/uiconfig`, and the forward drain are not on it: none of them acts on behalf of a
 request. Under `jwt` with `forward_bearer` off there is no caller channel at all, and the register
 answers 501 rather than falling back to the facade's own profile.
 
@@ -386,7 +395,7 @@ data.
 
 ### Spool listing
 
-`GET /spool` - the receipt envelopes with their lifecycle state, and the DHIS2 import report behind
+`GET /facade/spool` - the receipt envelopes with their lifecycle state, and the DHIS2 import report behind
 a rejection. Typed JSON rather than FHIR, because a receipt envelope has no FHIR analogue; the
 module docstring states the reasoning in full.
 
@@ -486,7 +495,7 @@ module docstring says where its half of it sits.
 
 ### Enrollment listing
 
-`GET /tracked-entities/{uid}/enrollments` - which programs one tracked entity is enrolled in, as the
+`GET /facade/tracked-entities/{uid}/enrollments` - which programs one tracked entity is enrolled in, as the
 picker's typed JSON feed rather than as a FHIR resource, because whether a DHIS2 enrollment is an
 `EpisodeOfCare` or a `CarePlan` is a decision this project has deliberately not taken yet.
 
@@ -494,9 +503,9 @@ picker's typed JSON feed rather than as a FHIR resource, because whether a DHIS2
 
 ### The record
 
-`GET /tracked-entities/{uid}/events` - one tracked entity's own events, each served as the
+`GET /facade/tracked-entities/{uid}/events` - one tracked entity's own events, each served as the
 `QuestionnaireResponse` its program stage's published form describes, and `GET
-/tracked-entities/{uid}/events/{eventUid}` for one of them. Where the register answers who somebody
+/facade/tracked-entities/{uid}/events/{eventUid}` for one of them. Where the register answers who somebody
 is, this answers what has happened to them: one entity-scoped read of the instance per request, under
 the credentials of whoever asked. The wire module holds the read and the order it puts the record in,
 and the projection turns one recorded event into the document the capture contract already states for
@@ -555,7 +564,7 @@ loaded store answers the same question with no server running.
 
 ### Evaluating an expression
 
-`POST /evaluate` - one FHIRPath expression, CQL library, or ELM library run over one resource this
+`POST /facade/evaluate` - one FHIRPath expression, CQL library, or ELM library run over one resource this
 facade serves, answering typed results and real diagnostics: a parse failure at the line and column
 the parser stopped on, a per-define refusal in the define's own row. The engine layer is a pure
 function over FHIR-shaped JSON, so a caller with a loaded store evaluates the same expression with no
@@ -581,7 +590,7 @@ terms - so a caller assembling or reading an operation body needs no server runn
 
 ### This guide's vocabularies
 
-`GET /terminology/validate-code` and `GET /terminology/lookup` - is this code in that published value
+`GET /facade/terminology/validate-code` and `GET /facade/terminology/lookup` - is this code in that published value
 set, and what is this code called. It answers about the CodeSystems and ValueSets **this project
 publishes** and is not a general terminology server: a SNOMED CT or LOINC code is answered "this
 server publishes no code system under that url". Membership goes to the engine's in-memory
@@ -594,7 +603,7 @@ because that service takes none through its public surface.
 
 ### Metadata health
 
-`GET /metadata-health` - what the DHIS2 instance behind a live run holds that the guide cannot carry
+`GET /facade/metadata-health` - what the DHIS2 instance behind a live run holds that the guide cannot carry
 cleanly. The findings are `d2w fhir validate`'s own, reread over the connection this process already
 holds, and the translation coverage beside them is this module's: which locales the selection
 carries translations in, how much of it each covers, and which objects are worth naming for it.

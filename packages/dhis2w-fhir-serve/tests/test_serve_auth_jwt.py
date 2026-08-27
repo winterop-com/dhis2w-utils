@@ -61,6 +61,7 @@ from dhis2w_fhir_serve.passthrough import (
     open_pass_through_client,
     register_reader,
 )
+from dhis2w_fhir_serve.routes import FACADE_MOUNT_PATH
 from dhis2w_fhir_serve.routes.whoami import WHOAMI_PATH
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import ResponseSpool, StoredResponseEnvelope
@@ -71,6 +72,10 @@ from starlette.requests import Request
 
 #: The facade's own address in in-process requests, matching the suite's conftest.
 BASE_URL = "http://serve.test"
+
+#: Where a caller asks to be named. The router states the path relative to the mount it is
+#: included under, and this is that path where a request has to be sent.
+WHOAMI_ADDRESS = f"{FACADE_MOUNT_PATH}{WHOAMI_PATH}"
 
 #: The identity provider this deployment federates with, and the two documents it publishes.
 ISSUER = "https://idp.example.org/realms/health"
@@ -564,7 +569,7 @@ async def test_a_capture_records_the_username_the_token_named(
             headers={"Authorization": f"Bearer {issuer.sign()}"},
         )
         assert created.status_code == 201
-        listing = (await http.get("/spool")).json()
+        listing = (await http.get("/facade/spool")).json()
 
     assert [row["submitted_by"] for row in listing["responses"] if row["submitted_by"] is not None] == [CALLER]
 
@@ -576,7 +581,7 @@ async def test_the_issuer_crosses_to_the_capture_ui_and_nothing_else_about_the_t
     app = create_app(_jwt_settings(serving_project))
 
     async with _client(app) as http:
-        body = (await http.get("/uiconfig")).json()
+        body = (await http.get("/facade/uiconfig")).json()
 
     assert body["auth"] == {"posture": "jwt", "scope": "write", "issuer": ISSUER}
     assert AUDIENCE not in json.dumps(body)
@@ -604,7 +609,7 @@ async def test_whoami_names_the_claim_this_server_read_out_of_the_token(
     app = create_app(_jwt_settings(serving_project, auth_scope=scope))
 
     async with _client(app) as http:
-        named = await http.get(WHOAMI_PATH, headers={"Authorization": f"Bearer {issuer.sign()}"})
+        named = await http.get(WHOAMI_ADDRESS, headers={"Authorization": f"Bearer {issuer.sign()}"})
 
     assert named.status_code == 200
     assert named.json() == {"posture": "jwt", "username": CALLER, "name": CALLER}
@@ -617,7 +622,9 @@ async def test_whoami_refuses_a_token_this_issuer_did_not_sign(
     app = create_app(_jwt_settings(serving_project))
 
     async with _client(app) as http:
-        refused = await http.get(WHOAMI_PATH, headers={"Authorization": f"Bearer {issuer.sign(key=issuer.imposter)}"})
+        refused = await http.get(
+            WHOAMI_ADDRESS, headers={"Authorization": f"Bearer {issuer.sign(key=issuer.imposter)}"}
+        )
 
     assert refused.status_code == 401
     assert refused.json()["issue"][0]["code"] == "login"

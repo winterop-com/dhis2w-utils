@@ -1,15 +1,16 @@
-"""`POST /evaluate` - run one FHIRPath expression, CQL library, or ELM library against this facade's data.
+"""`POST /facade/evaluate` - run one FHIRPath expression, CQL library, or ELM library against this facade's data.
 
 WHY THIS SHAPE IS NOT FHIR'S. This endpoint answers a diagnostic, not a document: the line and the
 column a parser stopped on, one row per define whether it answered or refused, and the difference
 between a define that matched nothing and a define that was never run. FHIR has no empty collection
 and `Parameters` has no line number, so this answer is plain `application/json` and Pydantic models -
-`/spool`'s shape for `/spool`'s reasons, a single lowercase segment that no PascalCase resource type
-can shadow, mounted ahead of the read catch-alls. `dhis2w_fhir_serve.routes.spool` argues that
-choice in full, and the capture UI's Evaluate screen is the reader this shape is for.
+`/spool`'s shape for `/spool`'s reasons, served under the facade API's own mount rather than at the
+FHIR base. `dhis2w_fhir_serve.routes.spool` argues that choice in full, and the capture UI's Evaluate
+screen is the reader this shape is for.
 
-`POST /$evaluate` is the wire-true sibling and answers the same evaluation as a `Parameters`
-resource, for a client that speaks operations rather than this project's JSON.
+`POST /$evaluate` at the FHIR base is the wire-true sibling and answers the same evaluation as a
+`Parameters` resource, for a client that speaks operations rather than this project's JSON. It is the
+root's only evaluation spelling, because the root is FHIR's.
 `dhis2w_fhir_serve.routes.evaluate_operation` is that operation, and it resolves its context through
 `evaluation_subject` below - so the two addresses reach exactly the same three resources.
 
@@ -65,8 +66,11 @@ if TYPE_CHECKING:
     from dhis2w_fhir_serve.passthrough import RegisterReader
     from dhis2w_fhir_serve.register.surface import RegisterSurface
 
-#: Where an evaluation is asked for. One lowercase segment, so no FHIR resource type can collide.
+#: Where an evaluation is asked for, under the facade API's mount.
 EVALUATE_PATH = "/evaluate"
+
+#: What this operation is grouped under in the facade API's document.
+EVALUATE_TAG = "Evaluation"
 
 router = APIRouter()
 
@@ -133,7 +137,27 @@ class EvaluationRequest(BaseModel):
     """The resource to evaluate over. Omitted, the expression runs over no resource at all."""
 
 
-@router.post(EVALUATE_PATH)
+@router.post(
+    EVALUATE_PATH,
+    tags=[EVALUATE_TAG],
+    summary="Evaluate an expression or a library",
+    description=(
+        "Runs one FHIRPath expression, CQL library, or compiled ELM library over one resource and "
+        "answers what it produced, one row per define, together with everything that went wrong and "
+        "where.\n\n"
+        "An expression reaches exactly the resource the request named as its context and nothing "
+        "else. There are three ways to name one and no fourth: `stored` reads it out of the served "
+        "guide by type and id, `inline` is the JSON the request carries, and `registered` reads one "
+        "tracked entity out of the DHIS2 instance a live run holds open. Naming no context runs the "
+        "expression over no resource at all.\n\n"
+        "A source that will not parse is a 200 carrying the diagnostic, not a refusal: the request "
+        "was well formed and this server did exactly what it was asked. What answers an "
+        "OperationOutcome is a request this facade cannot serve at all - a stored resource it does "
+        "not hold, a register it does not publish.\n\n"
+        "`POST /$evaluate` at the FHIR base answers the same evaluation as a `Parameters` resource."
+    ),
+    response_description="What each expression or define answered, and every diagnostic the run produced.",
+)
 async def evaluate_expression(request: Request, asked: EvaluationRequest) -> EvaluationOutcome:
     """Evaluate one source over one resource, answering its results and everything that went wrong.
 

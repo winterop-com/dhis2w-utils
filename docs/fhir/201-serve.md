@@ -88,6 +88,17 @@ the one type the facade also receives. The full API surface, with search
 semantics and both operations, is
 [Consume the FHIR API](401-consume-the-fhir-api.md).
 
+One process serves two APIs, and `/metadata` is the contract of the first one
+only. Everything this facade answers about *itself* - the receipts it holds, the
+settings it was started with, the caller it decided on, the expression
+evaluator, the vocabularies, the register listings - is served under `/facade`,
+with a contract of its own at `localhost:8390/facade/openapi.json` and an
+interactive page at `localhost:8390/facade/docs`. A client reading forms and
+posting responses never leaves the base URL; a screen or an operator asking what
+this run is holding reads the mount. The page draws itself from a public CDN, so
+a machine with no route out gets an empty one - the document beside it is this
+server's own bytes and opens in anything.
+
 ## The two modes
 
 | Mode | What the store holds | What it also answers | What it needs |
@@ -115,8 +126,8 @@ read of the store ever talks to DHIS2 again; the connection stays because the
 register routes answer from the instance rather than from the store, and they
 are the only ones that do. `GET /Patient?identifier=` finds one tracked
 entity, `GET /Patient` with no parameters pages through the ones the instance
-holds, `GET /tracked-entities/{uid}/enrollments` lists the programs one of
-them is enrolled in, and `GET /tracked-entities/{uid}/events` answers what has
+holds, `GET /facade/tracked-entities/{uid}/enrollments` lists the programs one of
+them is enrolled in, and `GET /facade/tracked-entities/{uid}/events` answers what has
 happened to one of them - every event of their enrollments, each served as the
 response its program stage's own published form describes. All four are
 documented in
@@ -260,7 +271,7 @@ and a submitted form is refused - which is the shape of a reference server, or
 of a second copy run for reading while one capturing server does the
 collecting. Nothing about the receipts already on disk changes: they are still
 read back at the addresses their senders were given, still searched, still
-counted by `GET /spool`, and still drained by
+counted by `GET /facade/spool`, and still drained by
 [`d2w fhir forward`](201-forward.md). `spool_dir` says which folder those
 receipts live in, and the forwarder reads the same key - so moving the folder
 moves it for both halves of the loop at once.
@@ -481,9 +492,9 @@ a receipt is evidence of a submission, not a view of data.
 That matters because two obvious questions are answered at two addresses:
 
 - *"What did this client send me?"* - the spool, read at
-  `GET /QuestionnaireResponse/{id}` and `GET /spool`.
+  `GET /QuestionnaireResponse/{id}` and `GET /facade/spool`.
 - *"What does DHIS2 hold about this person now?"* - the record, read at
-  `GET /tracked-entities/{uid}/events` on a `--live` run: every event of that
+  `GET /facade/tracked-entities/{uid}/events` on a `--live` run: every event of that
   entity's enrollments, in the same shape and under the same profiles, read from
   the instance while you wait. It is scoped to one tracked entity, so it answers
   "this person" and never "this form, this period, this organisation unit" - the
@@ -615,7 +626,7 @@ To read receipts back, and to read the queue depth without touching the disk:
 ```console
 $ curl -s localhost:8390/QuestionnaireResponse | jq .total
 30
-$ curl -s localhost:8390/spool | jq .counts
+$ curl -s localhost:8390/facade/spool | jq .counts
 {
   "received": 0,
   "forwarded": 28,
@@ -626,26 +637,26 @@ $ curl -s localhost:8390/spool | jq .counts
 ```
 
 `GET /QuestionnaireResponse` counts every receipt whatever state it is in;
-`GET /spool` splits them by directory, which is the envelope the capture UI's
-own pages read. The spool search takes `_id` and `questionnaire`; the
+`GET /facade/spool` splits them by directory, which is the envelope the capture
+UI's own pages read. The spool search takes `_id` and `questionnaire`; the
 definitional types take `_id`, `url`, and `identifier`.
 
 Both reads are paged, with the same two parameters the register listing uses:
 `_count` for how many rows a page carries (50 by default, 500 at most) and
 `page` for a cursor a client only ever gets from a `next` or `previous` link.
-`total` is the whole listing on every page of a walk, and `/spool`'s counts are
-the whole spool rather than the page. `_count=0` is the one value the two read
-differently: on `GET /QuestionnaireResponse` it is R4's request for the total
-alone, answered with a searchset stating how many receipts matched and carrying
-none of them, while `/spool` is this server's own envelope listing and refuses
-it as a page of no rows.
+`total` is the whole listing on every page of a walk, and `/facade/spool`'s
+counts are the whole spool rather than the page. `_count=0` is the one value the
+two read differently: on `GET /QuestionnaireResponse` it is R4's request for the
+total alone, answered with a searchset stating how many receipts matched and
+carrying none of them, while `/facade/spool` is this server's own envelope
+listing and refuses it as a page of no rows.
 
 ```console
-$ curl -s 'localhost:8390/spool?_count=2' | jq '{total, rows: (.responses | length), next: .next_url}'
+$ curl -s 'localhost:8390/facade/spool?_count=2' | jq '{total, rows: (.responses | length), next: .next_url}'
 {
   "total": 29,
   "rows": 2,
-  "next": "http://localhost:8390/spool?_count=2&page=bzJuMjk"
+  "next": "http://localhost:8390/facade/spool?_count=2&page=bzJuMjk"
 }
 ```
 

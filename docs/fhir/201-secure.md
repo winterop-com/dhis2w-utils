@@ -22,7 +22,7 @@ machine can reach while the server starts.
 - read the refusal an unwritten `auth` earns, and say why loopback is the floor
 - pick one of the four postures and state it once, in `fhir.toml`
 - decide how much of the surface the posture covers - `write` or `all`
-- check a credential without spending one, at `GET /whoami`
+- check a credential without spending one, at `GET /facade/whoami`
 - say precisely who the register is read as under `dhis2` and under `jwt`
 
 ## Who the facade serves
@@ -49,6 +49,13 @@ the one address this facade changes anything at, and leaves every read, both
 operations, `/metadata`, and the capture UI open. `all` asks for them
 everywhere except `/metadata`, which stays open in every posture because a
 client has to be able to read how to authenticate to a server before it can.
+
+The facade's own API under `/facade` follows the same scope as the rest: open
+under `write`, credentialed under `all`. Its contract is the exception, for the
+reason `/metadata` is - `/facade/openapi.json` and the page at `/facade/docs`
+are readable in every posture, because a contract nobody may read is a contract
+nobody can meet. Neither carries a credential in either direction, and neither
+says anything `/metadata` does not.
 
 Every posture declares itself. `GET /metadata` carries `rest.security` whether
 this server authenticates everybody, somebody, or nobody - so a client reads
@@ -127,12 +134,12 @@ the instance, exactly as it arrived:
 | `GET /Patient/{uid}` and every other registered type | The caller |
 | `GET /Patient?identifier=...` | The caller |
 | `GET /Patient` (the register listing, and its `_count=0` total) | The caller |
-| `GET /tracked-entities/{uid}/enrollments` | The caller |
-| `GET /tracked-entities/{uid}/events` (the record, and one event of it) | The caller |
+| `GET /facade/tracked-entities/{uid}/enrollments` | The caller |
+| `GET /facade/tracked-entities/{uid}/events` (the record, and one event of it) | The caller |
 | `GET /Patient/{uid}/$summary` and `GET /Patient/$summary?identifier=` | The caller |
-| `POST /evaluate` and `POST /$evaluate` with a `registered` context | The caller |
+| `POST /facade/evaluate` and `POST /$evaluate` with a `registered` context | The caller |
 | The store built at startup | The facade's profile |
-| The instance address `/uiconfig` hands the screens | The facade's profile |
+| The instance address `/facade/uiconfig` hands the screens | The facade's profile |
 | `d2w fhir forward`'s drain | The forwarding profile |
 
 DHIS2 then applies its own five gates - authority, sharing, the data element
@@ -268,8 +275,8 @@ forward_bearer = true       # only when DHIS2 trusts the same issuer
 
 - **False.** The register answers 501, with an OperationOutcome naming both
   halves that would make it answerable. The published guide, the received
-  responses, `$generate`, `/evaluate`, `$evaluate`, and the terminology reads are
-  served exactly as they always were.
+  responses, `$generate`, `/facade/evaluate`, `$evaluate`, and the terminology
+  reads are served exactly as they are on any other run.
 - **True.** A register read carries the caller's own `Bearer` header to the
   instance, verbatim, over the same credential-free pool and by the same opaque
   forward the `dhis2` posture uses. DHIS2 resolves the token to one of its users
@@ -297,10 +304,10 @@ the case that reservation was ever really about.
 
 ## Checking a credential without spending one
 
-Wherever a posture is configured, `GET /whoami` names whoever is calling:
+Wherever a posture is configured, `GET /facade/whoami` names whoever is calling:
 
 ```console
-$ curl -su clerk:the-right-password http://127.0.0.1:8080/whoami
+$ curl -su clerk:the-right-password http://127.0.0.1:8080/facade/whoami
 {"posture":"dhis2","username":"clerk","name":"clerk"}
 ```
 
@@ -312,8 +319,8 @@ facade carries. `username` is the DHIS2 username under `dhis2`, the claim
 `[serve.jwt] username_claim` names under `jwt` - the same value a receipt is
 stamped with - and null under `token`, which names a deployment rather than a
 person. Under `auth = "none"` the address answers 404 saying this server
-authenticates nobody, so it names nobody, and that `/whoami` answers a caller only
-where `[serve] auth` states a posture. It is what the capture UI's sign-in panel
+authenticates nobody, so it names nobody, and that `/facade/whoami` answers a
+caller only where `[serve] auth` states a posture. It is what the capture UI's sign-in panel
 asks before it holds on to anything.
 
 ## What a posture does not decide

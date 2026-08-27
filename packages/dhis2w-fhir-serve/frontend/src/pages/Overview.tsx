@@ -43,7 +43,7 @@ import { cn, countedNoun, formatCount } from '@/lib/utils'
  * else here is context for it: what became of the ones already drained, which forms a new capture
  * can be started from, and which guide this process is actually serving.
  *
- * THREE SECTIONS THAT FAIL SEPARATELY. The spool is read from `GET /spool`, the forms from
+ * THREE SECTIONS THAT FAIL SEPARATELY. The spool is read from `GET /facade/spool`, the forms from
  * `GET /Questionnaire`, the identity from `GET /metadata` - three reads, three `PageState`s. A
  * server that has stopped answering the spool must not blank the form cards, because opening a
  * form is still the useful thing to do; a project that publishes no Questionnaires must not hide

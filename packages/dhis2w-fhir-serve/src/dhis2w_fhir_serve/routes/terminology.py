@@ -1,4 +1,4 @@
-"""`GET /terminology/validate-code` and `GET /terminology/lookup` - asking this guide's own vocabularies.
+"""`GET /facade/terminology/validate-code` and `/facade/terminology/lookup` - asking this guide's vocabularies.
 
 THIS SERVES ONE PROJECT'S VOCABULARIES AND IS NOT A TERMINOLOGY SERVER. It answers about the
 CodeSystems and ValueSets this facade publishes - the option sets its forms bind, the dictionaries
@@ -12,8 +12,9 @@ resource. Neither is implemented here, because implementing them properly means 
 `$expand` behind them and answering for the external systems a real IG composes, which this facade
 cannot do and should not appear to. Two honestly-named plain reads say what they are: this server
 knows its own codes. They are GETs because they read, which also gives them HEAD parity from the
-mount sweep, and they sit on lowercase segments no PascalCase resource type can shadow -
-`/spool`'s shape for `/spool`'s reasons.
+mount sweep, and they are served under the facade API's own mount rather than at the FHIR base -
+`/spool`'s shape for `/spool`'s reasons, at `/spool`'s address. A FHIR base that answered
+`/terminology/lookup` would be claiming a path FHIR has no interaction for.
 
 THE STATE IS BUILT BY THE FIRST QUESTION, not by the lifespan, exactly as the capture state is:
 a facade nobody asks a terminology question of never pays to parse every ValueSet it serves.
@@ -33,14 +34,32 @@ from dhis2w_fhir_serve.terminology import LookedUpCode, TerminologyState, Valida
 #: Where the terminology state is held on the app, built by the first question that needs it.
 TERMINOLOGY_STATE_ATTRIBUTE = "terminology"
 
-#: The two paths this surface answers. Lowercase segments, so no FHIR resource type can collide.
+#: The two paths this surface answers, under the facade API's mount.
 VALIDATE_CODE_PATH = "/terminology/validate-code"
 CODE_LOOKUP_PATH = "/terminology/lookup"
+
+#: What these two operations are grouped under in the facade API's document.
+TERMINOLOGY_TAG = "Terminology"
 
 router = APIRouter()
 
 
-@router.get(VALIDATE_CODE_PATH)
+@router.get(
+    VALIDATE_CODE_PATH,
+    tags=[TERMINOLOGY_TAG],
+    summary="Check a code against this guide",
+    description=(
+        "Answers whether one code is a member of one value set this guide publishes, or - naming a "
+        "system alone - whether it is a code of one system this guide publishes. Naming a value set "
+        "asks the membership question and is what a form binding is checked against; naming neither "
+        "is refused, because a check with nothing to check against would answer false about every "
+        "code there is.\n\n"
+        "This serves one project's vocabularies and is not a terminology server. A SNOMED CT or "
+        "LOINC code is answered `this server publishes no code system under that url`, which is true "
+        "and more useful than a guess."
+    ),
+    response_description="Whether the code holds, and what this server knows about the vocabulary it was checked in.",
+)
 async def validate_code(
     request: Request,
     code: Annotated[str, Query(description="The code to check.")],
@@ -59,7 +78,19 @@ async def validate_code(
     return terminology_state(request).validate_code(code, system=system, valueset=valueset)
 
 
-@router.get(CODE_LOOKUP_PATH)
+@router.get(
+    CODE_LOOKUP_PATH,
+    tags=[TERMINOLOGY_TAG],
+    summary="Look one code up in a published system",
+    description=(
+        "Answers what one code is called in one code system this guide publishes, and what that "
+        "system states about it.\n\n"
+        "A code the guide does not publish answers 200 with `found` false and the reason - the same "
+        "posture `$translate` takes to a concept its maps say nothing about. The question was well "
+        "formed and this is the answer to it."
+    ),
+    response_description="What the published system calls the code, or why this server knows nothing about it.",
+)
 async def look_up_code(
     request: Request,
     system: Annotated[str, Query(description="The code system to look the code up in.")],

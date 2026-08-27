@@ -100,7 +100,7 @@ async def main() -> None:
         type_code = one(answered, "Register Type")
         if type_code is not None:
             checked = await client.get(
-                "/terminology/validate-code",
+                "/facade/terminology/validate-code",
                 params={"system": f"{canonical}/CodeSystem/{TRACKED_ENTITY_TYPE_CODE_SYSTEM}", "code": type_code},
             )
             verdict = checked.raise_for_status().json()
@@ -173,7 +173,7 @@ async def someone(client: httpx.AsyncClient) -> str:
 async def evaluate(client: httpx.AsyncClient, library: str, tracked_entity_uid: str) -> dict[str, Any]:
     """One CQL library over one tracked entity the DHIS2 instance holds."""
     answered = await client.post(
-        "/evaluate",
+        "/facade/evaluate",
         json={
             "language": "cql",
             "source": library,

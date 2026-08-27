@@ -16,6 +16,7 @@ import httpx
 import pytest
 import respx
 from dhis2w_fhir import (
+    FACADE_API_PATH,
     BearerToken,
     EvaluationLanguage,
     FacadeClient,
@@ -425,14 +426,14 @@ async def test_no_credential_sends_no_authorization_header() -> None:
 @respx.mock
 @pytest.mark.asyncio
 async def test_evaluate_posts_plain_json_and_parses_the_outcome() -> None:
-    """`/evaluate` is the facade's own endpoint, not FHIR - it answers `application/json`."""
+    """`/facade/evaluate` is on the facade's own API, not the FHIR surface - it answers `application/json`."""
     answer = {
         "language": "fhirpath",
         "results": [{"name": "expression", "values": ["Ada", "Byron"], "refusal": None}],
         "diagnostics": [],
         "definitions": [],
     }
-    route = respx.post(f"{FACADE_URL}/evaluate").mock(return_value=httpx.Response(200, json=answer))
+    route = respx.post(f"{FACADE_URL}{FACADE_API_PATH}/evaluate").mock(return_value=httpx.Response(200, json=answer))
     async with FacadeClient(FACADE_URL) as facade:
         outcome = await facade.evaluate(
             EvaluationLanguage.FHIRPATH,
@@ -463,7 +464,7 @@ async def test_an_expression_that_will_not_parse_is_an_outcome_not_a_refusal() -
         "diagnostics": [{"kind": "parse", "message": "Syntax error", "line": 1, "column": 18, "expression_name": None}],
         "definitions": [],
     }
-    respx.post(f"{FACADE_URL}/evaluate").mock(return_value=httpx.Response(200, json=answer))
+    respx.post(f"{FACADE_URL}{FACADE_API_PATH}/evaluate").mock(return_value=httpx.Response(200, json=answer))
     async with FacadeClient(FACADE_URL) as facade:
         outcome = await facade.evaluate("fhirpath", "Patient.name..given")
 
@@ -477,7 +478,7 @@ async def test_an_expression_that_will_not_parse_is_an_outcome_not_a_refusal() -
 async def test_evaluate_over_a_typed_resource_dumps_it_for_the_wire() -> None:
     """A caller holding an R4 model should not have to dump it first to name it as the context."""
     answer = {"language": "fhirpath", "results": [], "diagnostics": [], "definitions": []}
-    route = respx.post(f"{FACADE_URL}/evaluate").mock(return_value=httpx.Response(200, json=answer))
+    route = respx.post(f"{FACADE_URL}{FACADE_API_PATH}/evaluate").mock(return_value=httpx.Response(200, json=answer))
     async with FacadeClient(FACADE_URL) as facade:
         await facade.evaluate(
             "fhirpath",

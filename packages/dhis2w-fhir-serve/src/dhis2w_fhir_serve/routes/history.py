@@ -1,9 +1,18 @@
-"""`GET /tracked-entities/{uid}/events` - one tracked entity's own record, read from the instance per request.
+"""`GET /facade/tracked-entities/{uid}/events` - one tracked entity's record, read from the instance per request.
 
 THE REGISTER ANSWERS WHO SOMEBODY IS AND THIS ANSWERS WHAT HAPPENED TO THEM. `GET /{RegisterType}/{uid}`
-serves the identity of one tracked entity; this serves the events of every enrollment that entity
-holds, each as the `QuestionnaireResponse` the guide already publishes for its program stage. Both are
-read from DHIS2 at request time, under the credentials of whoever asked, and neither is cached.
+serves the identity of one tracked entity at the FHIR base; this serves the events of every
+enrollment that entity holds, each as the `QuestionnaireResponse` the guide already publishes for its
+program stage. Both are read from DHIS2 at request time, under the credentials of whoever asked, and
+neither is cached.
+
+IT IS THE FACADE'S ADDRESS AND A FHIR DOCUMENT, WHICH IS NOT A CONTRADICTION. FHIR defines no
+interaction at `/{type}/{uid}/events` - the CapabilityStatement names this address in prose and
+declares nothing at it, exactly as it names `/facade/spool` - so the address belongs to this facade
+and sits under its mount beside the enrollment listing it is the other half of. What comes back is
+still a FHIR searchset Bundle under `application/fhir+json`, so this one router carries the `Accept`
+negotiation the rest of the facade API does not: a client that takes no JSON is refused before it
+runs. `dhis2w_fhir_serve.routes.ServeRouters.negotiated` is that requirement stated as data.
 
 WHY A QuestionnaireResponse AND NOT A CLINICAL RESOURCE. The capture contract states one shape for a
 tracker event, the forwarder writes DHIS2 from that shape, and the instance-sourced example corpus is
@@ -34,7 +43,7 @@ and clamped rather than refused above it; `_count=0` asks how long the record is
 the number and no entries.
 
 **Every entry names the URL its document is really served at.** One event is read at
-`GET /tracked-entities/{uid}/events/{eventUid}`, and that is what the entry's `fullUrl` carries.
+`GET /facade/tracked-entities/{uid}/events/{eventUid}`, and that is what the entry's `fullUrl` carries.
 `QuestionnaireResponse/{id}` on this server is deliberately NOT that URL: that address answers the
 spool, where a resource of that id is a receipt of what a client submitted rather than what DHIS2 now
 holds, and pointing a Bundle entry at it would merge the two.
@@ -90,10 +99,13 @@ from dhis2w_fhir_serve.routes.negotiation import FORMAT_PARAMETER
 from dhis2w_fhir_serve.routes.read import base_url, requested_entry_cap
 from dhis2w_fhir_serve.spool import COUNT_PARAMETER, PAGE_PARAMETER, SpoolCursor, requested_cursor
 
-#: Where the record is served from. Lowercase segments, so no FHIR resource type can collide, and
-#: under the tracked entity whose record it is - the enrollment listing's own address, one level down.
+#: Where the record is served from, under the facade API's mount and under the tracked entity whose
+#: record it is - the enrollment listing's own address, one level down.
 TRACKED_ENTITY_EVENTS_PATH = "/tracked-entities/{tracked_entity_uid}/events"
 TRACKED_ENTITY_EVENT_PATH = "/tracked-entities/{tracked_entity_uid}/events/{event_uid}"
+
+#: What these two operations are grouped under in the facade API's document.
+RECORD_TAG = "Register"
 
 #: What the config refusals name, so a client reads one word for the whole surface.
 EVENTS_SURFACE_NAME = "events"
@@ -108,6 +120,19 @@ ANSWERED_PARAMETERS = (COUNT_PARAMETER, PAGE_PARAMETER)
 router = APIRouter()
 
 
+class FhirJsonResponse(Response):
+    """A response whose media type is FHIR's own, named so the facade API's document can say so.
+
+    The two record routes build their bodies themselves - a Bundle serialised with `exclude_none`, a
+    projected resource dumped by alias - so they answer a `Response` rather than a model. Declaring
+    the class is what tells FastAPI which media type to describe the answer under: without it the
+    contract would say these reads answer `application/json`, which is the one thing about them that
+    is not true.
+    """
+
+    media_type = FHIR_JSON_MEDIA_TYPE
+
+
 class RecordPage(BaseModel):
     """One page of a record: the events on it, and where the pages either side of it are."""
 
@@ -120,13 +145,32 @@ class RecordPage(BaseModel):
     previous_cursor: SpoolCursor | None = None
 
 
-@router.get(TRACKED_ENTITY_EVENTS_PATH)
+@router.get(
+    TRACKED_ENTITY_EVENTS_PATH,
+    tags=[RECORD_TAG],
+    summary="Read one tracked entity's record",
+    description=(
+        "Every event of every enrollment one tracked entity holds, newest first, each as the "
+        "QuestionnaireResponse the program stage's own published form describes - the same shape a "
+        "client posts a capture in, so a form is described once and read back as it was written.\n\n"
+        "The answer is a FHIR searchset `Bundle` under `application/fhir+json`. `total` is every "
+        "event this caller may see, counted under their own credentials; `_count` and `page` walk "
+        "the pages, `_count=0` asks how long the record is, and any other parameter is refused "
+        "rather than ignored. Events of a program stage this guide publishes no form for are counted "
+        "in the total and named in a closing `outcome` entry, because a short answer would read as a "
+        "short record.\n\n"
+        "Live runs only, and gated twice: `[serve.tracked_entities] enabled = false` takes the "
+        "register and this with it, and `events = false` takes this away alone."
+    ),
+    response_class=FhirJsonResponse,
+    responses={200: {"model": Bundle, "description": "One page of the record as a FHIR searchset Bundle."}},
+)
 async def read_tracked_entity_events(request: Request, tracked_entity_uid: str) -> Response:
     """Answer one page of one tracked entity's record, newest event first."""
     reader = await _reader(request)
     _require_answerable_parameters(request)
     record = await _record(reader, tracked_entity_uid)
-    service_base = base_url(request)
+    service_base = record_base_url(request)
     if requested_entry_cap(request.query_params.get(COUNT_PARAMETER)) == 0:
         return _record_length(service_base, tracked_entity_uid, len(record.events))
     count = _requested_count(request)
@@ -145,7 +189,21 @@ async def read_tracked_entity_events(request: Request, tracked_entity_uid: str) 
     return Response(content=bundle.model_dump_json(exclude_none=True, by_alias=True), media_type=FHIR_JSON_MEDIA_TYPE)
 
 
-@router.get(TRACKED_ENTITY_EVENT_PATH)
+@router.get(
+    TRACKED_ENTITY_EVENT_PATH,
+    tags=[RECORD_TAG],
+    summary="Read one event of a record",
+    description=(
+        "One event of one tracked entity's record, as the QuestionnaireResponse its program stage's "
+        "published form describes - which is the document the record page's own entry links to.\n\n"
+        "The event is looked for inside that entity's record rather than read by its own UID, which "
+        "is what keeps the read entity-scoped: an event of somebody else is not this entity's "
+        "record, and answering one here would let a caller walk from a person they may see to an "
+        "event about a person they may not."
+    ),
+    response_class=FhirJsonResponse,
+    responses={200: {"model": QuestionnaireResponse, "description": "The event as the form's own response document."}},
+)
 async def read_tracked_entity_event(request: Request, tracked_entity_uid: str, event_uid: str) -> Response:
     """Answer one event of one tracked entity's record, which is what a page's entry links to.
 
@@ -164,6 +222,19 @@ async def read_tracked_entity_event(request: Request, tracked_entity_uid: str, e
         content=projected.response.model_dump(mode="json", exclude_none=True, by_alias=True),
         media_type=FHIR_JSON_MEDIA_TYPE,
     )
+
+
+def record_base_url(request: Request) -> str:
+    """Where this record is reached from, which is the base URL plus the mount it is served under.
+
+    `request.base_url` is the process's own base - FHIR's - and these routes answer under the facade
+    API's mount beside it, so a link built from the base alone would name an address the FHIR read
+    catch-all answers instead. Starlette states the mount as the request's `root_path`, and it is
+    empty for an application that mounted these routers at its own base URL, which is exactly what
+    such an application's links should then carry.
+    """
+    root_path = str(request.scope.get("root_path", ""))
+    return f"{base_url(request)}{root_path}"
 
 
 async def _reader(request: Request) -> RegisterReader:

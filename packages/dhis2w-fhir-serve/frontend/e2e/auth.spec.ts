@@ -6,7 +6,7 @@ import { expect, test, type Page } from '@playwright/test'
  * WHAT IS REAL HERE AND WHAT IS FULFILLED. The bundle, the shell, the sign-in panel,
  * `sessionStorage`, and every header the browser sends are the real thing, against the real
  * `d2w fhir serve --ui` this suite drives. Three answers are fulfilled: `rest.security` on
- * `/metadata`, `GET /whoami`, and the 401 the create route gives an unsigned caller.
+ * `/metadata`, `GET /facade/whoami`, and the 401 the create route gives an unsigned caller.
  *
  * WHY THOSE TWO. `uiconfig.spec.ts` argues this in full and this file inherits it: the suite drives
  * ONE server process, and `[serve] auth` is a property of how a process was STARTED - one process
@@ -129,7 +129,7 @@ async function servePosture(page: Page, security: unknown): Promise<void> {
 }
 
 /**
- * Answer `GET /whoami` the way a posture-configured server would: 401 unless the credential is the one.
+ * Answer `GET /facade/whoami` the way a posture-configured server would: 401 unless the credential is the one.
  *
  * This is the address the sign-in panel asks before it keeps anything, so the credential the browser
  * puts on it is the credential a person typed - which makes the fulfilment a check of the very thing
@@ -320,7 +320,7 @@ test('a JWT-posture facade names the issuer to get a token from, and sends what 
     await page.getByRole('button', { name: 'Sign in' }).click()
 
     // After signing in: the page is drawn, and the person named is the one the SERVER read out of
-    // the token at `/whoami` - never one this browser decided for itself by opening the token.
+    // the token at `/facade/whoami` - never one this browser decided for itself by opening the token.
     await expect(page.getByText(`This server takes a token from ${ISSUER}`)).toHaveCount(0)
     await expect(page.getByText(USERNAME)).toBeVisible()
 

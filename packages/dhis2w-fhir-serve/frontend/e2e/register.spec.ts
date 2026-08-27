@@ -18,7 +18,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
  * THE LIVE CASE FULFILS THREE ROUTES AND NOTHING ELSE, on the idiom uiconfig.spec.ts established:
  * `/metadata` is fetched from the real server and the Patient entry a live process would have
  * declared is pushed onto it, so every other page in the app still reads the real document; and
- * `/Patient` and `/tracked-entities/{uid}/enrollments` answer the shapes
+ * `/Patient` and `/facade/tracked-entities/{uid}/enrollments` answer the shapes
  * `dhis2w_fhir_serve.register.projection` and `routes.enrollments` emit, which the pytest suite
  * over those routes is what pins. What is under test here is the browser: the search, the choice,
  * the questions it takes away, and the marker the submission carries. The submission itself goes to
@@ -257,7 +257,7 @@ async function serveALiveInstance(page: Page): Promise<void> {
 const EVENT_AT = '2026-02-14T00:00:00Z'
 
 /**
- * What one person has been through, as `GET /tracked-entities/{uid}/events` answers it.
+ * What one person has been through, as `GET /facade/tracked-entities/{uid}/events` answers it.
  *
  * One QuestionnaireResponse per DHIS2 event, carrying the stage form it answered and the date -
  * which are the two facts the record renders. The answers ride along in the real shape and are not
@@ -267,7 +267,7 @@ const EVENTS = {
     resourceType: 'Bundle',
     type: 'searchset',
     total: 1,
-    link: [{ relation: 'self', url: `/tracked-entities/${PERSON_UID}/events?_count=20` }],
+    link: [{ relation: 'self', url: `/facade/tracked-entities/${PERSON_UID}/events?_count=20` }],
     entry: [
         {
             resource: {
@@ -409,7 +409,7 @@ async function serveAUnionRegister(page: Page): Promise<void> {
 }
 
 /**
- * Answer `/uiconfig` with what this run offers about the instance's tracked entities.
+ * Answer `/facade/uiconfig` with what this run offers about the instance's tracked entities.
  *
  * Fulfilled for the same reason uiconfig.spec.ts fulfils it: the suite drives ONE server process,
  * and "a run that offers no register" and "a run that offers one" cannot both be true of it. The
@@ -472,7 +472,7 @@ interface StoredReceipt {
 
 /** The newest stored receipt answering one form, read off the real spool and then read back whole. */
 async function newestReceipt(request: APIRequestContext, questionnaireId: string): Promise<StoredReceipt> {
-    const listing = await request.get('/spool', { headers: { Accept: 'application/json' } })
+    const listing = await request.get('/facade/spool', { headers: { Accept: 'application/json' } })
     expect(listing.status(), await listing.text()).toBe(200)
     const spool = (await listing.json()) as {
         responses: { response_id: string; questionnaire_id?: string | null; received_at: string }[]
@@ -710,7 +710,7 @@ test.describe('a person-only registration form', () => {
  * Browsing the people the instance holds - the one page in this app that reads somebody's database.
  *
  * THE SETTINGS ARE FULFILLED AND THE GUIDE IS REAL, which is the split that makes these claims
- * worth making. `/uiconfig` and the person routes answer here, because the fixture server holds no
+ * worth making. `/facade/uiconfig` and the person routes answer here, because the fixture server holds no
  * DHIS2 instance; everything the page joins those answers to is read from the real server - the
  * published `D2TEA_CS` is what turns `TeaBirthDat` into "Date of birth", and the real person-only
  * form is what turns `TetPerson01` into "Person". So a naming join that broke against what the
@@ -1022,7 +1022,7 @@ test.describe('the people this DHIS2 instance holds', () => {
 
     test('offers the types a union register serves, and narrows the whole page to one', async ({ page }) => {
         // ONE RESOURCE IS ONE REGISTER OVER THE UNION OF ITS TRACKED ENTITY TYPES. The chips are the
-        // server's own declaration of that union - `/uiconfig` names the types and `/metadata`
+        // server's own declaration of that union - `/facade/uiconfig` names the types and `/metadata`
         // documents the same set under `_tag` - and choosing one narrows the listing, the search, and
         // the address alike, because they are three views of one register rather than three filters.
         await serveRegisterSettings(page, { enabled: true, listing: true, registers: [UNION_REGISTER] })

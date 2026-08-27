@@ -1,4 +1,4 @@
-"""`GET /tracked-entities/{uid}/enrollments` - which programs one tracked entity is enrolled in, for the picker.
+"""`GET /facade/tracked-entities/{uid}/enrollments` - which programs one tracked entity is enrolled in.
 
 WHY THIS IS NOT A FHIR RESOURCE. A DHIS2 enrollment is one tracked entity's participation in a program, and
 FHIR has two candidate resources for that - `EpisodeOfCare` and `CarePlan` - which mean different
@@ -8,9 +8,9 @@ feed, would settle by accident a question that deserves settling on purpose. So 
 typed JSON on a path of its own, and the day the decision lands it becomes a resource without
 having had to un-publish one first.
 
-SO IT IS `/spool`'s AND `/uiconfig`'s SHAPE, FOR THEIR REASONS. Plain `application/json`, Pydantic
-models rather than a Bundle, on lowercase segments no FHIR resource type can collide with, mounted
-ahead of the read catch-alls. `dhis2w_fhir_serve.routes.spool` argues that choice in full.
+SO IT IS `/spool`'s AND `/uiconfig`'s SHAPE, FOR THEIR REASONS, AT THEIR ADDRESS. Plain
+`application/json`, Pydantic models rather than a Bundle, served under the facade API's own mount
+rather than at the FHIR base. `dhis2w_fhir_serve.routes.spool` argues that choice in full.
 
 WHAT IT IS FOR. A capture client that has found a subject still has to answer a stage form against
 one of that subject's enrollments, and the enrollment UID is what the response carries. This is the
@@ -65,8 +65,11 @@ if TYPE_CHECKING:
 
     from dhis2w_fhir_serve.register.index import TrackedEntityIndex
 
-#: Where the listing is served from. Lowercase segments, so no FHIR resource type can collide.
+#: Where the listing is served from, under the facade API's mount.
 TRACKED_ENTITY_ENROLLMENTS_PATH = "/tracked-entities/{tracked_entity_uid}/enrollments"
+
+#: What this operation is grouped under in the facade API's document.
+REGISTER_TAG = "Register"
 
 #: What the live-only refusals name, so a client reads one word for the whole listing.
 ENROLLMENTS_SURFACE_NAME = "enrollments"
@@ -110,7 +113,25 @@ class TrackedEntityEnrollments(BaseModel):
     enrollments: list[TrackedEntityEnrollment] = Field(default_factory=list)
 
 
-@router.get(TRACKED_ENTITY_ENROLLMENTS_PATH)
+@router.get(
+    TRACKED_ENTITY_ENROLLMENTS_PATH,
+    tags=[REGISTER_TAG],
+    summary="List one tracked entity's enrollments",
+    description=(
+        "The programs one tracked entity is enrolled in, read off the entity itself in the order "
+        "DHIS2 returned them, with the names this project's guide publishes for the program and the "
+        "organisation unit joined on. This is what a capture client picks an enrollment from before "
+        "answering a program stage's form.\n\n"
+        "A completed or cancelled enrollment is listed and said to be completed or cancelled: DHIS2 "
+        "accepts an event into one with no error and no warning, so hiding it would hide data the "
+        "instance is perfectly willing to be given. `active` is the field to grade a picker on.\n\n"
+        "Live runs only. A run serving a compiled guide has no instance to read, and "
+        "`[serve.tracked_entities] enabled = false` takes this away with the rest of the register. "
+        'Under `[serve] auth = "dhis2"` the entity is read with the caller\'s own `Authorization`, '
+        "so a caller who may not see that person is told by DHIS2 that there is nobody there."
+    ),
+    response_description="Every enrollment the entity holds, or an OperationOutcome naming why there is none to read.",
+)
 async def read_tracked_entity_enrollments(request: Request, tracked_entity_uid: str) -> TrackedEntityEnrollments:
     """List the programs one tracked entity is enrolled in, read off the entity itself."""
     surface = serve_context(request).register_surface

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { apiFetch, FhirRequestError } from '@/lib/api'
+import { apiFetch, FACADE_BASE_PATH, FhirRequestError } from '@/lib/api'
 import {
     bundleResources,
     canonicalId,
@@ -11,12 +11,12 @@ import {
 } from '@/lib/fhir'
 
 /**
- * What one tracked entity has been through, as `GET /tracked-entities/{uid}/events` answers it.
+ * What one tracked entity has been through, as `GET /facade/tracked-entities/{uid}/events` answers it.
  *
  * ONE QUESTIONNAIRERESPONSE PER DHIS2 EVENT, of every enrollment the entity holds - the record
- * beside the identity `/{resource}/{uid}` answers and the enrollments `/tracked-entities/{uid}/
- * enrollments` answers. `/metadata` documents the route under the register's own resource, which is
- * where a FHIR client reads that it exists at all.
+ * beside the identity `/{resource}/{uid}` answers and the enrollments
+ * `/facade/tracked-entities/{uid}/enrollments` answers. `/metadata` names the address under the
+ * register's own resource and `/facade/openapi.json` describes it in full.
  *
  * WHY THE ROWS ARE NOT THE RESPONSES. A served event carries its answers, and a page listing what
  * somebody has been through wants the two facts that place an event - which stage form it answered,
@@ -106,7 +106,7 @@ export function useTrackedEntityEvents(trackedEntityUid: string | null): Tracked
  */
 async function readTrackedEntityEvents(trackedEntityUid: string): Promise<Bundle<QuestionnaireResponse>> {
     const path =
-        `/tracked-entities/${encodeURIComponent(trackedEntityUid)}/events` +
+        `${FACADE_BASE_PATH}/tracked-entities/${encodeURIComponent(trackedEntityUid)}/events` +
         `?_count=${String(TRACKED_ENTITY_EVENT_PAGE_SIZE)}`
     const response = await apiFetch(path, { cache: 'no-store' })
     const body: unknown = await response.json().catch(() => null)

@@ -4,7 +4,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
  * The Overview: the root route, and whether its numbers are the server's numbers.
  *
  * WHAT IS WORTH PROVING HERE is not that the cards render - it is that the count on a tile is
- * the count `GET /spool` reports, and that clicking one lands on the Responses table already
+ * the count `GET /facade/spool` reports, and that clicking one lands on the Responses table already
  * narrowed to that state. A dashboard whose headline number is computed from a different read
  * than the page it links to is the classic way this kind of screen goes quietly wrong.
  *
@@ -22,7 +22,7 @@ const FHIR_JSON = 'application/fhir+json'
 async function spoolCounts(
     request: APIRequestContext,
 ): Promise<{ received: number; forwarded: number; rejected: number }> {
-    const listing = await request.get('/spool', { headers: { Accept: 'application/json' } })
+    const listing = await request.get('/facade/spool', { headers: { Accept: 'application/json' } })
     expect(listing.status()).toBe(200)
     const body = (await listing.json()) as {
         counts: { received: number; forwarded: number; rejected: number }

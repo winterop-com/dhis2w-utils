@@ -10055,6 +10055,11 @@ Serve the project&#x27;s IG as a FHIR read and capture facade over HTTP.
 
 Reads answer from what the IG publishes.
 
+Two APIs answer. FHIR is at the base URL and its contract is the CapabilityStatement at
+`/metadata`; this facade&#x27;s own controls - the receipts, the settings, the caller, the evaluator,
+the vocabularies, the register listings - are at `/facade`, described by the OpenAPI document at
+`/facade/openapi.json` and browsable at `/facade/docs`.
+
 Received QuestionnaireResponses are stored as receipts, so reading one back says what was submitted.
 
 `--live` builds the store from the instance at startup, as the profile `d2w -p` names.

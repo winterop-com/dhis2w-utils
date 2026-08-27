@@ -507,7 +507,7 @@ async def test_the_surface_switched_off_refuses_every_route_it_covers(
         await listing_client.get("/Patient"),
         await listing_client.get("/Patient?identifier=PerAaa00001"),
         await listing_client.get("/Patient/PerAaa00001"),
-        await listing_client.get("/tracked-entities/PerAaa00001/enrollments"),
+        await listing_client.get("/facade/tracked-entities/PerAaa00001/enrollments"),
     ]
 
     assert [response.status_code for response in responses] == [404, 404, 404, 404]

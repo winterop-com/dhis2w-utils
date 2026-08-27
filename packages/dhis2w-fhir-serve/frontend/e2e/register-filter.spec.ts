@@ -6,10 +6,10 @@ import { expect, test, type Page } from '@playwright/test'
  * THE SECOND QUESTION THIS REGISTER ANSWERS. The box at the top of the page asks who somebody is -
  * `identifier`, over the values DHIS2 declares unique - and this asks which of them hold one
  * attribute's value: `d2-attribute={uid}|{value}`, matched exactly. `/metadata` documents the
- * grammar and `/uiconfig` states the attributes it answers over, so the control is drawn from the
+ * grammar and `/facade/uiconfig` states the attributes it answers over, so the control is drawn from the
  * server's own declaration rather than from a list this browser keeps.
  *
- * WHAT IS FULFILLED AND WHAT IS REAL, on the idiom register.spec.ts established. `/uiconfig`,
+ * WHAT IS FULFILLED AND WHAT IS REAL, on the idiom register.spec.ts established. `/facade/uiconfig`,
  * `/metadata` and `/Patient` are answered here, because the fixture server serves a compiled guide
  * and holds no DHIS2 instance. The vocabulary behind the coded control is the real one: the fixture
  * project publishes `d2-os-OsSex000001`, whose concept codes are DHIS2 option UIDs and whose

@@ -80,7 +80,7 @@ export function Server() {
 
     const rest = capability?.rest?.[0]
     const operations = declaredOperations(capability)
-    // The posture comes off `/uiconfig` rather than off the document above, because the scope is a
+    // The posture comes off `/facade/uiconfig` rather than off the document above, because the scope is a
     // fact `/metadata` states only in prose - see `lib/uiconfig`.
     const uiConfig = useUiConfig().config
     const authentication = authSettings(uiConfig)

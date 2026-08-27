@@ -49,7 +49,7 @@ import { TrackedEntityDetail } from '@/pages/TrackedEntityDetail'
  *
  * `/tracked-entities` and its detail route are the two that can be offered or
  * not: the register is mounted only by a run that reaches a DHIS2 instance, so
- * both pages read `/uiconfig` and send a reader to the overview when this run
+ * both pages read `/facade/uiconfig` and send a reader to the overview when this run
  * offers no register. The route table stays whole either way, because whether a
  * page exists is a fact about the running server rather than about the bundle.
  *

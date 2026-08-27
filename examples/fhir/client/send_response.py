@@ -69,7 +69,9 @@ async def main() -> None:
 
         # Not yet sent to DHIS2 is a state of its own, and it is the one this receipt is in.
         counts = (
-            (await client.get("/spool", headers={"Accept": "application/json"})).raise_for_status().json()["counts"]
+            (await client.get("/facade/spool", headers={"Accept": "application/json"}))
+            .raise_for_status()
+            .json()["counts"]
         )
         print(f"  the queue now holds {counts['received']} submission(s) not yet sent to DHIS2")
         print("  run `d2w fhir forward --import` in the project directory to send them")

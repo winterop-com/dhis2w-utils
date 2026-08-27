@@ -12,27 +12,25 @@ import tailwindcss from '@tailwindcss/vite'
 // runs `make build-frontend` before packaging. A committed bundle would only be
 // a second copy of the same bytes, going stale between rebuilds.
 //
-// The dev server proxies every guarded FHIR path to a running `d2w fhir serve`,
-// so the UI in dev talks to the same routes it will talk to in production. The
-// list is the router table of dhis2w_fhir_serve.routes, not a guess: /metadata
-// plus the resource types the read catch-alls answer for. The register serves
-// as many resource types as a published D2TET_CM names, so a project serving one
-// this list omits adds it here for its own dev server - production needs no such
-// list, since the server owns every path ahead of the static mount.
+// The dev server proxies every path the facade claims to a running `d2w fhir
+// serve`, so the UI in dev talks to the same routes it will talk to in
+// production. The list is the router table of dhis2w_fhir_serve.routes, not a
+// guess: /metadata and the resource types the read catch-alls answer for,
+// /cds-services, and the /facade mount that carries this server's own API -
+// everything under one prefix, which is why one entry covers the receipts, the
+// settings, the caller, the evaluator, the vocabularies, and the register
+// listings alike. The register serves as many resource types as a published
+// D2TET_CM names, so a project serving one this list omits adds it here for its
+// own dev server - production needs no such list, since the server owns every
+// path ahead of the static mount.
 //
 // `base: './'` would break nothing here, but '/' is what the server mounts at
 // and keeps asset URLs stable however deep a hash route goes.
 const target = process.env.VITE_SERVE_TARGET ?? 'http://127.0.0.1:8080'
 const proxiedPaths = [
     '/metadata',
-    '/metadata-health',
-    '/spool',
-    '/uiconfig',
-    '/whoami',
-    '/tracked-entities',
-    '/evaluate',
+    '/facade',
     '/$evaluate',
-    '/terminology',
     '/cds-services',
     '/Patient',
     '/Specimen',

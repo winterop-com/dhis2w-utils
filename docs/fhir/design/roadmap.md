@@ -1723,13 +1723,13 @@ described, and the git history is where it was built. What is left:
   at 225/225/0. The output leg has started, on its identity half: `--live`
   answers `GET /{RegisterType}?identifier=` for a tracked entity somebody can name,
   `GET /{RegisterType}` as a paged listing for a client that cannot, and
-  `GET /tracked-entities/{uid}/enrollments` for the programmes one entity is in -
+  `GET /facade/tracked-entities/{uid}/enrollments` for the programmes one entity is in -
   where `{RegisterType}` is whatever the published `D2TET_CM` map says each tracked
   entity type is served as, `Patient` being only the default. Each is read from the
   instance per request, and
   each offered or withheld by `[serve.tracked_entities]`, whose defaults offer everything and
   whose reason to exist is the deployment that wants less. The tracker half of the
-  data leg is served beside them: `GET /tracked-entities/{uid}/events` answers one
+  data leg is served beside them: `GET /facade/tracked-entities/{uid}/events` answers one
   entity's own events as the QuestionnaireResponses their programme stages'
   published forms describe, so a FHIR client can round-trip a tracker event -
   capture through the guide, read back through the guide, without ever speaking the
@@ -1741,7 +1741,7 @@ described, and the git history is where it was built. What is left:
   yet.
 
 - **The record on the screens.** The facade serves it -
-  `GET /tracked-entities/{uid}/events`, entity-scoped throughout, each event as
+  `GET /facade/tracked-entities/{uid}/events`, entity-scoped throughout, each event as
   the response its stage's own form describes - and the capture UI does not draw
   it. The owner's framing is the shape of the screen: browse the register, open
   one entity, get its history. Two things sit beside that work: the enrollment

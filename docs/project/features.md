@@ -1508,6 +1508,19 @@ semantics `generate` uses.
 `d2w fhir serve` is the second verb over the same project: a FastAPI facade
 bound to loopback by default that loads the project once at startup.
 
+- **Two APIs in one process.** The base URL is FHIR's - the reads and searches,
+  the capture POST, and the declared operations `$generate`, `$translate`,
+  `$summary`, and `$evaluate` - and `/metadata` is the whole of its contract.
+  Everything the facade answers about **itself** is a separate API mounted at
+  `/facade`, with its own OpenAPI document at `/facade/openapi.json` and an
+  interactive page at `/facade/docs`: `/facade/whoami`, `/facade/spool`,
+  `/facade/uiconfig`, `/facade/metadata-health`, `/facade/evaluate`, the two
+  `/facade/terminology` reads, and the tracked-entity enrollment listing and
+  record. `/cds-services` is neither: CDS Hooks fixes discovery at
+  `{base}/cds-services` the way FHIR fixes `{base}/metadata`, so it sits at the
+  base URL beside FHIR. The document and its page are readable in every
+  `auth_scope`, for the reason `/metadata` is - a contract nobody may read is a
+  contract nobody can meet.
 - **The store** is the compiled `ig/fsh-generated/resources` merged with the
   predefined `ig/input/resources/{registry,terminology,categories}` tree SUSHI
   never re-emits. With `--live` it is the same read set built straight off a
@@ -1575,14 +1588,15 @@ bound to loopback by default that loads the project once at startup.
   break-the-glass audit entry.
 - **`[serve] auth_scope` says how much the posture covers.** `write` - the
   default - guards `POST /QuestionnaireResponse` and nothing else, which is the
-  facade's whole state-changing surface: `$generate`, `/evaluate`, `$evaluate`,
+  facade's whole state-changing surface: `$generate`, `/facade/evaluate`, `$evaluate`,
   and a CDS Hooks call are POSTs that write nothing. `all` guards every router but
   `/metadata`, which stays open in every posture so a client can read the posture
-  it has to meet; the capture UI's own files stay open too.
-- **`GET /whoami` names the caller, and carries the check under every scope.**
+  it has to meet; `/facade/openapi.json` and `/facade/docs` stay open for the
+  same reason, and the capture UI's own files stay open too.
+- **`GET /facade/whoami` names the caller, and carries the check under every scope.**
   A caller is named only where a posture is configured: under `auth = "none"` the
   address answers 404 saying this server authenticates nobody, so it names nobody,
-  and that `/whoami` answers a caller only where `[serve] auth` states a posture -
+  and that `/facade/whoami` answers a caller only where `[serve] auth` states a posture -
   the address's own refusal rather than the read catch-all calling `whoami` a
   resource type nobody asked for. It answers `{posture, username, name}`: the DHIS2 username under `dhis2`, the
   `[serve.jwt] username_claim` claim under `jwt`, and no username at all under
@@ -1598,7 +1612,7 @@ bound to loopback by default that loads the project once at startup.
   by `Accept` or user agent.
 - **`dhis2` forwards the caller's credentials on every register read.** The
   tracked entity read, the identifier search, the register listing and its
-  counts, the enrollment listing, and the registered context of `/evaluate` and
+  counts, the enrollment listing, and the registered context of `/facade/evaluate` and
   `$evaluate` are sent
   to DHIS2 carrying the caller's own `Authorization` header, verbatim and
   unparsed, over a pooled connection the process holds open with no credential
@@ -1616,7 +1630,7 @@ bound to loopback by default that loads the project once at startup.
   credentials is answered in either scope, checked on the spot through the same
   cache.
 - **The facade's own profile still answers the work no caller asked for.** The
-  startup store build, the instance address `/uiconfig` hands the capture
+  startup store build, the instance address `/facade/uiconfig` hands the capture
   screens, and `d2w fhir forward`'s drain read and write as the facade's (or the
   forwarding) profile in every posture, because none of them acts on behalf of a
   request - so least privilege still applies to that profile, and under `none`
@@ -1676,7 +1690,7 @@ bound to loopback by default that loads the project once at startup.
   and the drainer cannot land on two directories.
 - **Content negotiation.** Every FHIR route answers `application/fhir+json`; an
   `Accept` that rules JSON out is a 406 naming the one format served, while
-  `/spool`, `/uiconfig`, `/metadata-health`, `/evaluate`, `/terminology/*`, and
+  `/facade/spool`, `/facade/uiconfig`, `/facade/metadata-health`, `/facade/evaluate`, `/facade/terminology/*`, and
   `/cds-services` negotiate nothing. `POST /` is a 405 saying the facade runs no batch and no
   transaction.
 - **`_format` as R4 defines it.** `_format=json`, `_format=application/json`,
@@ -1688,7 +1702,7 @@ bound to loopback by default that loads the project once at startup.
 
 #### Evaluating, terminology, and CDS Hooks
 
-- **`POST /evaluate`** runs one FHIRPath expression, CQL library, or compiled
+- **`POST /facade/evaluate`** runs one FHIRPath expression, CQL library, or compiled
   ELM library over a resource this facade serves - one from the guide by type
   and id, one posted inline, or one tracked entity read from the DHIS2 instance
   a live run holds open. It answers typed results, one row per CQL define, and
@@ -1707,11 +1721,11 @@ bound to loopback by default that loads the project once at startup.
   under a definition this project defines - because what it runs over is
   whichever resource the request names, so no resource type owns it. A
   `Parameters` body naming `language`, `source`, `expression`, and a `context`
-  of the same three kinds is canonical; the plain `/evaluate` body is read at the
+  of the same three kinds is canonical; the plain `/facade/evaluate` body is read at the
   same address for a caller who already has one. A define that matched nothing
   carries no parameter, because FHIR has no empty collection - which is what
-  `/evaluate`'s own shape exists to keep.
-- **`GET /terminology/validate-code`** and **`GET /terminology/lookup`** answer
+  `/facade/evaluate`'s own shape exists to keep.
+- **`GET /facade/terminology/validate-code`** and **`GET /facade/terminology/lookup`** answer
   about the CodeSystems and ValueSets this project publishes: is this code in
   that set, and what is this code called. It is not a terminology server, and
   says so - a SNOMED CT or LOINC code is answered "this server publishes no
@@ -1834,7 +1848,7 @@ reads that table.
 - **What each register filters on is declared per register, in two places.**
   `/metadata` names the attributes in the `d2-attribute` `searchParam`'s
   documentation - each with its name, its DHIS2 value type, and the canonical of
-  the published ValueSet where DHIS2 binds an option set - and `/uiconfig` carries
+  the published ValueSet where DHIS2 binds an option set - and `/facade/uiconfig` carries
   the same set as values under `tracked_entities.registers[].filter_attributes[]`,
   so a screen draws a select over a coded attribute and a box over the rest. Each
   entry names the tracked entity types that declare it under `types[]`, so a screen
@@ -1909,7 +1923,7 @@ reads that table.
   extensions, and the nominated demographics where the resource is one R4 gives
   them - a served `Specimen` states no `Specimen.type`, and no name, and no
   birth date, whatever anybody nominated about people.
-- **`GET /tracked-entities/{uid}/enrollments`** is the picker's feed: typed
+- **`GET /facade/tracked-entities/{uid}/enrollments`** is the picker's feed: typed
   JSON rather than a FHIR resource, because EpisodeOfCare-versus-CarePlan is
   still an open decision. It lists enrollment uid, program uid and the name the
   guide publishes it under, status, `active`, `enrolledAt`, and the
@@ -1918,7 +1932,7 @@ reads that table.
   claiming the person does not exist), with a COMPLETED enrollment listed and
   marked rather than hidden (BUGS.md 70: DHIS2 takes events into one without a
   word).
-- **`GET /tracked-entities/{uid}/events`** is the record: every event of that
+- **`GET /facade/tracked-entities/{uid}/events`** is the record: every event of that
   entity's enrollments, newest first, each served as the `QuestionnaireResponse`
   its program stage's own published form describes - the stage's canonical as
   `questionnaire`, the entity as `subject` under the resource type the published
@@ -1935,7 +1949,7 @@ reads that table.
   and any other parameter is refused rather than ignored. An event of a stage the
   guide publishes no form for counts in the total, carries no document, and is
   named in an `outcome` entry. One event is read at
-  `GET /tracked-entities/{uid}/events/{eventUid}`, which is what each entry's
+  `GET /facade/tracked-entities/{uid}/events/{eventUid}`, which is what each entry's
   `fullUrl` points at - never `QuestionnaireResponse/{id}`, which answers the
   spool's receipts. `[serve.tracked_entities] events = false` refuses the record
   and leaves identity served.
@@ -1969,7 +1983,7 @@ reads that table.
   `[ips.sections.immunizations]` mapped. Nothing is invented to fill a section: an
   unmapped stage does not become a free-text Observation.
 - **Nothing new is read.** The subject is the register's own projection and the
-  doses come off the record projection `GET /tracked-entities/{uid}/events` runs
+  doses come off the record projection `GET /facade/tracked-entities/{uid}/events` runs
   on, so a value cannot be typed one way in the record and another inside a
   summary. A summary with no mapped section reads no record at all, which is why
   `[serve.tracked_entities] events` is checked only where one is mapped.
@@ -2120,7 +2134,7 @@ in phases that stop at the first level to find an error.
   tree lives.
 - **The served lifecycle names the spool's fourth state**: a receipt
   `d2w fhir withdraw` retracted is read out of `withdrawn/`, counted by
-  `GET /spool`, and carries the record of the delete on its row - the event
+  `GET /facade/spool`, and carries the record of the delete on its row - the event
   UID, the instant, and what the instance keeps - which is the one sidecar
   that is not an import report. The receipt still reads back at
   `GET /QuestionnaireResponse/{id}`, because retracting data from an instance
@@ -2136,7 +2150,7 @@ in phases that stop at the first level to find an error.
   then does with the marker is the corrections design's later slices.
 - **A translator-refused receipt says so in the listing**: a committing drain
   writes `<id>.refusal.json` beside a receipt it refused and left queued - the
-  drain's instant, an attempt count, and the reasons - and `/spool` rows and
+  drain's instant, an attempt count, and the reasons - and `/facade/spool` rows and
   the Responses page state it, so a receipt every drain refuses reads
   differently from one no drain has touched. The move that finally drains the
   receipt deletes the marker, and so does `d2w fhir requeue` - a receipt
@@ -2155,10 +2169,11 @@ in phases that stop at the first level to find an error.
   listing's own idiom: `_count` for the page size (50 by default, 500 at most)
   and an opaque `page` cursor a client only ever gets from a `next` or
   `previous` link, with `total` the whole listing on every page of a walk and
-  `/spool`'s per-state counts the whole spool rather than the page. So a facade
+  `/facade/spool`'s per-state counts the whole spool rather than the page. So a facade
   holding ten thousand receipts answers a page of them and pays the per-row
   projection for that page alone.
-- **`GET /spool` is the one endpoint that is deliberately not FHIR**: it
+- **`GET /facade/spool` is deliberately not FHIR**, which is why it is on the
+  facade's own API rather than at the base URL: it
   answers typed JSON carrying the receipt envelopes - the instant each
   submission was accepted, its form kind, its warnings, its lifecycle state,
   and the DHIS2 import report stored beside a rejection - none of which are
@@ -2288,7 +2303,7 @@ implementation of it.
   facade and must not, and the read catch-alls that mount after every fixed path.
   `accept_head_wherever_get_is_served` is the HEAD parity a liveness probe needs.
   `d2w fhir serve` is the first caller of all of it.
-- **The UI is not on this surface.** The capture bundle and `/uiconfig` exist so
+- **The UI is not on this surface.** The capture bundle and `/facade/uiconfig` exist so
   the browser can work and are reached by running the server with `[serve] ui`;
   `create_app` is the only thing that mounts them, and `UiBundleMissingError` is
   the one name of theirs the package publishes, because `create_app` raises it.
@@ -2322,7 +2337,7 @@ shipped inside the wheel.
   DHIS2 username and password, in place of the page rather than over it - so the
   app never sends a request this server would answer 401 to, and a browser never
   gets the chance to open a credential dialog of its own over ours.
-- **Submitting the panel asks `GET /whoami` with what was typed, and stores
+- **Submitting the panel asks `GET /facade/whoami` with what was typed, and stores
   nothing until the server names the caller.** A wrong password is refused at the
   prompt - "DHIS2 did not accept this username and password." under the DHIS2
   posture, "This server did not accept this token." under the other two - with
@@ -2331,7 +2346,7 @@ shipped inside the wheel.
   not credentials that were rejected. Without the check the default `write` scope
   leaves every read open, so the first thing that would refuse a wrong password
   is a submission somebody spent minutes filling in.
-- **The name that is kept is the server's, never what was typed.** `/whoami`
+- **The name that is kept is the server's, never what was typed.** `/facade/whoami`
   answers the DHIS2 instance's own spelling of the username under `dhis2` and the
   claim the server read out of the token under `jwt`; the token posture names
   nobody, and the header names nobody for it.
@@ -2343,7 +2358,7 @@ shipped inside the wheel.
   submission, dropped rather than signed with again, and the prompt returns with
   the same sentence. The header names whoever is signed in and offers **Sign
   out**, which forgets the credential and the name and asks again.
-- **The Server page states the posture and its scope**, off `/uiconfig`'s `auth`,
+- **The Server page states the posture and its scope**, off `/facade/uiconfig`'s `auth`,
   beside the `rest.security` description the conformance document carries.
 
 #### Overview
@@ -2558,7 +2573,7 @@ control per R4 item type.
   arriving on nothing, and an enrollment attribute writes the same store the
   person already carries the value in.
 - **The person's existing enrollments** are listed beneath from
-  `GET /tracked-entities/{uid}/enrollments`: program name where the guide
+  `GET /facade/tracked-entities/{uid}/enrollments`: program name where the guide
   publishes one, the status in one human spelling with `active` stated in words
   beside it, the enrolment date, the organisation unit - and a completed one
   carrying the warning that DHIS2 takes new events into it without complaint.
@@ -2604,7 +2619,7 @@ control per R4 item type.
   left unanswered by `$generate`. One rule held on both sides of the wire: the
   capture index carries `readOnly`, the synthesizer declines to draw for it,
   and the validator admits its absence even where the form marks it required.
-- **The form screens gate their Submit on the `capture` flag `/uiconfig`
+- **The form screens gate their Submit on the `capture` flag `/facade/uiconfig`
   carries.** False, and a form still opens, fills, and reads, with *This server
   does not accept submissions* where the button was. Silence is read as
   receiving, so an unanswered settings read never withholds the one control the
@@ -2618,7 +2633,7 @@ control per R4 item type.
   is in (received, forwarded, rejected), tinted by shared theme tokens,
   filterable by state or form, the state chips carrying the counts so the queue
   depth is on screen.
-- **A Quarantined section above the table** states what `/spool` counted as
+- **A Quarantined section above the table** states what `/facade/spool` counted as
   `malformed` and names each file with the reason the facade could not read it
   as a receipt. It is not a fifth state and has no row in the table - a
   quarantined file has no form, no answers, and no id to open - so it is said
@@ -2727,7 +2742,7 @@ control per R4 item type.
   defaulting to one OpenStreetMap entry, with `basemaps = []` for the
   self-contained boundary-only canvas and repeatable `--basemap Name=url` /
   `--basemap none` overriding per run. The UI reads it from a typed
-  `GET /uiconfig` endpoint carrying only what the browser may know.
+  `GET /facade/uiconfig` endpoint carrying only what the browser may know.
 - **A layers control** in the corner stack lists each configured layer plus
   **None** and swaps the raster source in place on a choice, so the camera, the
   selection, and the popup survive a switch and the boundaries restyle for the
@@ -2785,7 +2800,7 @@ an identifier search and a paged listing on one page, with a detail route at
   search of its own. Typing into the box replaces the entry rather than pushing
   one, so Back leaves the page instead of unwinding the keystrokes.
 
-- **Gated into the navigation** by the `tracked_entities` block `GET /uiconfig`
+- **Gated into the navigation** by the `tracked_entities` block `GET /facade/uiconfig`
   carries beside the `capture` flag - `enabled`, `listing`, and `registers` -
   all three effective rather than as written, so a compiled run reports false
   and no entry is drawn.
@@ -2817,7 +2832,7 @@ an identifier search and a paged listing on one page, with a detail route at
   titled *Specimen batch* rather than `Specimen` on the same rule.
 - **A register over several tracked entity types offers the choice between
   them.** A chip group above the table - **All**, then one per type under the
-  name `/uiconfig` states for it - narrows the listing, the search, and the
+  name `/facade/uiconfig` states for it - narrows the listing, the search, and the
   address at once: the reads carry `_tag=<uid>`, R4's own token search over the
   `meta.tag` a served register resource states its type in, and the address
   carries `?type=<uid>` beside `?q=`, so a narrowed register is a sendable link.
@@ -2825,7 +2840,7 @@ an identifier search and a paged listing on one page, with a detail route at
   again at the server's first page, because a page token names a place inside a
   scope.
 - **A register can be asked which of its entities hold an attribute value.**
-  `/uiconfig` states the attributes `d2-attribute` answers over per register,
+  `/facade/uiconfig` states the attributes `d2-attribute` answers over per register,
   with the DHIS2 value type of each and the ValueSet a coded one draws from; the
   control beside the type chips picks one of them and takes its value - a choice
   over the published vocabulary where one is bound, a date or number or plain
@@ -2856,7 +2871,7 @@ an identifier search and a paged listing on one page, with a detail route at
   record. A total is shown only where DHIS2 stated one. The record carries the
   subject's identifiers, attribute values in the same proportional face the
   listing sets them in, its enrollments with a completed one warned (BUGS.md
-  70), and what it has been through: `GET /tracked-entities/{uid}/events` read
+  70), and what it has been through: `GET /facade/tracked-entities/{uid}/events` read
   as one row per DHIS2 event, named by the published title of the stage form it
   answered, with the date DHIS2 dates it - and the register's own words for an
   instance holding none.
@@ -2939,13 +2954,13 @@ an identifier search and a paged listing on one page, with a detail route at
   against a running 2.43.2), with `rel="noreferrer noopener"` and an accessible
   name stating which object and where it goes.
 - **The address is the base url of the profile the serve run resolved**, served
-  on `/uiconfig` with any userinfo stripped - so a run that resolved no profile
+  on `/facade/uiconfig` with any userinfo stripped - so a run that resolved no profile
   carries no links at all, rather than a link that goes nowhere.
 
 #### Metadata health
 
-- **`/metadata-health` is the `d2w fhir validate` analysis rendered over the
-  served selection**, off a `GET /metadata-health` endpoint that reruns the
+- **`/facade/metadata-health` is the `d2w fhir validate` analysis rendered over the
+  served selection**, off a `GET /facade/metadata-health` endpoint that reruns the
   validator over the connection the process already holds - the same passes, the
   same graders, and the same sentence per finding, so one defect read in a
   terminal and read in a browser is one defect.
@@ -2953,7 +2968,7 @@ an identifier search and a paged listing on one page, with a detail route at
   every run: a process with no DHIS2 instance behind it answers
   `available: false` with the reason in words, because "there is nothing here to
   check and here is why" is a state a screen renders rather than a status code it
-  has to interpret. `/uiconfig` carries the same fact as
+  has to interpret. `/facade/uiconfig` carries the same fact as
   `metadata_health.enabled`, so the navigation entry is drawn only where the page
   has something to show.
 - **Findings are shelved by severity first and DHIS2 collection second**, each
@@ -3217,7 +3232,7 @@ Each response goes through `dhis2w_fhir.conversion` all-or-nothing.
   beside an atomically written `<id>.report.json` holding its import outcome -
   a rejection needs one to say why it was refused, and an acceptance needs one
   because the import counts are what say how much of it landed, which
-  `GET /spool` then carries on the row as `imported`.
+  `GET /facade/spool` then carries on the row as `imported`.
 - **A conversion-refused receipt stays in `received/` untouched**, because the
   fix for it is in the guide or in the data and the next run is the retry -
   except the one refusal no fix could ever reach.
@@ -3678,8 +3693,9 @@ refusal text a mistake produces, captured from real misconfigured runs.
   check about them, and the required-question and numeric-bound rules.
 - [Consume the FHIR API](../fhir/401-consume-the-fhir-api.md) - the
   served read set and searches, `$translate` and `$generate` with real requests
-  and responses, the capture POST with its validation phases, and the two
-  non-FHIR endpoints `/spool` and `/uiconfig`.
+  and responses, the capture POST with its validation phases, and the facade's
+  own API under `/facade` - `/facade/spool` and `/facade/uiconfig` among them,
+  with its contract at `/facade/openapi.json`.
 - [Identifiers and the D2 extensions](../fhir/401-identifiers-and-extensions.md) -
   the `D2Period` and `D2AttributeValue` extensions, the identifier families,
   NamingSystems, and the UID fall-back rules.

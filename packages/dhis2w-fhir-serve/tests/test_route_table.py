@@ -25,7 +25,13 @@ from dhis2w_fhir.config import FhirProject, SearchBackend, SearchConfig, ServeAu
 from dhis2w_fhir_serve import capability as capability_module
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.errors import NotFoundError, register_error_handlers
-from dhis2w_fhir_serve.routes import accept_head_wherever_get_is_served, serve_routers
+from dhis2w_fhir_serve.routes import (
+    FACADE_MOUNT_PATH,
+    accept_head_wherever_get_is_served,
+    api_routes,
+    build_facade_api,
+    serve_routers,
+)
 from dhis2w_fhir_serve.routes import capture as capture_route_module
 from dhis2w_fhir_serve.routes.negotiation import require_json_is_acceptable
 from dhis2w_fhir_serve.runtime import attach_serve_runtime, open_serve_runtime
@@ -52,15 +58,17 @@ class MountedRoute(BaseModel):
 
 def _route_table(app: FastAPI) -> tuple[MountedRoute, ...]:
     """Every route an application serves, in the order its table was built."""
-    return tuple(
-        MountedRoute(path=route.path, methods=tuple(sorted(route.methods or ())))
-        for route in app.routes
-        if isinstance(route, APIRoute)
-    )
+    return tuple(MountedRoute(path=route.path, methods=tuple(sorted(route.methods or ()))) for route in api_routes(app))
 
 
 def _embedded_app(capture: bool = True, authentication: Any = None) -> FastAPI:
     """An application that mounts the facade's routers itself, in the order `ServeRouters` states.
+
+    The four groups are mounted the way the factory mounts them: FHIR under the negotiation at the
+    base URL, CDS Hooks beside it without one, this facade's own API under `/facade` as an
+    application of its own, and the catch-alls last. `build_facade_api` is what makes that mount an
+    API with a contract rather than a prefix, which is why an embedder wanting the controls calls it
+    rather than assembling one.
 
     `authentication` is the seam an embedding application uses: the guarded set is a value, and what
     is mounted over it is the caller's choice. Passing None mounts nothing, which is what a `none`
@@ -73,11 +81,16 @@ def _embedded_app(capture: bool = True, authentication: Any = None) -> FastAPI:
         accept_head_wherever_get_is_served(router)
     for router in routers.fhir:
         app.include_router(router, dependencies=[Depends(require_json_is_acceptable)])
-    for router in routers.facade:
+    for router in routers.cds_hooks:
         app.include_router(router)
+    app.mount(FACADE_MOUNT_PATH, build_facade_api(routers, authentication=_nothing, state=app.state))
     app.include_router(routers.read, dependencies=[Depends(require_json_is_acceptable)])
     _ = authentication
     return app
+
+
+async def _nothing() -> None:
+    """The check an embedder mounts when it authenticates nobody, so the mount is still one call."""
 
 
 @pytest.fixture(autouse=True)
@@ -105,33 +118,91 @@ def test_the_factory_mounts_what_serve_routers_states(compiled_project: FhirProj
 
 
 def test_the_read_catch_alls_mount_last(compiled_project: FhirProject) -> None:
-    """`/{resource_type}` claims any one-segment path, so every fixed path is claimed before it."""
-    table = _route_table(create_app(ServeSettings(project_dir=compiled_project.project_root)))
-    catch_alls = tuple(row for row in table if "{resource_type}" in row.path)
+    """`/{resource_type}` claims any one-segment path, so every fixed path is claimed before it.
 
+    Which paths those are comes off the read router itself rather than off the shape of a path: the
+    summary operation is `/{resource_type}/{tracked_entity_uid}/$summary`, which reads like a
+    catch-all and is a fixed path that has to mount ahead of them.
+    """
+    table = _route_table(create_app(ServeSettings(project_dir=compiled_project.project_root)))
+    claimed = {route.path for route in serve_routers().read.routes if isinstance(route, APIRoute)}
+    catch_alls = tuple(row for row in table if row.path in claimed)
+
+    assert catch_alls != ()
     assert catch_alls == table[-len(catch_alls) :]
 
 
-def test_the_fhir_routers_carry_the_negotiation_and_the_facade_routers_do_not() -> None:
-    """The split is stated once, as data: a client that takes no JSON is refused before the FHIR surface runs."""
+def test_the_groups_are_the_two_surfaces_and_the_specification_beside_them() -> None:
+    """The split is stated once, as data: what is FHIR, what is CDS Hooks, and what is this facade's own.
+
+    The facade paths are the ones the routers carry, which are relative to the mount: where the group
+    is mounted is the mounting application's to decide, and `/facade` is where this package's own
+    factory decides it.
+    """
     routers = serve_routers()
     fhir_paths = {route.path for router in routers.fhir for route in router.routes if isinstance(route, APIRoute)}
+    cds_paths = {route.path for router in routers.cds_hooks for route in router.routes if isinstance(route, APIRoute)}
     facade_paths = {route.path for router in routers.facade for route in router.routes if isinstance(route, APIRoute)}
 
     assert "/metadata" in fhir_paths
+    assert cds_paths == {"/cds-services", "/cds-services/{service_id}"}
     assert facade_paths == {
         "/whoami",
         "/spool",
         "/uiconfig",
         "/metadata-health",
         "/tracked-entities/{tracked_entity_uid}/enrollments",
+        "/tracked-entities/{tracked_entity_uid}/events",
+        "/tracked-entities/{tracked_entity_uid}/events/{event_uid}",
         "/evaluate",
         "/terminology/validate-code",
         "/terminology/lookup",
-        "/cds-services",
-        "/cds-services/{service_id}",
     }
     assert fhir_paths & facade_paths == set()
+
+
+def test_the_record_is_the_one_facade_router_that_negotiates() -> None:
+    """It answers a FHIR Bundle at an address FHIR declares no interaction for, so it carries both facts."""
+    routers = serve_routers()
+    negotiated = {route.path for router in routers.negotiated for route in router.routes if isinstance(route, APIRoute)}
+
+    assert negotiated == {
+        "/tracked-entities/{tracked_entity_uid}/events",
+        "/tracked-entities/{tracked_entity_uid}/events/{event_uid}",
+    }
+    assert all(routers.is_negotiated(router) is False for router in routers.fhir)
+
+
+def test_the_facade_api_publishes_a_document_of_exactly_what_it_serves() -> None:
+    """The mount's whole point: an OpenAPI contract naming every operation once, and its own base URL."""
+    routers = serve_routers()
+    for router in routers.in_mount_order():
+        accept_head_wherever_get_is_served(router)
+    document = build_facade_api(routers, authentication=_nothing).openapi()
+
+    assert document["servers"] == [
+        {"url": FACADE_MOUNT_PATH, "description": "This facade's own API, beside the FHIR base URL."}
+    ]
+    assert set(document["paths"]) == {
+        "/whoami",
+        "/spool",
+        "/uiconfig",
+        "/metadata-health",
+        "/tracked-entities/{tracked_entity_uid}/enrollments",
+        "/tracked-entities/{tracked_entity_uid}/events",
+        "/tracked-entities/{tracked_entity_uid}/events/{event_uid}",
+        "/evaluate",
+        "/terminology/validate-code",
+        "/terminology/lookup",
+    }
+    # Every read answers HEAD, and none of them is described twice for it: a contract states an
+    # operation, and HEAD is the same operation with the body withheld.
+    assert all("head" not in operations for operations in document["paths"].values())
+    for path, operations in document["paths"].items():
+        for method, operation in operations.items():
+            assert operation["summary"], f"{method.upper()} {path} has no summary"
+            assert operation["description"], f"{method.upper()} {path} has no description"
+            assert operation["tags"], f"{method.upper()} {path} is under no tag"
 
 
 async def test_the_guarded_set_is_a_value_an_embedding_application_reads(

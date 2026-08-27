@@ -1,5 +1,5 @@
 /**
- * What `GET /uiconfig` answers: the run-time settings this UI has to act on.
+ * What `GET /facade/uiconfig` answers: the run-time settings this UI has to act on.
  *
  * Not FHIR, and deliberately tiny. Everything else the app renders it reads out of the served
  * guide; this is the one class of fact that is about how the process was *started* rather than
@@ -127,7 +127,7 @@ export interface TrackedEntitiesSettings {
 }
 
 /**
- * How this run decides who is calling, as `/uiconfig` states it: the posture, and how much it covers.
+ * How this run decides who is calling, as `/facade/uiconfig` states it: the posture, and how much it covers.
  *
  * THE NAME AND NOTHING ELSE. No token, no realm, no username, no signing key. `posture` is what a
  * screen would draw a prompt from, `scope` is whether browsing needs a credential or only submitting
@@ -215,7 +215,7 @@ export const PEOPLE_RESOURCE_TYPE = 'Patient'
  * an offer. A navigation entry, a page, and a route guard all ask this and get the same answer.
  *
  * A live server always states the object, so silence means one of two things: something in front of
- * this server swallowed `/uiconfig`, or the read failed and `DEFAULT_UI_CONFIG` is what is being
+ * this server swallowed `/facade/uiconfig`, or the read failed and `DEFAULT_UI_CONFIG` is what is being
  * asked. Both are states in which nothing is known about the register routes, and offering a page
  * that might answer a refusal is worse than offering none - so the answer is the same as a server
  * that stated it offers nothing.

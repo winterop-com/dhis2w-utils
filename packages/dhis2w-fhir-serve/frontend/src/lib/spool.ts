@@ -1,5 +1,5 @@
 /**
- * The receipt spool as `GET /spool` answers it - the one non-FHIR shape this UI reads.
+ * The receipt spool as `GET /facade/spool` answers it - the one non-FHIR shape this UI reads.
  *
  * WHY THIS IS NOT IN lib/fhir.ts. Everything in that module is an R4 resource
  * served as `application/fhir+json`. This is not: it is the receipt *envelope*
@@ -253,7 +253,7 @@ export const EMPTY_SPOOL: SpoolListing = {
     counts: { received: 0, forwarded: 0, rejected: 0, withdrawn: 0, malformed: 0 },
     responses: [],
     malformed: [],
-    self_url: '/spool',
+    self_url: '/facade/spool',
     previous_url: null,
     next_url: null,
 }

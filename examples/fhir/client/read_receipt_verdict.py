@@ -7,7 +7,7 @@ until a drain moves it, and a drain moves it to `forwarded` when DHIS2 took the 
 receipt disappears at any point - it stays readable in every state, because expiring the id a
 client was handed at capture time would break that client on a schedule nothing told it about.
 
-`GET /spool` is a plain JSON listing, not a FHIR search, and that is a decision rather than an
+`GET /facade/spool` is a plain JSON listing, not a FHIR search, and that is a decision rather than an
 oversight. The receipts themselves are `GET /QuestionnaireResponse` and always have been. What that
 search cannot carry is the *envelope*: which state the receipt is in, what the facade had to warn
 about, and the DHIS2 import counts or error rows the forwarder left beside it. None of those are
@@ -51,7 +51,7 @@ async def main() -> None:
     """Read the queue's verdict on every receipt, then read one receipt back in whatever state it is in."""
     async with httpx.AsyncClient(base_url=served_facade(), timeout=30.0) as client:
         listing = (
-            (await client.get("/spool", params={"_count": 50}, headers={"Accept": "application/json"}))
+            (await client.get("/facade/spool", params={"_count": 50}, headers={"Accept": "application/json"}))
             .raise_for_status()
             .json()
         )

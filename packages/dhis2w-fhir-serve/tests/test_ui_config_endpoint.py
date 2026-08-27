@@ -1,4 +1,4 @@
-"""`GET /uiconfig` - the run-time settings the capture UI acts on, and what it refuses to carry.
+"""`GET /facade/uiconfig` - the run-time settings the capture UI acts on, and what it refuses to carry.
 
 The endpoint exists because three things the UI renders are not properties of the served guide:
 which raster layers the organisation-unit map may draw under the boundaries, which DHIS2 instance
@@ -20,6 +20,7 @@ from dhis2w_fhir.config import DEFAULT_BASEMAP_TEMPLATE, BasemapSource, FhirProj
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.register.index import TrackedEntityIndex
 from dhis2w_fhir_serve.register.surface import RegisterSurface
+from dhis2w_fhir_serve.routes import FACADE_MOUNT_PATH
 from dhis2w_fhir_serve.routes.uiconfig import (
     OPENSTREETMAP_ATTRIBUTION,
     UI_CONFIG_PATH,
@@ -43,6 +44,10 @@ from fixture_project import (
     SPECIMEN_TRACKED_ENTITY_TYPE_UID,
     SPECIMEN_UNIQUE_ATTRIBUTE,
 )
+
+#: Where the settings are read. The router states the path relative to the mount it is included
+#: under, and this is that path where a request has to be sent.
+UI_CONFIG_ADDRESS = f"{FACADE_MOUNT_PATH}{UI_CONFIG_PATH}"
 
 #: The layers the app under test is started with unless a test overrides the `basemaps` fixture.
 OPENSTREETMAP_LAYERS = [BasemapSource(name="OpenStreetMap", url=DEFAULT_BASEMAP_TEMPLATE)]
@@ -85,7 +90,7 @@ async def test_the_default_answers_the_openstreetmap_layer_with_its_attribution(
     ui_config_client: httpx.AsyncClient,
 ) -> None:
     """A project stating nothing gets tiles, because a boundary on a blank canvas says where nothing is."""
-    response = await ui_config_client.get(UI_CONFIG_PATH)
+    response = await ui_config_client.get(UI_CONFIG_ADDRESS)
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("application/json")
@@ -103,7 +108,7 @@ async def test_no_configured_layer_is_served_as_an_empty_list_rather_than_as_an_
     ui_config_client: httpx.AsyncClient,
 ) -> None:
     """`basemaps = []` is the air-gapped posture: the map's layer control then offers None alone."""
-    assert (await ui_config_client.get(UI_CONFIG_PATH)).json()["basemaps"] == []
+    assert (await ui_config_client.get(UI_CONFIG_ADDRESS)).json()["basemaps"] == []
 
 
 @pytest.mark.parametrize(
@@ -119,7 +124,7 @@ async def test_the_layers_are_served_in_the_order_they_were_configured(
     ui_config_client: httpx.AsyncClient,
 ) -> None:
     """The order is the deployment's own statement of which layer the map opens with - the first."""
-    served = (await ui_config_client.get(UI_CONFIG_PATH)).json()["basemaps"]
+    served = (await ui_config_client.get(UI_CONFIG_ADDRESS)).json()["basemaps"]
 
     assert [layer["name"] for layer in served] == ["OpenStreetMap", "Satellite"]
     # Crediting somebody else's tiles is the deployment's obligation; inventing a credit is worse.
@@ -131,7 +136,7 @@ async def test_a_resolved_profile_puts_its_instance_address_where_the_screens_ca
     ui_config_client: httpx.AsyncClient,
 ) -> None:
     """The address is the whole of what makes a link; the profile's name and credentials stay here."""
-    body = (await ui_config_client.get(UI_CONFIG_PATH)).json()
+    body = (await ui_config_client.get(UI_CONFIG_ADDRESS)).json()
 
     assert body["dhis2_base_url"] == "https://play.example.org/dhis"
 
@@ -140,14 +145,14 @@ async def test_no_resolved_profile_is_served_as_null_rather_than_as_a_guess(
     ui_config_client: httpx.AsyncClient,
 ) -> None:
     """A compiled guide on a machine that names no profile has nowhere honest to point, and says so."""
-    assert (await ui_config_client.get(UI_CONFIG_PATH)).json()["dhis2_base_url"] is None
+    assert (await ui_config_client.get(UI_CONFIG_ADDRESS)).json()["dhis2_base_url"] is None
 
 
 async def test_the_settings_carry_nothing_a_browser_has_no_business_knowing(
     ui_config_client: httpx.AsyncClient,
 ) -> None:
     """The model is the enumeration of what the UI acts on, and the omissions are the point."""
-    body = (await ui_config_client.get(UI_CONFIG_PATH)).json()
+    body = (await ui_config_client.get(UI_CONFIG_ADDRESS)).json()
 
     assert set(body) == {"auth", "capture", "basemaps", "dhis2_base_url", "tracked_entities", "metadata_health"}
     assert set(body["auth"]) == {"posture", "scope", "issuer"}
@@ -160,7 +165,7 @@ async def test_a_compiled_run_reports_no_register_surface_to_navigate_to(
     ui_config_client: httpx.AsyncClient,
 ) -> None:
     """The state is the effective one, not the table read back: a compiled run answers for nothing."""
-    assert (await ui_config_client.get(UI_CONFIG_PATH)).json()["tracked_entities"] == {
+    assert (await ui_config_client.get(UI_CONFIG_ADDRESS)).json()["tracked_entities"] == {
         "enabled": False,
         "listing": False,
         "registers": [],
@@ -257,7 +262,7 @@ def test_the_register_is_reported_as_a_live_run_resolves_it(capture_project: Fhi
 
 async def test_the_path_is_not_claimed_by_the_read_catch_all(client: httpx.AsyncClient) -> None:
     """Mounted with the fixed paths: reversed, this answers that `uiconfig` is not a served type."""
-    response = await client.get(UI_CONFIG_PATH)
+    response = await client.get(UI_CONFIG_ADDRESS)
 
     assert response.status_code == 200
     # The read catch-all would have answered an OperationOutcome naming an unserved resource type.

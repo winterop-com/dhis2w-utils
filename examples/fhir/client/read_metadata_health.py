@@ -1,4 +1,4 @@
-"""Read `/metadata-health` off a live facade - what the DHIS2 instance holds that the guide cannot carry.
+"""Read `/facade/metadata-health` off a live facade - what the DHIS2 instance holds that the guide cannot carry.
 
 One read, two analyses. The findings are `d2w fhir validate`'s own, reread over the connection the
 facade already holds, so a defect named here is named in the same words the report files carry: a
@@ -46,7 +46,7 @@ async def main() -> None:
     """Read the report and print the strip, the first findings, and the first translation gaps."""
     base_url = (sys.argv[1] if len(sys.argv) > 1 else os.environ.get("FHIR_SERVE_URL")) or served_facade()
     async with httpx.AsyncClient(base_url=base_url, headers={"Accept": "application/json"}, timeout=600.0) as client:
-        health = (await client.get("/metadata-health")).raise_for_status().json()
+        health = (await client.get("/facade/metadata-health")).raise_for_status().json()
 
     if not health["available"]:
         # A compiled run. Not an error and not an empty report - a state, with the server's own

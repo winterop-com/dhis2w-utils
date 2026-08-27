@@ -201,7 +201,13 @@ register_routes(
 - **`register_routes`** mounts them. `authentication` is the dependency the
   guarded routers carry, and an application that already knows who its callers
   are passes its own. Which routers it lands on is `ServeRouters.guarded` - a
-  value the program can read for itself.
+  value the program can read for itself. FHIR lands at the base URL, and the
+  facade's own API - the receipts, the settings, the caller, the evaluator, the
+  vocabularies, the register listings - lands at `/facade` as an application of
+  its own, contract included, at `/facade/openapi.json`. An application that
+  wants those controls somewhere else builds them with `build_facade_api` and
+  mounts that under a prefix of its own choosing; one that wants FHIR and
+  nothing operational mounts `ServeRouters` without them.
 
 **Mount your own routes first.** The facade's read routes are catch-alls -
 `/{resource_type}` claims any one-segment path - and `register_routes` puts them
@@ -210,18 +216,34 @@ route the catch-all already claimed.
 
 ```console
 $ uv run python examples/fhir/client/embed_in_fastapi.py
-guarded routers: 12 of 13
+guarded routers: 16 of 17
 GET /status -> the embedding application
 GET /metadata -> 200 (no key sent)
 GET /Questionnaire -> 401 this service needs its own key
 GET /Questionnaire with the key -> 200, 7 form(s)
+GET /facade/spool with the key -> 200
+GET /facade/openapi.json -> 10 operations, served under /facade (no key sent)
+
+FHIR only: GET /metadata -> 200, GET /Questionnaire -> 200
+FHIR only: GET /facade/spool -> 404 (nothing operational mounted)
+
+Controls at /controls: GET /controls/spool -> 200
+Controls at /controls: the contract names 10 operations under /controls
 ```
 
 `auth_scope = "all"` guards everything but `/metadata`, which stays open because
 a client has to be able to read the posture it is expected to meet. The 401 is
 this application's own refusal, answered as an `OperationOutcome`: the facade's
 error handlers are registered on the app, so a FHIR client reads a FHIR refusal
-whoever raised it.
+whoever raised it. `/facade/openapi.json` answers without the key under that same
+scope, for `/metadata`'s reason: a contract nobody may read is a contract nobody
+can meet.
+
+The last two blocks are the same program mounting the groups by hand rather than
+through `register_routes` - once with the FHIR surface alone, where no
+operational address exists to refuse, and once with the controls under a prefix
+this service chose. The contract moves with them: it names the same ten
+operations under whichever base they were mounted at.
 
 Next: [Build your own facade](401-build-your-own-facade.md) for the case where
 you want the translation and none of the rest of this. The
