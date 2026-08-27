@@ -23,11 +23,13 @@ The MCP tools read the same `DHIS2_URL` / `DHIS2_PAT` / `DHIS2_PROFILE` env cont
 |------|---------------------|
 | `whoami.py` | `system_whoami`, `system_info` |
 | `profile_tools.py` | `profile_list`, `profile_verify`, `profile_show` |
-| `metadata.py` | `metadata_type_list`, `metadata_list`, `metadata_get` |
+| `metadata_list.py` | `metadata_type_list`, `metadata_list` |
+| `metadata_get.py` | `metadata_get` |
 | `metadata_search.py` | `metadata_search` — cross-resource UID / code / name lookup |
 | `metadata_usage.py` | `metadata_program_rule_where_de_is_used`, attribute-value reverse lookup |
 | `metadata_diff.py` | `metadata_diff`, `metadata_diff_profiles` |
-| `metadata_export_import.py` | `metadata_export`, `metadata_import` |
+| `metadata_export.py` | `metadata_export` |
+| `metadata_import.py` | `metadata_import` |
 | `metadata_patch.py` | `metadata_patch` (RFC 6902) |
 | `analytics_query.py` | `analytics_query` |
 | `analytics_events_enrollments.py` | `analytics_events_query`, `analytics_enrollments_query` (v41 + v42; v43 rejects the fixture's event data, BUGS.md #36) |
@@ -40,7 +42,6 @@ The MCP tools read the same `DHIS2_URL` / `DHIS2_PAT` / `DHIS2_PROFILE` env cont
 | `user_administration.py` | `user_list / get / me / invite / reinvite / reset-password` |
 | `user_groups.py` | `user_group_list`, `user_group_sharing_get` |
 | `user_roles.py` | `user_role_list`, `user_role_authority_list` |
-| `user_role.py` | `user_role_*` (legacy duplicate of `user_roles.py`; both ship until consolidated) |
 | `apps.py` | `apps_list`, `apps_hub_list` (+ `apps_install_from_file / install_from_hub / uninstall / update / update_all / hub_url_{get,set}`) |
 | `customize_login.py` | `customize_*` — branding + login-page settings |
 | `doctor.py` | `doctor_run`, `doctor_bugs`, `doctor_integrity`, `doctor_metadata` |

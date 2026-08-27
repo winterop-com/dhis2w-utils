@@ -296,9 +296,6 @@ The natural next direction is one of:
   authenticate against. Loopback-by-default is the current mitigation and it is a demo
   posture, not a deployment one. Needs a scope decision first: a gate on the write path, or
   OAuth2 against the same identity provider the client already speaks.
-- **The examples quality wave.** A handful of the non-FHIR examples still show several
-  features at once where the rule is one apiece. `examples/fhir/cli/` is one feature
-  per script.
 - **Pick one of the two remaining strategic options** below and commit to a multi-PR body of
   work (data approval workflow, or audit log reader).
 - **Promote a medium-term tactical item** (client cold-open latency, the A4 filter-DSL / URL
