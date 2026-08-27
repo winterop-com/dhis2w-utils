@@ -78,7 +78,10 @@ export const REGISTER_NAV_HINT = 'What this DHIS2 instance tracks'
  * the order meaningful: the overview first because it is what the root route
  * answers, then the order of the capture loop itself - from the forms a client
  * can fill, through the people those forms are about and what came back, to the
- * terminology and the server behind all of it.
+ * terminology under all of it. What comes after that is about the server rather
+ * than about capture - an expression run against it, its API tried by hand, its
+ * contract, and last the health of the DHIS2 metadata behind it, which is the
+ * diagnostic a person opens when one of the pages above reads wrong.
  *
  * A PAGE THAT IS NOT ALWAYS THERE STATES ITS OWN CONDITION, in `offered`. Two
  * are that, and both for the same reason: the register and the metadata health
@@ -112,6 +115,9 @@ export const NAV_ITEMS: NavItem[] = [
     { path: 'responses', label: 'Responses', hint: 'What was captured', icon: Inbox },
     { path: 'organisation-units', label: 'Organisation units', hint: 'Reporting hierarchy', icon: Network },
     { path: 'terminology', label: 'Terminology', hint: 'Codes and value sets', icon: Library },
+    { path: 'evaluate', label: 'Evaluate', hint: 'FHIRPath, CQL, and ELM', icon: FlaskConical },
+    { path: 'playground', label: 'Playground', hint: 'Try the FHIR API', icon: Braces },
+    { path: 'server', label: 'Server', hint: 'What this server offers', icon: ServerCog },
     {
         path: 'metadata-health',
         label: 'Metadata health',
@@ -119,9 +125,6 @@ export const NAV_ITEMS: NavItem[] = [
         icon: HeartPulse,
         offered: metadataHealthOffered,
     },
-    { path: 'evaluate', label: 'Evaluate', hint: 'FHIRPath, CQL, and ELM', icon: FlaskConical },
-    { path: 'playground', label: 'Playground', hint: 'Try the FHIR API', icon: Braces },
-    { path: 'server', label: 'Server', hint: 'What this server offers', icon: ServerCog },
 ]
 
 /** The entries this run really offers, each under the name this run gives it. */

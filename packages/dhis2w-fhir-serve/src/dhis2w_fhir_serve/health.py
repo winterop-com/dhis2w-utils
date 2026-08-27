@@ -10,9 +10,19 @@ The second is new here: how much of the selection is translated. DHIS2 holds a t
 object, per property, per locale, and nothing in a published guide states which locales an instance
 is being maintained in - so the answer is read off the objects themselves. The locales in use are
 the union of the tags the selection's own translations carry, which needs no system-settings read
-and is honest on an instance nobody has configured: an instance with one Lao translation is being
-maintained in Lao, whatever a settings page says. Against that set, an object is short a NAME
-translation, and short a FORM_NAME translation wherever DHIS2 gives it a form name to translate.
+and is honest on an instance nobody has configured.
+
+THE SMALLER SIDE IS THE STORY, PER LOCALE. A tag three objects out of three thousand carry is not a
+language the instance is being maintained in, and listing the other two thousand nine hundred and
+ninety-seven as short of it turns three stray translations into a wall of deficiency. So each locale
+is read on its own: below half the selection's translatable strings it is SPARSE, and what it states
+is the objects that carry it; at or above half it is a MAJORITY locale, and what it states is the
+objects that do not. Either way the counts are the same two numbers - this decides which side is
+worth naming object by object.
+
+COVERAGE IS A FACT, NOT A GRADE. No absence of a translation is a finding and none is a warning:
+the severities on this answer are `d2w fhir validate`'s own, and the validator grades names and
+codes. A locale nobody has finished is a number here and nothing else.
 
 READ ONCE PER RESOURCE KIND. The translation read is one request per scope surface - ten of them -
 rather than one per object, and the selection is applied to what comes back rather than written into
@@ -83,6 +93,14 @@ _COST_BY_SEVERITY: dict[str, str] = {
 #: What an out-of-scope finding costs, which is nothing: this project publishes nothing from the object.
 _INSTANCE_SCOPE_COST = "This object is outside what this project publishes, so no build of it reads the object."
 
+#: The share of a selection's translatable strings a locale reaches before it is read as one the
+#: instance is being maintained in rather than one somebody wrote a handful of translations in.
+#:
+#: Half, because half is the point where the shorter list changes sides: under it the objects that
+#: carry the locale are the few, over it the objects that do not are. There is nothing to tune here -
+#: the number is the definition of "whichever side is smaller", not a tolerance.
+MAJORITY_SHARE = 0.5
+
 #: The fields one translation read asks for. `formName` rides along on every surface: DHIS2 answers
 #: it on the two collections that have one and omits it everywhere else, exactly as it does for the
 #: instance-wide sweep `d2w fhir validate` reads through.
@@ -131,8 +149,48 @@ class MetadataHealthCounts(BaseModel):
     infos: int = 0
 
 
+class LocaleCarrier(BaseModel):
+    """One selected object that carries a translation in a locale little of the selection carries.
+
+    Listed for a sparse locale and for no other, because on a sparse locale this is the short list:
+    three objects out of three thousand is a fact somebody can read, and the two thousand nine
+    hundred and ninety-seven that do not carry it are not news about anything.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    resource_type: str
+    uid: str
+    name: str
+    carries_name: bool = False
+    """Whether this object carries a NAME translation in this locale."""
+
+    carries_form_name: bool = False
+    """Whether this object has a DHIS2 form name and carries a FORM_NAME translation in this locale."""
+
+
+class LocaleUntranslated(BaseModel):
+    """One selected object holding no translation in a locale most of the selection is translated into."""
+
+    model_config = ConfigDict(frozen=True)
+
+    resource_type: str
+    uid: str
+    name: str
+    name_untranslated: bool = False
+    """Whether this object holds no NAME translation in this locale."""
+
+    form_name_untranslated: bool = False
+    """Whether this object has a DHIS2 form name and holds no FORM_NAME translation in it."""
+
+
 class LocaleCoverage(BaseModel):
-    """How much of the selection one locale covers: names translated, and form names translated."""
+    """How much of the selection one locale covers, and which side of it is worth listing.
+
+    The two counts are the whole arithmetic. `standing` decides which of the two lists is filled:
+    a sparse locale carries `carriers` and an empty `missing`, a majority locale the other way
+    round, so nothing on the wire is a list whose meaning depends on a sibling field.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -145,28 +203,23 @@ class LocaleCoverage(BaseModel):
     form_name_count: int = 0
     """Selected objects that have a DHIS2 form name and carry a FORM_NAME translation in this locale."""
 
+    standing: Literal["sparse", "majority"] = "sparse"
+    """Whether this locale covers less than half the selection's translatable strings, or half or more."""
 
-class TranslationGap(BaseModel):
-    """One selected object, and the locales in use it holds no translation for."""
+    carriers: list[LocaleCarrier] = Field(default_factory=list)
+    """The objects that carry this locale, filled for a sparse locale and empty for a majority one."""
 
-    model_config = ConfigDict(frozen=True)
-
-    resource_type: str
-    uid: str
-    name: str
-    missing_name_locales: list[str] = Field(default_factory=list)
-    missing_form_name_locales: list[str] = Field(default_factory=list)
-    """Stated only for an object DHIS2 gives a form name - everything else has no form name to translate."""
+    missing: list[LocaleUntranslated] = Field(default_factory=list)
+    """The objects that do not, filled for a majority locale and empty for a sparse one."""
 
 
 class TranslationCoverage(BaseModel):
-    """How far the selection is translated, per locale and per object.
+    """How far the selection is translated, per locale.
 
     `locales` is the union of the tags the selection's own translations carry, which is what "in use
     on this instance" means here: an instance is being maintained in the languages somebody has
     written into it, and no system setting states that more honestly than the objects do. An empty
-    list is an instance nobody has translated, in which case there are no gaps either - a gap is a
-    locale another object already has and this one does not.
+    list is an instance nobody has translated, which is one language and a whole state.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -179,8 +232,6 @@ class TranslationCoverage(BaseModel):
     """Of those, how many DHIS2 gives a form name - the denominator the form-name counts are read against."""
 
     per_locale: list[LocaleCoverage] = Field(default_factory=list)
-    gaps: list[TranslationGap] = Field(default_factory=list)
-    """One entry per selected object short of a translation, in resource type then name order."""
 
 
 class MetadataHealth(BaseModel):
@@ -306,31 +357,40 @@ async def read_selected_translations(client: Dhis2Client, scope: ValidationScope
 
 
 def translation_coverage(objects: list[TranslatedObject]) -> TranslationCoverage:
-    """How far the selection is translated: the locales in use, the counts per locale, and every gap.
+    """How far the selection is translated: the locales in use, and each one read on the side that is smaller.
 
     "In use" is the union of the tags these objects carry, so an instance nobody has translated has
-    no locales, no coverage rows, and no gaps - which is the honest reading of an instance in one
-    language rather than a page full of everything being missing.
+    no locales and no coverage rows at all - which is the honest reading of an instance working in
+    one language rather than a page full of everything being missing.
     """
     locales = sorted({locale for item in objects for locale in item.name_locales | item.form_name_locales})
-    if not locales:
-        return TranslationCoverage(object_count=len(objects), form_named_count=_form_named(objects))
     return TranslationCoverage(
         locales=locales,
         object_count=len(objects),
         form_named_count=_form_named(objects),
-        per_locale=[
-            LocaleCoverage(
-                locale=locale,
-                name_count=sum(1 for item in objects if locale in item.name_locales),
-                form_name_count=sum(1 for item in objects if item.form_named and locale in item.form_name_locales),
-            )
-            for locale in locales
-        ],
-        gaps=sorted(
-            (gap for gap in (_gap(item, locales) for item in objects) if gap is not None),
-            key=lambda gap: (gap.resource_type, gap.name, gap.uid),
-        ),
+        per_locale=[locale_coverage(objects, locale) for locale in locales],
+    )
+
+
+def locale_coverage(objects: list[TranslatedObject], locale: str) -> LocaleCoverage:
+    """One locale's counts, and the shorter of the two lists it can be told through.
+
+    A locale under half the selection's translatable strings is told through the objects that carry
+    it; one at or above half is told through the objects that do not. The threshold is the share the
+    page draws its meter from, so the meter and the list under it are readings of one number.
+    """
+    name_count = sum(1 for item in objects if locale in item.name_locales)
+    form_name_count = sum(1 for item in objects if item.form_named and locale in item.form_name_locales)
+    total = len(objects) + _form_named(objects)
+    covered = name_count + form_name_count
+    sparse = total > 0 and covered / total < MAJORITY_SHARE
+    return LocaleCoverage(
+        locale=locale,
+        name_count=name_count,
+        form_name_count=form_name_count,
+        standing="sparse" if sparse else "majority",
+        carriers=_carriers(objects, locale) if sparse else [],
+        missing=[] if sparse else _untranslated(objects, locale),
     )
 
 
@@ -339,21 +399,40 @@ def _form_named(objects: list[TranslatedObject]) -> int:
     return sum(1 for item in objects if item.form_named)
 
 
-def _gap(item: TranslatedObject, locales: list[str]) -> TranslationGap | None:
-    """What one object is short of, or None when it is translated into every locale in use."""
-    missing_names = [locale for locale in locales if locale not in item.name_locales]
-    missing_form_names = (
-        [locale for locale in locales if locale not in item.form_name_locales] if item.form_named else []
-    )
-    if not missing_names and not missing_form_names:
-        return None
-    return TranslationGap(
-        resource_type=item.resource_type,
-        uid=item.uid,
-        name=item.name,
-        missing_name_locales=missing_names,
-        missing_form_name_locales=missing_form_names,
-    )
+def _carriers(objects: list[TranslatedObject], locale: str) -> list[LocaleCarrier]:
+    """Every selected object that carries this locale on either of its two spellings, in reading order."""
+    carriers = [
+        LocaleCarrier(
+            resource_type=item.resource_type,
+            uid=item.uid,
+            name=item.name,
+            carries_name=locale in item.name_locales,
+            carries_form_name=item.form_named and locale in item.form_name_locales,
+        )
+        for item in objects
+        if locale in item.name_locales or (item.form_named and locale in item.form_name_locales)
+    ]
+    return sorted(carriers, key=lambda carrier: (carrier.resource_type, carrier.name, carrier.uid))
+
+
+def _untranslated(objects: list[TranslatedObject], locale: str) -> list[LocaleUntranslated]:
+    """Every selected object holding no translation in this locale, in reading order.
+
+    An object DHIS2 gives no form name can never be short of a form-name translation, so it is
+    listed on its name alone or not at all.
+    """
+    rows = [
+        LocaleUntranslated(
+            resource_type=item.resource_type,
+            uid=item.uid,
+            name=item.name,
+            name_untranslated=locale not in item.name_locales,
+            form_name_untranslated=item.form_named and locale not in item.form_name_locales,
+        )
+        for item in objects
+    ]
+    held = [row for row in rows if row.name_untranslated or row.form_name_untranslated]
+    return sorted(held, key=lambda row: (row.resource_type, row.name, row.uid))
 
 
 def _translated_objects(resource_type: str, body: dict[str, Any], surface: frozenset[str]) -> list[TranslatedObject]:
