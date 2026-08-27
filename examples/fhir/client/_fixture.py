@@ -210,13 +210,16 @@ def served_facade(*, auth: str = DEFAULT_FACADE_POSTURE) -> str:
     """Base URL of a facade serving that project, started on first use and stopped at exit.
 
     `auth` is the `[serve] auth` posture the facade runs under, and one facade is started per
-    posture asked for. The default serves every caller, which is what all but one example wants;
-    `auth="dhis2"` is the posture that reads the register as whoever asks, so the example about
-    that gets a server of its own rather than bending everybody else's.
+    posture asked for. The default serves every caller, which is what all but the two examples
+    about authentication want: `auth="token"` demands a bearer credential and `auth="dhis2"`
+    reads the register as whoever asks, so each of those gets a server of its own rather than
+    bending everybody else's.
 
-    An operator-supplied facade answers for the default posture only. A facade somebody else
-    started has whatever posture they gave it, and asking a posture-none server to prove
-    pass-through would fail in a way that reads as a bug in the feature.
+    A facade named in the environment answers for the default posture only - both when an
+    operator names one and when `infra/scripts/verify_examples.py` names the one it stood up for
+    a batch pass. A facade somebody else started has whatever posture they gave it, and asking a
+    posture-none server to prove a credential would fail in a way that reads as a bug in the
+    feature.
     """
     override = os.environ.get(FACADE_ENVIRONMENT_VARIABLE, "").strip()
     if override and auth == DEFAULT_FACADE_POSTURE:
@@ -225,6 +228,26 @@ def served_facade(*, auth: str = DEFAULT_FACADE_POSTURE) -> str:
         if auth not in _facade_base_urls:
             _facade_base_urls[auth] = _start_facade(example_project(), auth)
         return _facade_base_urls[auth]
+
+
+def stop_facades() -> None:
+    """Stop every facade this process started, by their own process ids and no others.
+
+    Registered as this process's `atexit` hook the moment a facade starts, so an example that
+    simply ends leaves nothing listening. A caller that stands the fixture up on somebody else's
+    behalf - `infra/scripts/verify_examples.py` does, once for a whole batch pass - calls it
+    directly when the last reader is done rather than holding the port until the process exits.
+    """
+    running, _facade_processes[:] = list(_facade_processes), []
+    for process in running:
+        if process.poll() is not None:
+            continue
+        process.terminate()
+        try:
+            process.wait(timeout=_FACADE_SHUTDOWN_SECONDS)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=_FACADE_SHUTDOWN_SECONDS)
 
 
 def aggregate_form_id() -> str:
@@ -395,7 +418,7 @@ def _start_facade(project_root: Path, auth: str) -> str:
     finally:
         log_handle.close()
     _facade_processes.append(process)
-    atexit.register(_stop_facades)
+    atexit.register(stop_facades)
     _await_facade(process, base_url, log_path)
     return base_url
 
@@ -417,7 +440,7 @@ def _await_facade(process: subprocess.Popen[bytes], base_url: str, log_path: Pat
         if response.status_code == _HTTP_OK:
             return
         time.sleep(_FACADE_POLL_SECONDS)
-    _stop_facades()
+    stop_facades()
     raise FixtureError(
         f"`d2w fhir serve` did not answer /metadata within {int(_FACADE_STARTUP_SECONDS)}s. A live run reads "
         f"the whole instance at startup, so a slow DHIS2 is the usual cause; set {FACADE_ENVIRONMENT_VARIABLE} "
@@ -432,20 +455,6 @@ def _facade_log_tail(log_path: Path) -> str:
     except OSError:
         return "no output"
     return "\n".join(text.splitlines()[-4:]) or "no output"
-
-
-def _stop_facades() -> None:
-    """Stop every facade this process started, by their own process ids and no others."""
-    running, _facade_processes[:] = list(_facade_processes), []
-    for process in running:
-        if process.poll() is not None:
-            continue
-        process.terminate()
-        try:
-            process.wait(timeout=_FACADE_SHUTDOWN_SECONDS)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=_FACADE_SHUTDOWN_SECONDS)
 
 
 def _free_port() -> int:

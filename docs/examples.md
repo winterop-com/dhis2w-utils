@@ -306,6 +306,16 @@ Where the scripts above show one command or one library call apiece, [`examples/
 
 [`examples/plugin-external/`](https://github.com/winterop-com/dhis2w-utils/tree/main/examples/plugin-external) — a minimal runnable external plugin (own `pyproject.toml`, entry-point registration, CLI + MCP hooks). See [external plugins](architecture/external-plugin.md) for the contract.
 
+## Running the whole set
+
+`make verify-examples` runs every example on this page against the active profile and prints a per-surface PASS / FAIL / TIMEOUT / SKIP table. Three things decide what a batch pass actually executes:
+
+- **Skipped by default.** An example that needs Chromium, a human-clicked login, public-internet egress, or a dockerized SUSHI compile carries a stated reason in `SKIP_BY_DEFAULT` in [`infra/scripts/verify_examples.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/infra/scripts/verify_examples.py). `--include-browser` opts the UI-driven set back in.
+- **Skipped when the environment is missing.** An example that reads a real secret or endpoint out of the environment - a personal access token, a caller's own DHIS2 credentials - runs when every variable it names is set and skips naming the missing ones otherwise. An unprovisioned machine is a fact about the machine, not a defect in the example, and `make verify-examples` sources `infra/home/credentials/.env.auth` first so a seeded checkout provides them all.
+- **One shared FHIR fixture.** Every [`examples/fhir/client/`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/README.md) example stands up what it needs through `client/_fixture.py` - a scaffolded project, a translation context built live off the instance, and a `d2w fhir serve --live` facade on a port the operating system picks. Run one by hand and it builds its own; run the suite and the suite builds one before its loop, exports `D2W_FHIR_EXAMPLE_PROJECT` and `D2W_FHIR_EXAMPLE_FACADE`, and stops the facade after the last example, so a batch pass boots one server instead of a dozen. Set either variable yourself and the suite leaves your fixture alone. The two examples about authentication still start a guarded facade apiece: the facade seam answers the open default posture only, and a shared open server cannot show what a `token` or `dhis2` posture changes.
+
+`make refresh-and-verify` is the full cycle: rebuild the seeded stack, seed the tokens, refresh the analytics tables the analytics examples read, then run the suite.
+
 ## How example coverage maps to features
 
 - **Every top-level CLI domain has at least one example.** See [CLI reference](cli-reference.md) for the full command tree.

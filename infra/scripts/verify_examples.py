@@ -28,6 +28,19 @@ Each example runs via `bash <path>` for `.sh` and `uv run python <path>`
 for `.py`, inheriting the parent environment plus `DHIS2_PROFILE` so
 profile-driven examples pick the right stack.
 
+Two things the suite arranges before the loop, because a batch pass can afford
+them once where a single example cannot:
+
+- **One shared FHIR fixture.** Every `examples/fhir/client/` example stands up a
+  scaffolded project and a `d2w fhir serve --live` facade of its own when the
+  `D2W_FHIR_EXAMPLE_PROJECT` / `D2W_FHIR_EXAMPLE_FACADE` seams are unset. The
+  suite stands one up, exports the seams, and stops the facade after the last
+  example — so a pass boots one server rather than a dozen.
+- **Environment-conditional skips.** An example reading a real secret or endpoint
+  out of the environment runs when every variable it names is set and skips
+  naming the missing ones otherwise. An unprovisioned machine is a fact about
+  the machine, not a defect in the example.
+
 Usage:
     uv run python infra/scripts/verify_examples.py            # follows the active profile
     DHIS2_VERSION=v43 uv run python infra/scripts/verify_examples.py   # only when no profile pin
@@ -40,6 +53,7 @@ import os
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
@@ -301,16 +315,27 @@ def _run_one(path: Path, *, profile: str, timeout_seconds: float) -> ExampleResu
     return ExampleResult(path=rel, surface=surface, status="FAIL", seconds=elapsed, stderr_tail=tail)
 
 
-def _stand_up_shared_fhir_fixture(examples: list[Path], skip: frozenset[str], console: Console) -> None:
+def _stand_up_shared_fhir_fixture(
+    examples: list[Path],
+    skip: frozenset[str],
+    console: Console,
+) -> Callable[[], None] | None:
     """Stand the FHIR client examples' shared project and facade up once, for the whole suite.
 
     Every `examples/fhir/client/` example builds its own fixture when the two seams
     (`D2W_FHIR_EXAMPLE_PROJECT`, `D2W_FHIR_EXAMPLE_FACADE`) are unset - which in a batch pass
     means twelve examples each booting a `d2w fhir serve --live` of their own. This stands one
-    up in this process and exports the seams, so every example reuses it; the facade stops at
-    exit through the fixture's own `atexit` hook. Seams already set are an operator's own fixture
-    and are left alone, and a fixture that cannot build is reported plainly - each example then
-    builds its own, which is the behaviour with no shared fixture at all.
+    up in this process and exports the seams, so every example reuses it, and hands back the
+    call that stops the facade and clears the seams again once the loop is done. Seams already
+    set are an operator's own fixture and are left alone, and a fixture that cannot build is
+    reported plainly - each example then builds its own, which is the behaviour with no shared
+    fixture at all. Either way the answer is `None`: there is nothing of this suite's to stop.
+
+    Two postures are deliberately not shared. `served_facade(auth=...)` honours the facade seam
+    for the open default posture only, so the two examples about authentication - one asking for
+    `token`, one for `dhis2` - each start a guarded facade of their own. A server somebody else
+    started has whatever posture they gave it, and asking an open one to prove a credential
+    would read as a bug in the feature rather than in the fixture.
     """
     examples_root = _examples_root()
     wanted = any(
@@ -319,7 +344,7 @@ def _stand_up_shared_fhir_fixture(examples: list[Path], skip: frozenset[str], co
         for path in examples
     )
     if not wanted:
-        return
+        return None
     fixture_directory = examples_root / "fhir" / "client"
     sys.path.insert(0, str(fixture_directory))
     try:
@@ -328,7 +353,7 @@ def _stand_up_shared_fhir_fixture(examples: list[Path], skip: frozenset[str], co
         if os.environ.get(_fixture.PROJECT_ENVIRONMENT_VARIABLE) or os.environ.get(
             _fixture.FACADE_ENVIRONMENT_VARIABLE
         ):
-            return
+            return None
         project_root = _fixture.example_project()
         _fixture.conversion_context()
         facade = _fixture.served_facade()
@@ -337,8 +362,17 @@ def _stand_up_shared_fhir_fixture(examples: list[Path], skip: frozenset[str], co
         console.print(f"shared FHIR fixture: project [cyan]{project_root}[/cyan], facade [cyan]{facade}[/cyan]")
     except Exception as error:  # noqa: BLE001 - the fallback is the point: each example builds its own
         console.print(f"[yellow]shared FHIR fixture unavailable ({error}); each example builds its own[/yellow]")
+        return None
     finally:
         sys.path.remove(str(fixture_directory))
+
+    def tear_down() -> None:
+        """Stop the shared facade and clear the seams, so nothing outlives the loop that started it."""
+        _fixture.stop_facades()
+        os.environ.pop(_fixture.PROJECT_ENVIRONMENT_VARIABLE, None)
+        os.environ.pop(_fixture.FACADE_ENVIRONMENT_VARIABLE, None)
+
+    return tear_down
 
 
 def run_suite(
@@ -364,7 +398,29 @@ def run_suite(
         f"profile=[cyan]{profile}[/cyan], timeout={int(timeout_seconds)}s, "
         f"skip-default={'on' if not include_browser else 'off'})",
     )
-    _stand_up_shared_fhir_fixture(examples, skip, console)
+    tear_down_shared_fixture = _stand_up_shared_fhir_fixture(examples, skip, console)
+    try:
+        return _run_every_example(
+            examples,
+            skip=skip,
+            profile=profile,
+            timeout_seconds=timeout_seconds,
+            console=console,
+        )
+    finally:
+        if tear_down_shared_fixture is not None:
+            tear_down_shared_fixture()
+
+
+def _run_every_example(
+    examples: list[Path],
+    *,
+    skip: frozenset[str],
+    profile: str,
+    timeout_seconds: float,
+    console: Console,
+) -> list[ExampleResult]:
+    """Run the discovered examples in order, streaming one status line each, and return every outcome."""
     examples_root = _examples_root()
     results: list[ExampleResult] = []
     for path in examples:
