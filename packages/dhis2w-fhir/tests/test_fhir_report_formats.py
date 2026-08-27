@@ -141,6 +141,13 @@ def test_display_code_makes_the_invisible_visible() -> None:
     assert display_code(" M") == '" M"'
 
 
+def test_display_code_escapes_the_control_characters_that_have_no_name_of_their_own() -> None:
+    """A name holding U+0001 would otherwise reach the page as nothing at all, reading as a name it is not."""
+    assert display_code("Malaria\x01cases") == "Malaria\\x01cases"
+    assert display_code("A\x0bB\x1fC") == "A\\x0bB\\x1fC"
+    assert display_code("null\x00here") == "null\\x00here"
+
+
 def test_markdown_quotes_a_code_with_edge_spaces() -> None:
     """A code padded with spaces renders quoted, so the padding is on the page."""
     report = FhirValidationReport(findings=[_finding("error", "options", "Male [in Sex]", code=" M ")])

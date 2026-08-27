@@ -92,6 +92,10 @@ class NotServedFromCompiledIgError(ServeError):
     Same status and issue code as `NotServedError`, because that is what it is from the client's
     side - this server does not support that interaction - with the reason stated so the operator
     reads it as a way the process was started rather than as a missing feature.
+
+    The capture UI renders this sentence verbatim on the tracked entities page, so it names the
+    whole command rather than a bare flag: a reader who has never typed `d2w fhir serve` still has
+    something they can run.
     """
 
     status_code = 404
@@ -99,8 +103,9 @@ class NotServedFromCompiledIgError(ServeError):
 
     def __init__(self, resource_type: str) -> None:
         super().__init__(
-            f"{resource_type} is answered from the DHIS2 instance this facade runs against, and this "
-            "process serves a compiled implementation guide; start it with --live to search the register."
+            f"`{resource_type}` is answered from the DHIS2 instance this facade runs against. This facade "
+            "serves a compiled implementation guide, so it holds no register to search. "
+            "Run `d2w fhir serve --live` to search one."
         )
         self.resource_type = resource_type
 
@@ -111,6 +116,10 @@ class RegisterDisabledError(ServeError):
     Same status and issue code as `NotServedFromCompiledIgError`, and for the same reason - from
     the client's side this server does not support the interaction - with the config key named so
     the operator reads it as a decision this project wrote down rather than as a missing feature.
+
+    The capture UI renders this sentence verbatim too, so it names the file the decision lives in
+    and the key that reverses it - a `--live` run refused here would be refused again, and pointing
+    at the process rather than at the project would send the reader the wrong way.
     """
 
     status_code = 404
@@ -118,8 +127,9 @@ class RegisterDisabledError(ServeError):
 
     def __init__(self, resource_type: str) -> None:
         super().__init__(
-            f"`{resource_type}` is not served here: this project sets `[serve.tracked_entities] enabled` to "
-            "false; set it true in fhir.toml and serve again to search or list the register"
+            f"`{resource_type}` is not served here: this project's fhir.toml turns the register off, with "
+            "`[serve.tracked_entities] enabled` set to false. Set that key to true and serve again to "
+            "search or list the register."
         )
         self.resource_type = resource_type
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
@@ -23,6 +24,19 @@ _ENVIRONMENT = Environment(
     trim_blocks=True,
     lstrip_blocks=True,
 )
+
+
+#: One C0 control character, which `display_code` prints as an escape instead of as nothing.
+_CONTROL_CHARACTER = re.compile(r"[\x00-\x1f]")
+
+#: The escapes a reader already knows by sight. Everything else takes the `\xNN` form.
+_NAMED_CONTROL_ESCAPES = {"\r": "\\r", "\n": "\\n", "\t": "\\t"}
+
+
+def _escaped_control_character(match: re.Match[str]) -> str:
+    """One control character as the escape a reader can see, named where it has a name."""
+    character = match.group()
+    return _NAMED_CONTROL_ESCAPES.get(character, f"\\x{ord(character):02x}")
 
 
 class _ReportRow(BaseModel):
@@ -51,15 +65,17 @@ class _ReportGroup(BaseModel):
 def display_code(code: str | None) -> str:
     r"""Render a DHIS2 code for human eyes: `-` when absent, `(empty)` when blank, invisibles made visible.
 
-    Control characters print as their escape (`BLUE\nBLUE` on one line, not two), and a value with
-    a leading or trailing space is wrapped in double quotes so the edge space is on the page. Only
-    the human-facing renderers call this: the CSV and the JSON finding carry the raw code.
+    Every C0 control character prints as its escape - the three with a name of their own as `\r`,
+    `\n`, and `\t` (`BLUE\nBLUE` on one line, not two) and the rest as `\x01`, because a value
+    holding one would otherwise reach the page as nothing at all. A value with a leading or
+    trailing space is wrapped in double quotes so the edge space is on the page. Only the
+    human-facing renderers call this: the CSV and the JSON finding carry the raw code.
     """
     if code is None:
         return "-"
     if not code:
         return "(empty)"
-    escaped = code.replace("\r", "\\r").replace("\n", "\\n").replace("\t", "\\t")
+    escaped = _CONTROL_CHARACTER.sub(_escaped_control_character, code)
     if code.startswith(" ") or code.endswith(" "):
         return f'"{escaped}"'
     return escaped

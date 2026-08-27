@@ -22,11 +22,13 @@ import respx
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import Profile
 from dhis2w_fhir.config import FhirProject, load_fhir_config
+from dhis2w_fhir.validation.schemas import ValidationFinding
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.health import (
     COMPILED_RUN_REASON,
     TranslatedObject,
     TranslationCoverage,
+    field_at_fault,
     translation_coverage,
 )
 from dhis2w_fhir_serve.routes.metadata_health import METADATA_HEALTH_PATH
@@ -302,6 +304,29 @@ async def test_a_hostile_form_name_is_reported_as_the_form_name(
     form_name = _finding(body, _HOSTILE_ELEMENT, "template-hostile-name", field="form name")
     assert form_name["message"].startswith("form name ")
     assert form_name["severity"] == "error"
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("name Malaria\\x01cases contains the control character \\x01", "name"),
+        ("form name Vitamin\\x01A contains the control character \\x01", "form name"),
+    ],
+    ids=["name", "form-name"],
+)
+def test_a_control_character_finding_names_the_spelling_it_is_about(message: str, expected: str) -> None:
+    """A control character reaches either of a question's two spellings, and the row says which one."""
+    finding = ValidationFinding(
+        severity="error",
+        scope="selection",
+        category="control-character-name",
+        resource_type="dataElements",
+        uid="De1aaaaaaaa",
+        name="Vitamin A",
+        code="DE1",
+        message=message,
+    )
+    assert field_at_fault(finding) == expected
 
 
 async def test_a_code_carrying_a_space_is_reported_against_the_code(

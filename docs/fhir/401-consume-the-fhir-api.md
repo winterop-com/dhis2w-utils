@@ -309,7 +309,7 @@ resources only there. A compiled run says so instead of guessing:
 
 ```console
 $ curl -s localhost:8389/Patient?identifier=SCEN-A-0001
-{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`Patient` is answered from the DHIS2 instance this facade runs against, and this process serves a compiled implementation guide; start it with `--live` to search the register."}]}
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`Patient` is answered from the DHIS2 instance this facade runs against. This facade serves a compiled implementation guide, so it holds no register to search. Run `d2w fhir serve --live` to search one."}]}
 ```
 
 **Three parameters search a register, and they ask three different questions.**
@@ -645,7 +645,7 @@ compiled guide:
 
 ```console
 $ curl -s 'localhost:8391/Patient?identifier=SCEN-A-0001'
-{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`Patient` is not served here: this project sets `[serve.tracked_entities] enabled` to false; set it true in fhir.toml and serve again to search or list the register"}]}
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`Patient` is not served here: this project's fhir.toml turns the register off, with `[serve.tracked_entities] enabled` set to false. Set that key to true and serve again to search or list the register."}]}
 ```
 
 `enabled = false` is checked before the store's own mode, so a **compiled** run
@@ -708,7 +708,7 @@ resource type occupies there:
 
 ```console
 $ curl -s localhost:8389/tracked-entities/PLoWmEuLJl2/enrollments
-{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`enrollments` is answered from the DHIS2 instance this facade runs against, and this process serves a compiled implementation guide; start it with `--live` to search the register."}]}
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"`enrollments` is answered from the DHIS2 instance this facade runs against. This facade serves a compiled implementation guide, so it holds no register to search. Run `d2w fhir serve --live` to search one."}]}
 ```
 
 `[serve.tracked_entities] enabled = false` takes this endpoint away in the same

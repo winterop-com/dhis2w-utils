@@ -45,7 +45,7 @@ from dhis2w_fhir.config import HostileNamePosture
 from dhis2w_fhir.i18n import FORM_NAME_PROPERTY, NAME_PROPERTY, TranslationIn
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, generate_note
 from dhis2w_fhir.resources.questionnaires.schemas import ProgramRuleIn, ProgramRuleVariableIn
-from dhis2w_fhir.validation.substitution import substitute_build_aborting_text
+from dhis2w_fhir.validation.substitution import first_control_character, substitute_build_aborting_text
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -336,12 +336,16 @@ def _rewrite_notes(rewrites: list[HostileRewrite]) -> list[GenerateNote]:
 
 
 def _name_note(rewrite: HostileRewrite) -> GenerateNote:
-    """The note one rewritten DHIS2 name lands in the report as."""
+    """The note one rewritten DHIS2 name lands in the report as, saying which of the two rewrites it took."""
+    carried = (
+        "a control character the published guide cannot carry as it stands"
+        if first_control_character(rewrite.original) is not None
+        else "a comparison the IG publisher's pages cannot carry as it stands"
+    )
     return generate_note(
         GenerateNoteCategory.NAME_SUBSTITUTION,
-        f"the DHIS2 name {rewrite.original!r} carries a comparison the IG publisher's pages cannot carry as it "
-        f"stands; the guide publishes {rewrite.rewritten!r}, states {rewrite.original!r} as a `dhis2-name` "
-        "property, and DHIS2 keeps the name it holds",
+        f"the DHIS2 name {rewrite.original!r} carries {carried}; the guide publishes {rewrite.rewritten!r}, "
+        f"states {rewrite.original!r} as a `dhis2-name` property, and DHIS2 keeps the name it holds",
     )
 
 

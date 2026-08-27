@@ -377,7 +377,9 @@ Four passes share one finding shape:
 
 1. **The instance-wide sweep** over `GET /api/metadata`: invalid FHIR codes as
    errors, per-type duplicates as warnings, plus `template-hostile-name` for
-   names the publisher injects into breadcrumbs unescaped.
+   names the publisher injects into breadcrumbs unescaped and
+   `control-character-name` for names carrying a C0 control character SUSHI
+   carries byte-true into the compiled resource.
 2. **The deep option-set pass**, which previews what
    `concept_code_source = "code"` would do - a decision the emitter makes at
    emit time, which the sweep structurally cannot see.

@@ -770,6 +770,143 @@ def test_a_name_carrying_both_keeps_the_grade_the_rewrite_cannot_remove() -> Non
     assert "the published name still contains '&'" in finding.message
 
 
+def _control(report: FhirValidationReport) -> list[ValidationFinding]:
+    """The control-character-name findings of one report, in report order."""
+    return [finding for finding in report.findings if finding.category == "control-character-name"]
+
+
+def _control_graded(config: GenerateConfig, name: str) -> ValidationFinding:
+    """The single control-character finding one data set raises under the posture the config states."""
+    report = build_code_validation(
+        [],
+        [MetadataCollectionIn(resource="dataSets", items=[MetadataItemIn(uid="Ds1aaaaaaaa", name=name, code="DS")])],
+        config,
+    )
+    findings = _control(report)
+    assert len(findings) == 1
+    return findings[0]
+
+
+def test_a_name_carrying_an_unexpressible_control_character_is_an_error_naming_it_in_words() -> None:
+    """XML 1.0 can write no U+0001, so the guide has no readable rendering of the name and the build ends."""
+    finding = _control_graded(_CODE_MODE, "Malaria\x01cases")
+    assert finding.severity == "error"
+    assert finding.resource_type == "dataSets"
+    assert finding.uid == "Ds1aaaaaaaa"
+    assert finding.message == (
+        "name Malaria\\x01cases contains the control character \\x01, which SUSHI carries byte-true into "
+        "the compiled resource, so `make build` fails: XML 1.0 can express no such character, not even as "
+        "a numeric character reference, and the publisher writes an XML rendering of every resource beside "
+        "the JSON one; change the name in DHIS2"
+    )
+
+
+@pytest.mark.parametrize(
+    ("name", "named"),
+    [
+        ("Malaria\tcases", "a tab character"),
+        ("Under\n5 years", "a newline character"),
+        ("Fixed\rrate", "a carriage return character"),
+    ],
+    ids=["tab", "newline", "carriage-return"],
+)
+def test_the_three_control_characters_xml_can_express_stay_warnings(name: str, named: str) -> None:
+    """Tab, newline, and carriage return are the whole of what XML 1.0 admits below U+0020, so the build lives."""
+    finding = _control_graded(_CODE_MODE, name)
+    assert finding.severity == "warning"
+    assert named in finding.message
+    assert "one object states its name two ways" in finding.message
+
+
+@pytest.mark.parametrize(
+    ("name", "named"),
+    [
+        ("A\x00B", "a null character"),
+        ("A\x0bB", "a vertical tab character"),
+        ("A\x0cB", "a form feed character"),
+        ("A\x1bB", "an escape character"),
+        ("A\x1fB", "the control character \\x1f"),
+    ],
+    ids=["null", "vertical-tab", "form-feed", "escape", "unit-separator"],
+)
+def test_every_other_control_character_is_an_error_named_legibly(name: str, named: str) -> None:
+    """The message spells the character out; the raw byte never reaches a page as itself."""
+    finding = _control_graded(_CODE_MODE, name)
+    assert finding.severity == "error"
+    assert named in finding.message
+    assert "\x00" not in finding.message
+    assert "\x1b" not in finding.message
+
+
+def test_a_name_carrying_no_control_character_raises_no_control_finding() -> None:
+    """An ordinary name is not a finding at all - this pass reads only the C0 range."""
+    report = build_code_validation(
+        [],
+        [MetadataCollectionIn(resource="dataSets", items=[MetadataItemIn(uid="BfMAe6Itzgt", name="Child Health")])],
+        _CODE_MODE,
+    )
+    assert _control(report) == []
+
+
+def test_a_control_character_and_a_comparison_are_two_findings_in_two_categories() -> None:
+    """They break different things and carry different remedies, so neither hides inside the other's category."""
+    report = build_code_validation(
+        [],
+        [MetadataCollectionIn(resource="dataSets", items=[MetadataItemIn(uid="Ds1aaaaaaaa", name="Under\t< 5 years")])],
+        _CODE_MODE,
+    )
+    assert [finding.category for finding in _hostile(report)] == ["template-hostile-name"]
+    assert [finding.category for finding in _control(report)] == ["control-character-name"]
+
+
+def test_a_form_name_carrying_a_control_character_is_graded_under_its_own_field_label() -> None:
+    """A form name becomes a question's text, so it costs the same build and says which spelling to change."""
+    report = build_code_validation(
+        [],
+        [
+            MetadataCollectionIn(
+                resource="dataElements",
+                items=[MetadataItemIn(uid="De1aaaaaaaa", name="Vitamin A", form_name="Vitamin\x01A", code="DE1")],
+            )
+        ],
+        _CODE_MODE,
+    )
+    findings = _control(report)
+    assert len(findings) == 1
+    assert findings[0].severity == "error"
+    assert findings[0].name == "Vitamin A"
+    assert findings[0].message.startswith("form name Vitamin\\x01A contains the control character \\x01")
+    assert "change the form name in DHIS2" in findings[0].message
+
+
+def test_an_option_name_carrying_a_control_character_is_found_by_the_deep_pass() -> None:
+    """Options are excluded from the sweep, so the option pass is the only place their names are read."""
+    report = build_code_validation(
+        [_set("Os1aaaaaaaa", "Age band", [OptionIn(uid="Op1aaaaaaaa", code="LT5", name="Under\x015 years")])],
+        [],
+        _CODE_MODE,
+    )
+    findings = _control(report)
+    assert len(findings) == 1
+    assert findings[0].severity == "error"
+    assert findings[0].resource_type == "options"
+
+
+@pytest.mark.parametrize(
+    ("name", "published"),
+    [("Malaria\tcases", "Malaria cases"), ("Malaria\x01cases", "Malaria cases"), ("A\x0b\x0cB", "A B")],
+    ids=["tab", "unexpressible", "run"],
+)
+def test_under_substitute_a_control_character_is_informational_and_states_both_spellings(
+    name: str, published: str
+) -> None:
+    """The rewrite consumes every control character there is, so nothing is left for the build to trip on."""
+    finding = _control_graded(_SUBSTITUTE_CONFIG, name)
+    assert finding.severity == "info"
+    assert f"published as {published!r}" in finding.message
+    assert "change the name in DHIS2" not in finding.message
+
+
 def test_under_substitute_an_option_name_is_downgraded_by_the_deep_pass_too() -> None:
     """An option's name is rewritten exactly as a data set's is, so the deep pass grades it the same way."""
     report = build_code_validation(
