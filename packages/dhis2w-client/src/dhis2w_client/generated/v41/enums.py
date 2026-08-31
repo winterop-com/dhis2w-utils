@@ -462,24 +462,6 @@ class MapService(StrEnum):
     ARCGIS_FEATURE = "ARCGIS_FEATURE"
 
 
-class MapViewRenderingStrategy(StrEnum):
-    """org.hisp.dhis.mapping.MapViewRenderingStrategy (DHIS2 v41)."""
-
-    SINGLE = "SINGLE"
-    SPLIT_BY_PERIOD = "SPLIT_BY_PERIOD"
-    TIMELINE = "TIMELINE"
-
-
-class MappingEventStatus(StrEnum):
-    """org.hisp.dhis.mapping.EventStatus (DHIS2 v41)."""
-
-    ACTIVE = "ACTIVE"
-    COMPLETED = "COMPLETED"
-    SCHEDULE = "SCHEDULE"
-    OVERDUE = "OVERDUE"
-    SKIPPED = "SKIPPED"
-
-
 class MessageConversationPriority(StrEnum):
     """org.hisp.dhis.message.MessageConversationPriority (DHIS2 v41)."""
 
@@ -583,17 +565,6 @@ class OrganisationUnitDescendants(StrEnum):
 
     SELECTED = "SELECTED"
     DESCENDANTS = "DESCENDANTS"
-
-
-class OrganisationUnitSelectionMode(StrEnum):
-    """org.hisp.dhis.common.OrganisationUnitSelectionMode (DHIS2 v41)."""
-
-    SELECTED = "SELECTED"
-    CHILDREN = "CHILDREN"
-    DESCENDANTS = "DESCENDANTS"
-    ACCESSIBLE = "ACCESSIBLE"
-    CAPTURE = "CAPTURE"
-    ALL = "ALL"
 
 
 class OutlierMethod(StrEnum):
@@ -765,13 +736,6 @@ class SqlViewType(StrEnum):
     VIEW = "VIEW"
     MATERIALIZED_VIEW = "MATERIALIZED_VIEW"
     QUERY = "QUERY"
-
-
-class ThematicMapType(StrEnum):
-    """org.hisp.dhis.mapping.ThematicMapType (DHIS2 v41)."""
-
-    CHOROPLETH = "CHOROPLETH"
-    BUBBLE = "BUBBLE"
 
 
 class UserOrgUnitType(StrEnum):

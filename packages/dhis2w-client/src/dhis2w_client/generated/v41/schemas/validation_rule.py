@@ -67,7 +67,7 @@ class ValidationRule(BaseModel):
     queryMods: Any | None = Field(default=None, description="Reference to QueryModifiers. Read-only (inverse side).")
     rightSide: Any | None = Field(default=None, description="Reference to Expression. Unique. Length/value max=255.")
     sharing: Any | None = Field(default=None, description="Reference to Sharing. Length/value max=255.")
-    shortName: str | None = Field(default=None, description="Length/value min=1, max=2147483647.")
+    shortName: str | None = Field(default=None, description="Unique. Length/value min=1, max=50.")
     skipFormValidation: bool | None = None
     translations: list[Any] | None = Field(default=None, description="Collection of Translation. Length/value max=255.")
     user: Reference | None = Field(default=None, description="Reference to User. Read-only (inverse side).")
