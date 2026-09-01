@@ -8,6 +8,7 @@ import {
     type Bundle,
     type OperationOutcome,
     type QuestionnaireResponse,
+    type QuestionnaireResponseItem,
 } from '@/lib/fhir'
 
 /**
@@ -18,13 +19,13 @@ import {
  * `/facade/tracked-entities/{uid}/enrollments` answers. `/metadata` names the address under the
  * register's own resource and `/facade/openapi.json` describes it in full.
  *
- * WHY THE ROWS ARE NOT THE RESPONSES. A served event carries its answers, and a page listing what
- * somebody has been through wants the two facts that place an event - which stage form it answered,
- * and when it happened. So the Bundle is read into that pair here, and the answers stay where they
- * are: opening one is the response page's job, not this listing's.
+ * WHAT A ROW CARRIES. The two facts that place an event - which stage form it answered, and when it
+ * happened - and the answers themselves, in the tree the document states them in. The two facts are
+ * what a reader scans a record by; the answers are what the record is, and an event that could only
+ * be read by leaving the record for a page of its own would be a record nobody reads.
  */
 
-/** One DHIS2 event of one tracked entity: which form it answered, when, and inside which enrollment. */
+/** One DHIS2 event of one tracked entity: which form it answered, when, inside which enrollment, and what it answered. */
 export interface TrackedEntityEvent {
     /** The DHIS2 event uid, which is the served response's own id. */
     eventUid: string
@@ -34,6 +35,8 @@ export interface TrackedEntityEvent {
     occurredAt: string | null
     /** The DHIS2 enrollment the event belongs to, or null when the served response names none. */
     enrollmentUid: string | null
+    /** The answered items of the served response, as it nests them; empty when it carries none. */
+    items: QuestionnaireResponseItem[]
 }
 
 /** One entity's record in the states a section has to tell apart. */
@@ -114,12 +117,13 @@ async function readTrackedEntityEvents(trackedEntityUid: string): Promise<Bundle
     return body as Bundle<QuestionnaireResponse>
 }
 
-/** One served response read as the two facts that place an event, and the enrollment it sits in. */
+/** One served response read as the facts that place an event, the enrollment it sits in, and its answers. */
 function trackedEntityEvent(response: QuestionnaireResponse): TrackedEntityEvent {
     return {
         eventUid: response.id ?? '',
         formId: canonicalId(response.questionnaire),
         occurredAt: response.authored ?? null,
         enrollmentUid: trackerEnrollmentOf(response),
+        items: response.item ?? [],
     }
 }

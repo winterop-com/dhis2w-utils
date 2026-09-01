@@ -2875,6 +2875,14 @@ an identifier search and a paged listing on one page, with a detail route at
   as one row per DHIS2 event, named by the published title of the stage form it
   answered, with the date DHIS2 dates it - and the register's own words for an
   instance holding none.
+- **An event unfolds in place into what it recorded.** Every row of the record
+  opens onto its own answers, closed to start with and opened where it stands -
+  no second page and no second read. The answers keep the nesting the served
+  document states, so a value stays inside the section its question was asked
+  in; each question is named the way the served form asks it and keeps its link
+  id in mono when no served form declares it; each answer is drawn as what it
+  is, a coding standing as the display a person reads beside the code DHIS2
+  stores. An event the instance holds no answer on says so.
 - **A search this server refused leaves the page of everything standing.** The
   box states the refusal; the listing under it is not taken away, because a
   reader whose search failed is left with a blank page and nothing to go back to

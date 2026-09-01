@@ -1740,14 +1740,18 @@ described, and the git history is where it was built. What is left:
   live DHIS2 beside its receipts, and the entity timeline the screens do not draw
   yet.
 
-- **The record on the screens.** The facade serves it -
+- **The record's remaining shapes.** The facade serves it -
   `GET /facade/tracked-entities/{uid}/events`, entity-scoped throughout, each event as
-  the response its stage's own form describes - and the capture UI does not draw
-  it. The owner's framing is the shape of the screen: browse the register, open
-  one entity, get its history. Two things sit beside that work: the enrollment
-  the record hangs off is still typed JSON rather than the ratified resource
-  (decision 5.2), and a timeline is where a corrected or withdrawn event would
-  first be visible as such.
+  the response its stage's own form describes - and the capture UI draws it in
+  the shape the owner framed: browse the register, open one entity, get its
+  history. Its identifier values, its attribute values, the programmes it is
+  enrolled in, and the events of those enrollments are all on the one screen,
+  each event unfolding in place into the answers the instance holds for it -
+  the served document's own nesting, every question named the way the served
+  form asks it. Two things are still open around that: the enrollment the
+  record hangs off is typed JSON rather than the ratified resource
+  (decision 5.2), and there is no timeline, which is where a corrected or
+  withdrawn event would first be visible as such.
 - **The summary's remaining shapes.** The document itself is served -
   `$summary` on the register's people, identity from the Patient projection,
   Immunizations from a stated mapping, honest absence everywhere else. What is

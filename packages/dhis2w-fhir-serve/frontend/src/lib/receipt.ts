@@ -3,11 +3,11 @@
  *
  * WHY THIS IS ITS OWN MODULE. lib/spool.ts is the receipt envelope and nothing else; lib/fhir.ts
  * is the R4 wire shapes and nothing else; lib/questionnaire.ts is the fill side, which reads a
- * form in order to write answers. This is the read side, and it is the one place the two type
- * sets meet: a `SpoolResponseSummary` says which canonical a receipt answered, the served
- * `Questionnaire` says what that form asks and in which order, and the stored
- * `QuestionnaireResponse` says what was answered. None of the three modules can join them
- * without importing one of the others, so the join lives here.
+ * form in order to write answers; lib/answers.ts reads one `value[x]` back as a value a screen
+ * shows. This is the join, and it is the one place all of them meet: a `SpoolResponseSummary` says
+ * which canonical a receipt answered, the served `Questionnaire` says what that form asks and in
+ * which order, and the stored `QuestionnaireResponse` says what was answered. None of those
+ * modules can join them without importing one of the others, so the join lives here.
  *
  * WHY THE QUESTIONNAIRE IS A SEPARATE READ, AND WHY IT MAY BE MISSING. A receipt is a fact
  * about a submission; the question texts are a fact about the guide, and the guide can be
@@ -20,28 +20,10 @@
  * Everything here is pure. The reads happen in the page.
  */
 
-import { attributeOptionComboLabel, attributeOptionComboOf, canonicalId, conceptDisplay, enrolledAtOf, incidentAtOf, trackedEntityOf, trackerEnrollmentOf, type CodeSystem, type Questionnaire, type QuestionnaireResponse, type QuestionnaireResponseAnswer, type QuestionnaireResponseItem } from '@/lib/fhir'
-import { referencedUnitId } from '@/lib/orgunits'
+import { answerValue, type AnswerValue } from '@/lib/answers'
+import { attributeOptionComboLabel, attributeOptionComboOf, canonicalId, conceptDisplay, enrolledAtOf, incidentAtOf, trackedEntityOf, trackerEnrollmentOf, type CodeSystem, type Questionnaire, type QuestionnaireResponse, type QuestionnaireResponseItem } from '@/lib/fhir'
 import { DEFAULT_DATE_LABELS, type DateLabels, type ProgramRule, type QuestionnaireSpec } from '@/lib/questionnaire'
 import { formatInstant, TRACKED_ENTITY_FACT_LABEL, TRACKER_ENROLLMENT_FACT_LABEL, type SpoolRejectionIssue, type SpoolResponseSummary } from '@/lib/spool'
-
-/**
- * One value an answer carried, reduced to the three things a receipt table renders differently.
- *
- * A coding keeps its halves apart on purpose: the display is what a person reads and the code is
- * what DHIS2 stores, and a receipt that showed only one of them would be unusable for exactly
- * the person who opens it - "Fever" is not what the forwarder writes, and `OpFever0001` is not
- * what anyone recognises.
- *
- * A reference keeps its halves apart for the same reason. A DHIS2 `ORGANISATION_UNIT` answer is a
- * `Location/<stem>`, and the stem is the organisation-unit uid the forwarder writes - so the uid is
- * kept beside whatever name the answer carries, and the unit id is kept on its own so a page with
- * the registry in hand can name a reference that carries no display at all.
- */
-export type ReceiptAnswerValue =
-    | { kind: 'coding'; display: string; code: string | null; system: string | null }
-    | { kind: 'reference'; display: string | null; reference: string; unitId: string | null }
-    | { kind: 'text'; text: string }
 
 /**
  * The DHIS2 error code a rejection carries when a program rule refused the import.
@@ -147,7 +129,7 @@ export interface ReceiptAnswerRow {
     /** Whether the served form still declares this link id. */
     known: boolean
     /** Every answer given to this question, in the order the receipt states them. */
-    values: ReceiptAnswerValue[]
+    values: AnswerValue[]
 }
 
 /**
@@ -332,18 +314,18 @@ export function mergeContextFacts(...groups: ReceiptContextFact[][]): ReceiptCon
 }
 
 /** One answered item of a stored response, read in document order with its ancestry. */
-interface AnsweredItem {
+interface ReceiptAnsweredItem {
     linkId: string
     /** The text the response itself states, if any - R4 lets a response echo the question. */
     text: string | null
     /** The enclosing items' texts, or their link ids when they state none. */
     ancestorTexts: string[]
-    values: ReceiptAnswerValue[]
+    values: AnswerValue[]
 }
 
 /** Walk a stored response, returning every item that carries at least one renderable answer. */
-function answeredItems(response: QuestionnaireResponse): AnsweredItem[] {
-    const items: AnsweredItem[] = []
+function answeredItems(response: QuestionnaireResponse): ReceiptAnsweredItem[] {
+    const items: ReceiptAnsweredItem[] = []
     const walk = (nodes: QuestionnaireResponseItem[], ancestorTexts: string[]): void => {
         for (const node of nodes) {
             const label = node.text ?? node.linkId
@@ -368,48 +350,4 @@ function answeredItems(response: QuestionnaireResponse): AnsweredItem[] {
     }
     walk(response.item ?? [], [])
     return items
-}
-
-/**
- * One answer as the value a table cell shows, or null when it carries none.
- *
- * Dispatching on which `value[x]` is present rather than on the question's declared type is what
- * makes this work with no form at all - and it is also the correct reading for `open-choice`,
- * which answers as a coding or as a plain string depending on what was picked.
- */
-function answerValue(answer: QuestionnaireResponseAnswer): ReceiptAnswerValue | null {
-    if (answer.valueCoding !== undefined) {
-        const coding = answer.valueCoding
-        return {
-            kind: 'coding',
-            display: coding.display ?? coding.code ?? '',
-            code: coding.code ?? null,
-            system: coding.system ?? null,
-        }
-    }
-    // Yes and No rather than true and false: a receipt is read by the person who ran the
-    // capture, and the form asked a yes/no question.
-    if (answer.valueBoolean !== undefined) return { kind: 'text', text: answer.valueBoolean ? 'Yes' : 'No' }
-    if (answer.valueDecimal !== undefined) return { kind: 'text', text: String(answer.valueDecimal) }
-    if (answer.valueInteger !== undefined) return { kind: 'text', text: String(answer.valueInteger) }
-    const text =
-        answer.valueDate ?? answer.valueDateTime ?? answer.valueTime ?? answer.valueString ?? answer.valueUri
-    if (text !== undefined) return { kind: 'text', text }
-    if (answer.valueReference !== undefined) {
-        const reference = answer.valueReference
-        const stated = reference.reference ?? reference.identifier?.value
-        if (stated === undefined) return { kind: 'text', text: 'a reference' }
-        return {
-            kind: 'reference',
-            display: reference.display ?? null,
-            reference: stated,
-            unitId: referencedUnitId(reference),
-        }
-    }
-    if (answer.valueAttachment !== undefined) {
-        const attachment = answer.valueAttachment
-        const named = attachment.title ?? attachment.url ?? attachment.contentType
-        return { kind: 'text', text: named === undefined ? 'an attachment' : named }
-    }
-    return null
 }

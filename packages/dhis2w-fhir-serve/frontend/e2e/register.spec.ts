@@ -289,6 +289,12 @@ const EVENTS = {
                         },
                     },
                 ],
+                // What the visit recorded, as the facade projects it: link ids and values, and no
+                // question text - the text is a fact about the guide, and the served form carries it.
+                item: [
+                    { linkId: 'DeAncVisNo1', answer: [{ valueInteger: 2 }] },
+                    { linkId: 'DeAncDanger', answer: [{ valueBoolean: false }] },
+                ],
             },
             search: { mode: 'match' },
         },
@@ -869,6 +875,15 @@ test.describe('the people this DHIS2 instance holds', () => {
         const events = page.getByTestId('tracked-entity-events')
         await expect(events).toContainText('ANC follow-up - ANC visit')
         await expect(events).toContainText('EvtAncVis01')
+
+        // And the visit itself is one click down, in place: closed, the row is what it is and when
+        // it was; opened, it is the answers the instance holds, each question named the way the
+        // served form asks it and each answer read off the value[x] the document typed it onto.
+        await expect(events).not.toContainText('ANC visit number')
+        await page.getByTestId('tracked-entity-event-EvtAncVis01').getByRole('button').click()
+        await expect(events).toContainText('ANC visit number')
+        await expect(events).toContainText('ANC danger signs present')
+        await expect(events).toContainText('No')
 
         // The way into the instance: Capture's enrollment dashboard, which is the screen that opens
         // a person - and it needs the program and the enrollment, which this listing states.

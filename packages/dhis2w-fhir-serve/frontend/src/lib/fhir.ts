@@ -46,6 +46,22 @@ export interface Reference {
     identifier?: Identifier
 }
 
+/**
+ * A measured amount: the number, the word it is measured in, and the unit coded.
+ *
+ * No control here fills one and the DHIS2 emitter writes none - a DHIS2 value type is a number or
+ * it is text - but a `quantity` question is ordinary R4, and a hand-written form served by `--live`
+ * can be answered with one. An answer this UI could not read would be a record shown as smaller
+ * than it is, so the shape is typed and read.
+ */
+export interface Quantity {
+    value?: number
+    comparator?: string
+    unit?: string
+    system?: string
+    code?: string
+}
+
 /** A time range, as the D2Period extension states the reporting period it covers. */
 export interface Period {
     start?: string
@@ -221,6 +237,7 @@ export interface QuestionnaireResponseAnswer {
     valueString?: string
     valueUri?: string
     valueCoding?: Coding
+    valueQuantity?: Quantity
     valueReference?: Reference
     valueAttachment?: Attachment
     item?: QuestionnaireResponseItem[]
