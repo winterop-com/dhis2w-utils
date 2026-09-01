@@ -7,6 +7,7 @@ import { PageHeader, PageState } from '@/components/PageState'
 import { ProseText } from '@/components/ProseText'
 import { FormKindBadge, LifecycleBadge } from '@/components/ReceiptBadges'
 import { NO_RECEIPT_OPENED, ReceiptSheet } from '@/components/ReceiptSheet'
+import { TrackedEntityRecordSection } from '@/components/TrackedEntityRecordSection'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -21,8 +22,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useFhirSearch } from '@/hooks/use-fhir-search'
 import { useSpool } from '@/hooks/use-spool'
 import { useStatusLine } from '@/hooks/use-status-bar'
+import { useUiConfig } from '@/hooks/use-ui-config'
 import { type Questionnaire } from '@/lib/fhir'
 import { formLabel } from '@/lib/receipt'
+import { trackedEntityRecordOffered, trackedEntitySettings } from '@/lib/uiconfig'
 import {
     LIFECYCLE_HINTS,
     LIFECYCLE_LABELS,
@@ -42,6 +45,29 @@ const LIFECYCLE_QUERY_PARAMETER = 'lifecycle'
 const OPENED_QUERY_PARAMETER = 'open'
 
 /**
+ * What the table says when this server holds no receipt at all.
+ *
+ * IT STATES THE SPOOL AND NOT THE WORLD. "Nothing has been captured" is a claim about a DHIS2
+ * instance that this server has no standing to make: a submission posted straight into DHIS2 is a
+ * capture that never touched this spool, and so is every one this server took before somebody
+ * emptied the directory. What is true is that there is no receipt here, and that is what it says.
+ */
+export const NO_RECEIPT_STORED =
+    'This server has stored no receipt. A receipt arrives here when a client POSTs a QuestionnaireResponse - ' +
+    'fill a form in from the Forms page, or ask the server for a synthetic one with ' +
+    'GET /Questionnaire/{id}/$generate and post it back.'
+
+/** What it adds where the DHIS2 instance is read below, so an empty table is not read as an empty project. */
+export const RECORD_READ_BELOW =
+    'Data entered into this DHIS2 instance by any other route leaves no receipt here; what the ' +
+    'instance holds is read below, one tracked entity at a time.'
+
+/** The empty state, which says one more thing on a run that also reads the instance itself. */
+export function noReceiptStoredMessage(recordOffered: boolean): string {
+    return recordOffered ? `${NO_RECEIPT_STORED} ${RECORD_READ_BELOW}` : NO_RECEIPT_STORED
+}
+
+/**
  * What came back: every capture this server stored, and what has become of it.
  *
  * A FILE THAT IS NOT A RECEIPT IS STATED FIRST. The spool also holds what it could not read, and
@@ -49,7 +75,13 @@ const OPENED_QUERY_PARAMETER = 'open'
  * those. They are in none of the four states and in none of the table's columns, so they are a
  * section above it - see `QuarantinedSection`.
  *
- * WHAT THIS PAGE IS ACTUALLY SHOWING. Not a view of DHIS2. A receipt is the
+ * TWO SOURCES, AND THE TABLE IS THE FIRST OF THEM. The receipts are this
+ * server's own directory; underneath them sits what the DHIS2 instance holds for
+ * one tracked entity somebody picks, which is a different question with a
+ * different answer - see `components/TrackedEntityRecordSection` for why it is a
+ * picker rather than a feed, and why it is absent on a run that cannot answer it.
+ *
+ * WHAT THE TABLE IS ACTUALLY SHOWING. Not a view of DHIS2. A receipt is the
  * submission as it arrived, and the lifecycle beside it is which of the spool's
  * four directories the file currently sits in - `received` until
  * `d2w fhir forward` drains it, then `forwarded` or `rejected` depending on what
@@ -94,6 +126,10 @@ const OPENED_QUERY_PARAMETER = 'open'
 export function Responses() {
     const { listing, loading, error, refreshing, reload } = useSpool()
     const forms = useFhirSearch<Questionnaire>('Questionnaire')
+    // Whether the second source is on the page, which is the one thing the receipts half of it has
+    // to know: an empty spool means something different where the instance itself is read below.
+    const { config } = useUiConfig()
+    const recordOffered = trackedEntityRecordOffered(trackedEntitySettings(config))
     const [searchParameters, setSearchParameters] = useSearchParams()
     const [formFilter, setFormFilter] = useState<string | null>(null)
 
@@ -217,7 +253,7 @@ export function Responses() {
                 loading={loading}
                 error={error}
                 empty={listing.total === 0}
-                emptyMessage="Nothing has been captured into this project yet. A receipt arrives here when a client POSTs a QuestionnaireResponse - fill a form in from the Forms page, or ask the server for a synthetic one with GET /Questionnaire/{id}/$generate and post it back."
+                emptyMessage={noReceiptStoredMessage(recordOffered)}
             >
                 {rows.length === 0 ? (
                     <Card>
@@ -291,6 +327,8 @@ export function Responses() {
                     </div>
                 )}
             </PageState>
+
+            <TrackedEntityRecordSection />
 
             <ReceiptSheet
                 responseId={opened}

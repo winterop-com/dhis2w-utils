@@ -263,6 +263,9 @@ function InstanceOffer({
                     controlId="answering-identifier"
                     enabled
                     resource={resource}
+                    // This control speaks about people in every sentence it carries, and the
+                    // search inside it says the same word rather than a second one.
+                    subject={{ kind: 'people' }}
                     onChoose={(chosen) => setPatient(chosen)}
                 />
             ) : (

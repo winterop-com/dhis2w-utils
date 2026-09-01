@@ -94,8 +94,13 @@ test('the Responses page starts empty and says where a response comes from', asy
     await page.goto('/#/responses')
 
     await expect(page.getByRole('heading', { name: 'Responses', level: 2 })).toBeVisible()
-    await expect(page.getByText('Nothing has been captured into this project yet')).toBeVisible()
+    // The spool, and not the project: this server has no standing to say a DHIS2 instance holds
+    // nothing, and a capture posted straight into DHIS2 never touched this directory.
+    await expect(page.getByText('This server has stored no receipt')).toBeVisible()
     await expect(page.getByText('$generate')).toBeVisible()
+    // The fixture server serves a compiled guide, so there is no instance to read a record from and
+    // the empty sentence points nowhere.
+    await expect(page.getByTestId('responses-tracked-entity-record')).toHaveCount(0)
     // The listing names its own FHIR search whether or not it has anything to list: the query is a
     // fact about the page, and an integrator arriving at an empty spool still wants the route.
     await expect(page.getByTestId('api-link')).toHaveAttribute('href', '/QuestionnaireResponse?_format=json')

@@ -14,6 +14,7 @@ import {
     MINIMUM_PATIENT_SEARCH_LENGTH,
     type PatientProjection,
 } from '@/lib/patients'
+import { registerWords, type RegisterSubject } from '@/lib/uiconfig'
 
 /**
  * What the box is called and what it says about itself, per the search this server answers.
@@ -187,6 +188,7 @@ export function PatientSearch({
     controlId,
     enabled,
     resource,
+    subject,
     onChoose,
 }: {
     /** The id the label and the input find each other by; each mount needs its own. */
@@ -195,11 +197,20 @@ export function PatientSearch({
     enabled: boolean
     /** The register resource type the search reads - the form's own `subjectType`. */
     resource: string
+    /**
+     * Who the records being searched are, which every word this control spends follows.
+     *
+     * The resource says nothing about it - `Patient` is what a village is served as when R4 has no
+     * resource for one - so the caller states the subject and a row is chosen by the instance's own
+     * word for the thing rather than by "person" over a specimen batch.
+     */
+    subject: RegisterSubject
     onChoose: (patient: PatientProjection) => void
 }) {
     const [typed, setTyped] = useState('')
     const searchKey = useRegisterSearchKey(resource)
     const search = usePatientSearch(typed, enabled, resource, searchKey)
+    const words = registerWords(subject)
 
     return (
         <PatientSearchControl
@@ -208,12 +219,13 @@ export function PatientSearch({
             onTyped={setTyped}
             state={search}
             searchKey={searchKey}
+            peopleOnly={subject.kind === 'people'}
         >
             {search.results.length > 0 && (
                 <ul data-testid="patient-search-results" className="grid gap-1">
                     {search.results.map((patient) => (
                         <li key={patient.trackedEntityUid}>
-                            <PatientResult patient={patient} onChoose={onChoose} />
+                            <PatientResult patient={patient} one={words.one} onChoose={onChoose} />
                         </li>
                     ))}
                 </ul>
@@ -223,16 +235,20 @@ export function PatientSearch({
 }
 
 /**
- * One person the instance holds, as a row that can be chosen.
+ * One record the instance holds, as a row that can be chosen.
  *
  * The accessible name carries the value the row leads with rather than a bare "Choose", because a
- * list of eleven-character uids read out as five identical buttons is a list nobody can use.
+ * list of eleven-character uids read out as five identical buttons is a list nobody can use. It
+ * names the subject in the register's own word for the same reason every other sentence here does.
  */
 function PatientResult({
     patient,
+    one,
     onChoose,
 }: {
     patient: PatientProjection
+    /** What one of these is, in the sentence "Choose the ___ identified by X". */
+    one: string
     onChoose: (patient: PatientProjection) => void
 }) {
     const lead = patientLeadValue(patient)
@@ -240,7 +256,7 @@ function PatientResult({
         <Button
             type="button"
             variant="outline"
-            aria-label={`Choose the person identified by ${lead}`}
+            aria-label={`Choose the ${one} identified by ${lead}`}
             className="h-auto w-full justify-start px-3 py-2 text-left"
             onClick={() => onChoose(patient)}
         >

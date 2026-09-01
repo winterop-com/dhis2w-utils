@@ -2661,6 +2661,21 @@ control per R4 item type.
   as a receipt. It is not a fifth state and has no row in the table - a
   quarantined file has no form, no answers, and no id to open - so it is said
   where a reader meets it rather than left to the API.
+- **A second source under the receipts: one tracked entity in the DHIS2
+  instance.** A receipt is what this server stored; a record is what the
+  instance holds now, and a capture posted straight into DHIS2 leaves no receipt
+  here at all - so a picker under the table finds a tracked entity by an
+  identifier value and draws their events as the same unfoldable rows the
+  register's record page draws, one per DHIS2 event, unfolding into the answers
+  the instance holds. Register-aware: a run serving several registers offers the
+  register first, named by what the instance calls the types riding it, and one
+  serving a single register offers no chooser. There is no instance-wide feed
+  and there will not be one - `GET /facade/tracked-entities/{uid}/events` is
+  entity-scoped as a security boundary - so the section is a picker by
+  construction. It is drawn only where `/facade/uiconfig` reports
+  `tracked_entities.events`, which a compiled run and a run switching the record
+  off both report false; the empty receipts table is worded to match, stating
+  the spool rather than claiming the project holds nothing.
 - **`/responses/{id}`** is a deep-linkable receipt page opened by clicking a
   row: the answers joined to the questions the served Questionnaire asks, in
   that form's order, each with its enclosing groups (what turns a disaggregated
@@ -2824,9 +2839,10 @@ an identifier search and a paged listing on one page, with a detail route at
   one, so Back leaves the page instead of unwinding the keystrokes.
 
 - **Gated into the navigation** by the `tracked_entities` block `GET /facade/uiconfig`
-  carries beside the `capture` flag - `enabled`, `listing`, and `registers` -
-  all three effective rather than as written, so a compiled run reports false
-  and no entry is drawn.
+  carries beside the `capture` flag - `enabled`, `listing`, `events`, and
+  `registers` - all of them effective rather than as written, so a compiled run
+  reports false and no entry is drawn. `events` is what the Responses page's
+  record picker is drawn from, so a run answering no record draws no picker.
 - **A link to a register this run does not serve is answered where it was
   opened.** The address states one card carrying the server's own refusal, read
   off `GET /{resource}` - *this facade serves a compiled implementation guide,

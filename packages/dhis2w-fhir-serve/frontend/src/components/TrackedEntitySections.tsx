@@ -102,8 +102,12 @@ export function TrackedEntitySections({
  * event opens onto them in place - no second page, no second read, and the record stays one page a
  * reader can walk. Closed, a row is what it is and when it was, which is what a listing of visits is
  * scanned by; open, it is the visit itself.
+ *
+ * EXPORTED BECAUSE TWO SCREENS SHOW THESE ROWS. The record is one of them; the receipts page is the
+ * other, where a picked tracked entity's events sit under the receipts this server stored. What has
+ * happened to somebody must read the same on both, so it is written once.
  */
-function EventSection({ state, words }: { state: TrackedEntityEventsState; words: RegisterWords }) {
+export function EventSection({ state, words }: { state: TrackedEntityEventsState; words: RegisterWords }) {
     const forms = useFhirSearch<Questionnaire>('Questionnaire')
     const titles = useMemo(() => {
         const named = new Map<string, string>()

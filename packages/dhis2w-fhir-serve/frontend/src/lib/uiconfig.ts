@@ -123,6 +123,14 @@ export function registerFilterAttributesForType(register: Register, typeUid: str
 export interface TrackedEntitiesSettings {
     enabled: boolean
     listing: boolean
+    /**
+     * Whether one tracked entity's own events are answered, which is what a record is made of.
+     *
+     * The third offer, and separate from the other two for the same reason they are separate from
+     * each other: a deployment can answer who somebody is and decline to answer what they have been
+     * through. Absent is read as answering none - see `trackedEntityRecordOffered`.
+     */
+    events?: boolean
     registers: Register[]
 }
 
@@ -202,8 +210,13 @@ export interface UiConfig {
     metadata_health?: MetadataHealthSettings | null
 }
 
-/** What a server stating nothing is read as: no routes, so no listing and no register either. */
-export const NO_REGISTER_OFFERED: TrackedEntitiesSettings = { enabled: false, listing: false, registers: [] }
+/** What a server stating nothing is read as: no routes, so no listing, no record, and no register. */
+export const NO_REGISTER_OFFERED: TrackedEntitiesSettings = {
+    enabled: false,
+    listing: false,
+    events: false,
+    registers: [],
+}
 
 /** The FHIR resource a DHIS2 tracked entity type is served as when the guide maps it to nothing. */
 export const PEOPLE_RESOURCE_TYPE = 'Patient'
@@ -447,6 +460,48 @@ export function registerTitle(settings: TrackedEntitiesSettings): string {
  */
 export function registerSectionTitle(register: Register): string {
     return register.types.map((type) => type.name ?? type.uid).join(', ')
+}
+
+/**
+ * Whether this run answers what one tracked entity has been through, with silence read as answering none.
+ *
+ * THE THIRD OFFER, ASKED AHEAD OF THE REQUEST. A screen that draws a record has to know whether one
+ * can be read before it draws the control that reads it - a picker whose every choice ends in a
+ * refusal is worse than no picker - and `enabled` is not the answer: a deployment can serve the
+ * register and decline the record, which is what `[serve.tracked_entities] events = false` says.
+ *
+ * `enabled` still gates it, because the record is read under a tracked entity and a run answering
+ * for none has no entity to read it under.
+ */
+export function trackedEntityRecordOffered(settings: TrackedEntitiesSettings): boolean {
+    return settings.enabled && (settings.events ?? false)
+}
+
+/** One register a tracked entity can be picked out of: where it is read, what it is called, and who is in it. */
+export interface RegisterChoice {
+    /** The FHIR resource type the register is read at, which is the path a search is sent to. */
+    resource: string
+    /** What the choice reads as: the names this DHIS2 instance holds for the types riding the register. */
+    label: string
+    /** Who the register's records are, which is what a search box's words follow. */
+    subject: RegisterSubject
+}
+
+/**
+ * The registers somebody can pick a tracked entity out of, in the order the server states them.
+ *
+ * ONE ENTRY PER SERVED RESOURCE, NAMED BY THE INSTANCE'S OWN WORDS. An instance serves as many
+ * registers as its published map names, so a control that offered people alone would be a control
+ * that cannot reach a specimen batch - and naming a choice after the FHIR resource would name the
+ * projection where the instance has a name of its own. A register the guide named no type for falls
+ * back to the register, which is what the whole family is called here.
+ */
+export function registerChoices(settings: TrackedEntitiesSettings): RegisterChoice[] {
+    return settings.registers.map((register) => ({
+        resource: register.resource,
+        label: registerSectionTitle(register) || REGISTER_TITLE,
+        subject: subjectOfTypes(register.types),
+    }))
 }
 
 /**

@@ -1700,6 +1700,7 @@ $ curl -s localhost:8389/facade/uiconfig | jq .
   "tracked_entities": {
     "enabled": true,
     "listing": true,
+    "events": true,
     "registers": [
       {
         "resource": "Patient",
@@ -1745,15 +1746,18 @@ setting the browser could not read, would take the app away.
 absences it guesses at: the map's layer control holds `None` alone, and the
 screens carry no links out.
 
-`tracked_entities` is what the screens act on. `enabled` and `listing` are the
-two switches of `[serve.tracked_entities]` that change what is drawn - `enabled`
-false and the register has no entry in the navigation at all, `listing` false and
-its page searches without offering to browse. The UI reads them here rather than
+`tracked_entities` is what the screens act on. `enabled`, `listing` and `events`
+are the three switches of `[serve.tracked_entities]` that change what is drawn -
+`enabled` false and the register has no entry in the navigation at all, `listing`
+false and its page searches without offering to browse, `events` false and no
+screen offers one entity's own record. The UI reads them here rather than
 discovering them from a refusal, so a control that cannot be answered is never
-drawn in the first place. What is reported is what this run does, not what the
+drawn in the first place - the Responses page's record picker is the clearest
+case, since it is absent rather than present-and-refusing wherever `events` is
+false. What is reported is what this run does, not what the
 file says: a compiled run reports `enabled` false whatever `fhir.toml` states,
 because the register answers from an instance and a compiled run is connected to
-none. The other five settings of that table shape the answers rather than the
+none. The other four settings of that table shape the answers rather than the
 screens, so the browser is never told them.
 
 `registers` is the third fact, and it is the published `D2TET_CM` read for a

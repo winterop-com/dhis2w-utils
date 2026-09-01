@@ -195,11 +195,18 @@ class RegisterUiConfig(BaseModel):
 class TrackedEntitiesUiConfig(BaseModel):
     """Whether this process answers for the instance's tracked entities, what it serves them as, and whether it lists.
 
-    `enabled` and `listing` are resolved facts rather than the `[serve.tracked_entities]` table read
-    back: `enabled` is false for a compiled run and for a project publishing no registration form,
-    exactly as it is for one whose table switches the register off, because all three mean the same
-    thing to a screen - there is nothing here to show. `listing` is the same question for the screen
-    that shows everything.
+    `enabled`, `listing` and `events` are resolved facts rather than the `[serve.tracked_entities]`
+    table read back: `enabled` is false for a compiled run and for a project publishing no
+    registration form, exactly as it is for one whose table switches the register off, because all
+    three mean the same thing to a screen - there is nothing here to show. `listing` is the same
+    question for the screen that shows everything, and `events` for the screen that shows one
+    entity's own record.
+
+    `events` is stated because the record is a surface a screen draws on its own terms and cannot
+    otherwise learn about ahead of a request: `/metadata` names the address in the prose of a
+    resource entry's documentation, which is the right place for a FHIR client and the wrong one for
+    a control deciding whether to exist. A screen reading false draws no record at all rather than a
+    picker whose every choice answers a refusal.
 
     `registers` is what makes the screen honest about what it is showing. A run whose every type is
     published as `Patient` carries one entry and the screen is the one it always was; a run that also
@@ -219,6 +226,9 @@ class TrackedEntitiesUiConfig(BaseModel):
 
     listing: bool
     """Whether a register search naming no identifier answers with a page of the register."""
+
+    events: bool = False
+    """Whether one tracked entity's own record - the events of its enrollments - is answered here."""
 
     registers: list[RegisterUiConfig] = Field(default_factory=list)
     """One entry per FHIR resource type served, each carrying its types and what it filters by.
@@ -318,8 +328,9 @@ class UiConfig(BaseModel):
         "The run-time facts a screen has to act on and no published resource states: whether this "
         "server receives submissions, which authentication posture it runs and over how much of the "
         "surface, which raster layers the organisation-unit map may draw, the DHIS2 instance the "
-        "guide was generated from, whether there is a register to navigate to, and whether there is "
-        "an instance behind this run to grade the metadata of.\n\n"
+        "guide was generated from, whether there is a register to navigate to and whether one "
+        "entity's own record is answered beside it, and whether there is an instance behind this "
+        "run to grade the metadata of.\n\n"
         "Nothing secret crosses: no token, no realm, no signing key, no claim name, and no "
         "credential written into the instance address. Read it once - the settings are resolved when "
         "the process starts, so a server that changed its mind about them has restarted."
@@ -355,6 +366,7 @@ def tracked_entities_config(*, live: bool, surface: RegisterSurface) -> TrackedE
     return TrackedEntitiesUiConfig(
         enabled=enabled,
         listing=enabled and surface.serves_listing(),
+        events=enabled and surface.serves_events(),
         registers=[
             RegisterUiConfig(
                 resource=register.resource_type,

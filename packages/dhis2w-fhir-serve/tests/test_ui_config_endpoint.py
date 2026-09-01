@@ -168,6 +168,7 @@ async def test_a_compiled_run_reports_no_register_surface_to_navigate_to(
     assert (await ui_config_client.get(UI_CONFIG_ADDRESS)).json()["tracked_entities"] == {
         "enabled": False,
         "listing": False,
+        "events": False,
         "registers": [],
     }
 
@@ -255,9 +256,32 @@ def test_the_register_is_reported_as_a_live_run_resolves_it(capture_project: Fhi
         live=True, surface=RegisterSurface.resolve(index, TrackedEntitiesConfig(enabled=False))
     )
 
-    assert served == TrackedEntitiesUiConfig(enabled=True, listing=True, registers=registers)
-    assert listing_off == TrackedEntitiesUiConfig(enabled=True, listing=False, registers=registers)
-    assert disabled == TrackedEntitiesUiConfig(enabled=False, listing=False, registers=[])
+    assert served == TrackedEntitiesUiConfig(enabled=True, listing=True, events=True, registers=registers)
+    assert listing_off == TrackedEntitiesUiConfig(enabled=True, listing=False, events=True, registers=registers)
+    assert disabled == TrackedEntitiesUiConfig(enabled=False, listing=False, events=False, registers=[])
+
+
+def test_the_record_is_reported_as_its_own_offer_beside_the_listing(capture_project: FhirProject) -> None:
+    """One entity's own events are a third offer, and a screen that draws them has to be told.
+
+    A deployment can answer who somebody is and decline to answer what they have been through, which
+    is what `[serve.tracked_entities] events = false` says. `/metadata` states the same fact in the
+    prose of a resource entry's documentation, which is where a FHIR client reads it and the wrong
+    place for a control deciding whether to exist - so it is stated here as a field, and the capture
+    UI's receipts page draws its record picker exactly where this is true.
+    """
+    index = TrackedEntityIndex.from_store(capture_project, load_compiled_store(capture_project))
+    events_off = tracked_entities_config(
+        live=True, surface=RegisterSurface.resolve(index, TrackedEntitiesConfig(events=False))
+    )
+    compiled = tracked_entities_config(live=False, surface=RegisterSurface.resolve(index, TrackedEntitiesConfig()))
+
+    assert events_off.enabled is True
+    assert events_off.listing is True
+    assert events_off.events is False
+    # A run reaching no instance answers no record for the same reason it answers no register: the
+    # record is read under a tracked entity, and there is no instance to read one from.
+    assert compiled.events is False
 
 
 async def test_the_path_is_not_claimed_by_the_read_catch_all(client: httpx.AsyncClient) -> None:

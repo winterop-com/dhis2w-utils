@@ -427,7 +427,13 @@ async function serveAUnionRegister(page: Page): Promise<void> {
  */
 async function serveRegisterSettings(
     page: Page,
-    tracked_entities: { enabled: boolean; listing: boolean; registers?: unknown[] } | null,
+    tracked_entities: {
+        enabled: boolean
+        listing: boolean
+        /** Whether this run answers one entity's own record, which the receipts page's picker gates on. */
+        events?: boolean
+        registers?: unknown[]
+    } | null,
 ): Promise<void> {
     const stated =
         tracked_entities === null
@@ -1200,5 +1206,122 @@ test.describe('the people this DHIS2 instance holds', () => {
         ).toBeVisible()
         // The page never calls it a person, which is the whole reason the copy follows the type.
         await expect(page.getByText('name this person', { exact: false })).toHaveCount(0)
+    })
+})
+
+/**
+ * The Responses page's second source: what this DHIS2 instance holds, beside the receipts it stored.
+ *
+ * WHY THIS BELONGS HERE RATHER THAN WITH THE OTHER RECEIPTS SPECS. The section reads the instance,
+ * so it needs the fulfilled routes and the fulfilled settings this file already stands up - and what
+ * is under test is the same contract every other test here rests on: a control that reaches DHIS2
+ * exists exactly where the server said it would answer.
+ */
+test.describe('the record beside the receipts', () => {
+    test('is not on the page at all on a run that answers no record', async ({ page }) => {
+        // The register is served and the events are not, which is `[serve.tracked_entities] events
+        // = false` - a deployment answering who somebody is and declining what they have been
+        // through. A picker drawn here would be a picker whose every choice ends in a refusal.
+        await serveRegisterSettings(page, { enabled: true, listing: true, events: false })
+        await serveALiveInstance(page)
+
+        await page.goto('/#/responses')
+
+        await expect(page.getByRole('heading', { name: 'Responses', level: 2 })).toBeVisible()
+        await expect(page.getByTestId('responses-tracked-entity-record')).toHaveCount(0)
+    })
+
+    test('finds one tracked entity and shows what the instance holds them as having been through', async ({
+        page,
+    }) => {
+        await serveRegisterSettings(page, { enabled: true, listing: true, events: true })
+        await serveALiveInstance(page)
+
+        await page.goto('/#/responses')
+
+        const record = page.getByTestId('responses-tracked-entity-record')
+        await expect(record).toBeVisible()
+        // The two sources are told apart in words, which is the whole point of putting them on one
+        // page: the receipts above are this server's, what follows is the instance's.
+        await expect(record).toContainText('One tracked entity in this DHIS2 instance')
+        await expect(record).toContainText('The receipts above are what this server stored.')
+        // Nothing is claimed about anybody before somebody is named.
+        await expect(record).toContainText('Pick a tracked entity above to see the events')
+        // One register served, so there is nothing to choose between and no chooser is drawn.
+        await expect(record.getByLabel('Register')).toHaveCount(0)
+
+        await record.getByLabel('Identifier value').fill(NATIONAL_ID)
+        await record.getByRole('button', { name: `Choose the person identified by ${NATIONAL_ID}` }).click()
+
+        // The same rows the record's own page draws, from the same read: one per DHIS2 event, named
+        // by the published title of the stage form it answered.
+        const events = record.getByTestId('tracked-entity-events')
+        await expect(events).toContainText('ANC follow-up - ANC visit')
+        await expect(events).toContainText('EvtAncVis01')
+        await expect(events).not.toContainText('ANC visit number')
+        await record.getByTestId('tracked-entity-event-EvtAncVis01').getByRole('button').click()
+        await expect(events).toContainText('ANC visit number')
+
+        // And the way to the record's own address, which is the page with room for the rest of it.
+        await expect(record.getByRole('link', { name: 'Open the full page' })).toHaveAttribute(
+            'href',
+            new RegExp(`#/tracked-entities/Patient/${PERSON_UID}$`),
+        )
+    })
+
+    test('offers the registers to pick out of where this run serves more than one', async ({ page }) => {
+        // The subject-generic contract: an instance serves as many registers as its published map
+        // names, and a picker hard-wired to people could not reach a specimen batch.
+        await serveRegisterSettings(page, {
+            enabled: true,
+            listing: true,
+            events: true,
+            registers: [PEOPLE_REGISTER, SPECIMEN_REGISTER],
+        })
+        await serveALiveInstance(page)
+        await serveSpecimens(page)
+        await page.route(
+            (url) => url.pathname === '/Specimen',
+            (route) => {
+                const identifier = new URL(route.request().url()).searchParams.get('identifier')
+                const found =
+                    identifier === null ||
+                    SPECIMEN.identifier.some((value) => value.value === identifier) ||
+                    SPECIMEN.id === identifier
+                return route.fulfill({
+                    status: 200,
+                    contentType: FHIR_JSON,
+                    body: JSON.stringify({
+                        resourceType: 'Bundle',
+                        type: 'searchset',
+                        total: found ? 1 : 0,
+                        entry: found ? [{ resource: SPECIMEN, search: { mode: 'match' } }] : [],
+                    }),
+                })
+            },
+        )
+
+        await page.goto('/#/responses')
+
+        const record = page.getByTestId('responses-tracked-entity-record')
+        const register = record.getByLabel('Register')
+        // Named by what the instance calls the types riding each register, never by the FHIR
+        // resource the guide projects them onto.
+        await expect(register).toBeVisible()
+        await expect(register).toContainText('Person')
+        await expect(register).toContainText('Specimen batch')
+
+        await register.selectOption({ label: 'Specimen batch' })
+
+        // The search now reads the register the choice named, and the row is chosen in the
+        // instance's own word for what it holds rather than in "person".
+        await record.getByLabel('Identifier value').fill(LAB_REFERENCE)
+        await record
+            .getByRole('button', { name: `Choose the Specimen batch identified by ${LAB_REFERENCE}` })
+            .click()
+        await expect(record.getByRole('link', { name: 'Open the full page' })).toHaveAttribute(
+            'href',
+            new RegExp(`#/tracked-entities/Specimen/${SPECIMEN_UID}$`),
+        )
     })
 })
