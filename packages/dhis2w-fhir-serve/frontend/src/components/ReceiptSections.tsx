@@ -15,6 +15,7 @@ import {
     TableRow,
 } from '@/components/ui/table'
 import type { ReceiptRecordState } from '@/hooks/use-receipt-record'
+import type { AnswerValue } from '@/lib/answers'
 import type { QuestionnaireResponse } from '@/lib/fhir'
 import type { OrgUnitChoice } from '@/lib/orgunits'
 import type { ProgramRule } from '@/lib/questionnaire'
@@ -22,7 +23,6 @@ import {
     namedCaptureWarning,
     rejectionRuleName,
     type ReceiptAnswerRow,
-    type ReceiptAnswerValue,
     type ReceiptContextFact,
 } from '@/lib/receipt'
 import {
@@ -391,7 +391,7 @@ function AnswerValue({
     value,
     unitNames,
 }: {
-    value: ReceiptAnswerValue
+    value: AnswerValue
     unitNames: ReadonlyMap<string, OrgUnitChoice>
 }) {
     if (value.kind === 'text') return <span className="text-sm">{value.text}</span>
@@ -431,7 +431,7 @@ function AnswerValue({
 }
 
 /** What one value is keyed by inside a repeating answer. */
-function valueKey(value: ReceiptAnswerValue): string {
+function valueKey(value: AnswerValue): string {
     if (value.kind === 'text') return value.text
     if (value.kind === 'reference') return value.reference
     return `${value.system ?? ''}|${value.code ?? ''}`

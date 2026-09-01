@@ -744,14 +744,34 @@ the value of an attribute DHIS2 declares unique - with the tracked entity uid
 badged beneath it. Where this instance holds no unique value at all, the uid is
 the heading and the badge is dropped: one string stated twice, once large and
 once small, reads as two facts about two things. The detail below is the same
-three facts laid out to be read: the identifiers they are findable by, each
+four facts laid out to be read: the identifiers they are findable by, each
 named for the attribute whose value it is; every attribute value the instance holds for them, including
-the ones collected at a programme rather than at registration; and the
+the ones collected at a programme rather than at registration; the
 programmes they are enrolled in - the name this project publishes for the
 programme where it publishes one, the state of the enrollment in words, when it
-began, and the organisation unit it sits at.
+began, and the organisation unit it sits at; and what they have been through,
+one row per DHIS2 event of those enrollments, named by the published title of
+the stage form it answered.
 
 ![One person in the register: the identifier values that name them, every attribute value this DHIS2 instance holds, and the programmes they are enrolled in](../img/fhir/capture-ui-register-person.png)
+
+**An event opens onto what it recorded, where it stands.** Every row of that
+last list unfolds in place - closed to start with, opened by the row itself -
+into the answers the instance holds for that event, read out of the very
+`QuestionnaireResponse`
+[`/facade/tracked-entities/{uid}/events`](401-consume-the-fhir-api.md) serves.
+There is no second page to go to and nothing to load again. The answers keep the
+nesting the document states, so a value stays inside the section its question
+was asked in and a disaggregated cell is read under the group that says what it
+is a cell of. Each question is named the way the served form asks it, and keeps
+its link id in the mono face this app spells machine values in where no served
+form declares it - a guide recompiled since the capture is ordinary, and a name
+nothing vouches for is worse than the id itself. Each answer is drawn as what it
+is: a coded answer stands as the display a person reads with the code DHIS2
+stores beside it, a yes/no answer as Yes or No, and everything else as the value
+the document carries. A question nobody answered is not in the document and so
+is not on the screen; an event the instance holds no answer on says exactly
+that.
 
 !!! warning "A completed enrollment is listed, and said to be completed"
     DHIS2 accepts a new event into a completed enrollment with no error and no

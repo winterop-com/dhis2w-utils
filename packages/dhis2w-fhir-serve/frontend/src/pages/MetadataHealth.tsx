@@ -1,7 +1,8 @@
-import { useMemo, useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronRight, Languages, RefreshCw, ShieldCheck } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Languages, RefreshCw, ShieldCheck } from 'lucide-react'
 
 import { PageHeader, PageState } from '@/components/PageState'
+import { Unfoldable } from '@/components/Unfoldable'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -154,55 +155,6 @@ export function MetadataHealth() {
                 )}
             </PageState>
         </>
-    )
-}
-
-/**
- * A heading that opens what is under it.
- *
- * The chevron turns, the button carries `aria-expanded`, and the heading itself is the hit area - so
- * a closed section is one line a reader scans and an open one is the same line with its table
- * beneath. `forced` is the filter: while somebody is typing, everything stands open whatever they
- * clicked before, and their own choices come back the moment the box is cleared.
- *
- * THE ROW WEARS `.interactive`, WHICH IS THE WHOLE OF WHAT SAYS IT IS A CONTROL. A heading that is
- * already foreground ink cannot announce itself by darkening on hover: with nothing but the chevron
- * to go on, every row on this page reads as a label, and the only way to find out otherwise is to
- * click one. The class is the app's own answer for a row that opens something - the same wash a
- * card and a menu row take under the pointer, the pointer cursor, and a focus ring drawn inside the
- * row so a keyboard walking the page sees one whole stop. `index.css` argues it.
- */
-function Unfoldable({
-    heading,
-    forced,
-    testId,
-    children,
-}: {
-    heading: ReactNode
-    /** Held open by something outside the reader's clicks - the filter, today. */
-    forced: boolean
-    testId?: string
-    children: ReactNode
-}) {
-    const [opened, setOpened] = useState(false)
-    const unfolded = opened || forced
-    return (
-        <div className="space-y-2" data-testid={testId}>
-            <button
-                type="button"
-                aria-expanded={unfolded}
-                onClick={() => setOpened(!opened)}
-                className="interactive -mx-1 flex w-full items-center gap-2 rounded px-1 py-1 text-left"
-            >
-                {unfolded ? (
-                    <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-                ) : (
-                    <ChevronRight className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-                )}
-                {heading}
-            </button>
-            {unfolded && children}
-        </div>
     )
 }
 

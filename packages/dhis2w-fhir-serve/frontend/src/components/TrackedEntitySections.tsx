@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 
 import { PageState } from '@/components/PageState'
 import { PatientEnrollmentList } from '@/components/PatientEnrollments'
+import { RecordedAnswers } from '@/components/RecordedAnswers'
+import { Unfoldable } from '@/components/Unfoldable'
 import {
     Table,
     TableBody,
@@ -14,7 +16,9 @@ import { useFhirSearch } from '@/hooks/use-fhir-search'
 import type { TrackedEntityEventsState } from '@/hooks/use-tracked-entity-events'
 import type { TrackedEntityNaming } from '@/hooks/use-tracked-entity-naming'
 import type { TrackedEntityRecordState } from '@/hooks/use-tracked-entity-record'
+import { answeredItemTree, type AnsweredItem } from '@/lib/answers'
 import { formIdentifier, formTitle, type Questionnaire } from '@/lib/fhir'
+import { flattenQuestionnaire, type QuestionnaireSpec } from '@/lib/questionnaire'
 import { trackedEntityAttributeLabel, type PatientProjection } from '@/lib/patients'
 import { formatInstant } from '@/lib/spool'
 import type { RegisterWords } from '@/lib/uiconfig'
@@ -94,8 +98,10 @@ export function TrackedEntitySections({
  * form, and the form's published title is the program stage's own DHIS2 name. A form this project
  * never published keeps the id the response named it by, in the face that says it is a machine value.
  *
- * NO ANSWERS HERE. A served event carries what was recorded, and putting that here would make a
- * listing of visits into a stack of forms. What it is, when it was, and where to look next.
+ * A ROW UNFOLDS INTO WHAT IT RECORDED. A served event carries its answers, so the row that names an
+ * event opens onto them in place - no second page, no second read, and the record stays one page a
+ * reader can walk. Closed, a row is what it is and when it was, which is what a listing of visits is
+ * scanned by; open, it is the visit itself.
  */
 function EventSection({ state, words }: { state: TrackedEntityEventsState; words: RegisterWords }) {
     const forms = useFhirSearch<Questionnaire>('Questionnaire')
@@ -104,6 +110,26 @@ function EventSection({ state, words }: { state: TrackedEntityEventsState; words
         for (const questionnaire of forms.resources) named.set(formIdentifier(questionnaire), formTitle(questionnaire))
         return named
     }, [forms.resources])
+    // Every event's answers, read once per read of the record rather than once per render, and
+    // against only the forms this record's events answered: a server serving fifty registers serves
+    // far more forms than one subject has ever been through, and a disaggregated stage is hundreds
+    // of cells. Read whether or not a row is open, because a row is opened by a click and the
+    // answers under it have to be there when it is.
+    const answers = useMemo(() => {
+        const byFormId = new Map<string, Questionnaire>()
+        for (const questionnaire of forms.resources) byFormId.set(formIdentifier(questionnaire), questionnaire)
+        const specs = new Map<string, QuestionnaireSpec | null>()
+        const trees = new Map<string, AnsweredItem[]>()
+        for (const event of state.events) {
+            const formId = event.formId ?? ''
+            if (!specs.has(formId)) {
+                const questionnaire = byFormId.get(formId)
+                specs.set(formId, questionnaire === undefined ? null : flattenQuestionnaire(questionnaire))
+            }
+            trees.set(event.eventUid, answeredItemTree(event.items, specs.get(formId) ?? null))
+        }
+        return trees
+    }, [forms.resources, state.events])
 
     if (state.loading) {
         return <p className="text-muted-foreground text-xs">Reading what this {words.one} has been through</p>
@@ -129,19 +155,32 @@ function EventSection({ state, words }: { state: TrackedEntityEventsState; words
                         {state.events.map((event) => {
                             const title = event.formId === null ? null : (titles.get(event.formId) ?? null)
                             return (
-                                <li
-                                    key={event.eventUid}
-                                    className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-md border p-2 text-sm"
-                                >
-                                    <span className={cn('font-medium', title === null && 'font-mono text-xs')}>
-                                        {title ?? event.formId ?? event.eventUid}
-                                    </span>
-                                    {event.occurredAt !== null && (
-                                        <span className="text-muted-foreground text-xs">
-                                            {formatInstant(event.occurredAt)}
-                                        </span>
-                                    )}
-                                    <span className="machine-identifier text-xs">{event.eventUid}</span>
+                                <li key={event.eventUid} className="rounded-md border p-2">
+                                    <Unfoldable
+                                        testId={`tracked-entity-event-${event.eventUid}`}
+                                        heading={
+                                            <span className="flex flex-1 flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
+                                                <span
+                                                    className={cn(
+                                                        'font-medium',
+                                                        title === null && 'font-mono text-xs',
+                                                    )}
+                                                >
+                                                    {title ?? event.formId ?? event.eventUid}
+                                                </span>
+                                                {event.occurredAt !== null && (
+                                                    <span className="text-muted-foreground text-xs">
+                                                        {formatInstant(event.occurredAt)}
+                                                    </span>
+                                                )}
+                                                <span className="machine-identifier text-xs">{event.eventUid}</span>
+                                            </span>
+                                        }
+                                    >
+                                        <div className="pl-[1.375rem]">
+                                            <RecordedAnswers items={answers.get(event.eventUid) ?? []} />
+                                        </div>
+                                    </Unfoldable>
                                 </li>
                             )
                         })}
