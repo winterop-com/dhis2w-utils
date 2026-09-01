@@ -104,7 +104,7 @@ server's own bytes and opens in anything.
 | Mode | What the store holds | What it also answers | What it needs |
 | --- | --- | --- | --- |
 | default | `ig/fsh-generated/resources` (what SUSHI compiled) merged with `ig/input/resources/` (the registry, terminology, concept-map, and category JSON the generate targets wrote, which SUSHI never re-emits) | nothing beyond the store | a compiled IG on disk; no DHIS2 connection at all |
-| `--live` | the same read set, built straight off a DHIS2 instance at startup | the register - one tracked entity by identifier, the listing of them, one entity's enrollments, and one person's patient summary - read from the instance per request, and gated by `[serve.tracked_entities]` and `[ips]` | a reachable instance and a resolvable profile; no compile step |
+| `--live` | the same read set, built straight off a DHIS2 instance at startup | the register - one tracked entity by identifier, the listing of them, one entity's enrollments, one entity's record, and one person's patient summary - plus what the instance holds for one data set, all read per request and gated by `[serve.tracked_entities]`, `[serve.data_sets]`, and `[ips]` | a reachable instance and a resolvable profile; no compile step |
 
 A live run has one more posture available to it, and it is opt-in: a **synced
 copy** of the register, filled by `d2w fhir sync` and searched instead of the
@@ -136,6 +136,16 @@ and all four shaped by
 [`[serve.tracked_entities]`](301-serving.md#tracked_entities), which is how a project offers
 less than all of them.
 
+A read that is about a form rather than about a person sits beside them:
+`GET /facade/data-sets/{uid}/responses?orgUnit=&period=` answers what the instance
+holds for one data set, at one organisation unit, over the periods the request
+names - one QuestionnaireResponse per organisation unit, period, and attribute
+option combo the values are filed under, each in the shape that data set's own
+published form describes. It is the aggregate half of the record, it has a table
+of its own in [`[serve.data_sets]`](301-serving.md#data_sets), and
+[Aggregate read-back](design/aggregate-read-back.md) is the whole design behind
+it.
+
 A fifth read sits on top of those two: `GET /Patient/{uid}/$summary` assembles
 one person's [International Patient Summary](https://hl7.org/fhir/uv/ips/STU2/)
 out of the register's own answer about them and the events it already serves.
@@ -150,7 +160,7 @@ project's published map states each type is, so an instance whose types are
 herds or specimen batches is read at that type's own resource rather than at
 `Patient` ([what goes in](301-what-goes-in.md#tracked_entity_types)).
 
-A compiled run holds no client, so all five answer a `not-supported`
+A compiled run holds no client, so all of them answer a `not-supported`
 OperationOutcome and `/metadata` declares no register resource at all. What `--live` serves is
 byte-identical to what the compiled store would have served for the same
 metadata, because both come out of the same JSON builders - the CodeSystem and
@@ -282,6 +292,12 @@ beside the identifier search, how large a page is, and which tracked entity
 types and which attributes the two surfaces work over. Every default there is
 "offer it", so a project writes the table when it wants less - and a live server
 on an instance holding real records is exactly the case for wanting less.
+
+`[serve.data_sets]` is that table's sibling on the aggregate side: whether the
+values DHIS2 holds for a data set are served at all, which data sets they are
+served for, how a page is sized, and how many periods one read may name. Its
+defaults offer everything too, and its reason to exist is the same deployment
+that wanted less of the register.
 
 A second live-only table says how a lookup is answered rather than what may be
 looked up: `[serve.search]`. Its one key, `backend`, names what a register
@@ -496,9 +512,13 @@ That matters because two obvious questions are answered at two addresses:
 - *"What does DHIS2 hold about this person now?"* - the record, read at
   `GET /facade/tracked-entities/{uid}/events` on a `--live` run: every event of that
   entity's enrollments, in the same shape and under the same profiles, read from
-  the instance while you wait. It is scoped to one tracked entity, so it answers
-  "this person" and never "this form, this period, this organisation unit" - the
-  aggregate half of the read leg is not built.
+  the instance while you wait.
+- *"What does DHIS2 hold for this form, this period, this organisation unit?"* -
+  the reported forms, read at
+  `GET /facade/data-sets/{uid}/responses?orgUnit=&period=` on a `--live` run, in the
+  same shape and under the same profiles. The organisation unit and at least one
+  period are required, because a read without them is every organisation unit for
+  every period the data set collects.
 
 The two are never mixed. A receipt keeps the id the submission was accepted
 under whatever DHIS2 later made of it; a record carries the DHIS2 event UID and

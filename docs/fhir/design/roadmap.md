@@ -65,6 +65,7 @@ models and ship no templates.
 | `names.py` | Slug, FSH-literal, escaping, and URI helpers - `pascal`, `kebab`, `quote`, `page_text`, `markdown_text`, `fsh_code`, `join_id_tokens`, `join_name_segments`, `is_valid_fhir_code`, `describe_code_defect`, `is_valid_fhir_id`, `code_or_uid`. |
 | `i18n.py` | DHIS2 translations: the `TranslationIn` projection, `normalize_locale`, `name_translations`, and `TRANSLATION_EXTENSION_URL`. |
 | `attributes.py` | DHIS2 attribute values: the `AttributeValueIn` projection (attribute UID plus the string value, which is all DHIS2 sends) and `AttributeCodeIndex`, the `uid -> code` join whose `code_for` returns `None` for an uncoded attribute. |
+| `grouping.py` | `group_data_values`, `ReportedForm`, `ReportedValue` - one `/api/dataValueSets` envelope grouped into the forms it reports, on the `(orgUnit, period, attributeOptionCombo)` key, with the value's own key first and the envelope's behind it. Read by `generate examples` with `source = "instance"` and by the facade's data set read-back, so the fall-back rule is written once ([Aggregate read-back](aggregate-read-back.md)). |
 | `notes.py` | `aggregate_note` - the one formatter for "N subjects, a capped sample, and the remainder". |
 | `status.py` | `IgStatus` (`draft` / `active`) and `experimental_for_status`. A leaf, so every emitter imports it without reaching for `config.py`. |
 | `foundation/__init__.py` | The seven instance-independent `foundation/` artifacts and the `NamingSystem` / response-profile declarations. |
@@ -376,6 +377,7 @@ itself additionally calls `/api/system/info` on connect to bind the version tree
 | `/api/attributes` | `resolve_attribute_code_index`, called by `generate option-sets`, `generate categories`, `generate questionnaires`, and `generate org-units` | `_ATTRIBUTE_FIELDS` = `id,code`, `paging=False`. Unpaged deliberately: DHIS2 answers 50 attributes to a page by default, so a paged read would silently drop the tail of the `uid -> code` join on an instance defining more than one page. |
 | `/api/metadata` | `validate` | `get_raw` with `fields=id,name,code` and `defaults=EXCLUDE`. |
 | `/api/dataValueSets` | `generate examples` with `source = "instance"` | `get_raw` with `dataSet`, `orgUnit`, `children=true`, `period`, walking `recent_periods(periodType, 6, today)` newest-first. |
+| `/api/dataValueSets` | `GET /facade/data-sets/{uid}/responses` on a `--live` run | `RegisterReader.get_raw` with `dataSet`, `orgUnit`, and the request's own repeated `period` - no `children`, no date range, and bounded by `[serve.data_sets] period_limit`. The answer is grouped by `dhis2w_fhir.group_data_values`, the same helper the examples row above reads. |
 | `/api/tracker/events` | `generate examples` with `source = "instance"` | `get_raw` with `pageSize`, `order=occurredAt:desc`, and either `program` + `_EXAMPLE_EVENT_FIELDS` for an event program or `program` + `programStage` + `_EXAMPLE_TRACKER_EVENT_FIELDS` for a tracker stage. DHIS2 demands the program beside the stage (BUGS.md #67). |
 
 Note the shape of the named targets: each opens and closes a client of its own,
@@ -1211,8 +1213,10 @@ those are single enormous responses with no timeout of their own.
 *The raw reads.* `client.get_raw("/api/metadata", ...)` in `validate_codes`,
 `client.get_raw("/api/dataValueSets", ...)` in `_fetch_data_value_responses`,
 and `client.get_raw("/api/tracker/events", ...)` in `_fetch_event_responses`.
-Each is wrapped by hand: `_sweep_collections`, `_data_value_groups`,
-`_event_entries` / `_event_answers`.
+The first and third are wrapped by hand - `_sweep_collections`, `_event_entries` /
+`_event_answers` - and the second validates into the generated `DataValueSet` and
+groups it through `dhis2w_fhir.group_data_values`, which the facade's own data set
+read reads too.
 
 *The retry story.* `open_client(profile)` in `dhis2w_core.client_context` takes
 a `retry_policy`, and `dhis2w-fhir` never passes one. Whether the default is
@@ -1254,9 +1258,11 @@ copies. A below-floor fallback would be the first thing to test that claim.
   each a separate `/api/dataValueSets` call with `children=true` under the root
   organisation unit. On a data set with many periods and no data, that is six full-tree
   queries returning nothing.
-- **`_data_value_groups` returns `groups[:per_target]` after grouping the whole
+- **The examples target keeps `per_target` groups after grouping the whole
   response.** The response is not bounded first, so a rich period pulls the entire
-  data value set into memory to keep one group.
+  data value set into memory to keep one group. The facade's own read shares the
+  grouping (`dhis2w_fhir.group_data_values`) and bounds the response instead, with
+  a required organisation unit and a bounded period count.
 - **`_sweep_collections` reads the whole `/api/metadata` body into typed models.**
   On a large instance that is every metadata object's id, name, and code at once.
 - **Notes never distinguish absence from invisibility.** `include_ids entry 'X'
@@ -1605,11 +1611,13 @@ described, and the git history is where it was built. What is left:
 
 - **Read current DHIS2 data through the facade.** A stored response answers "what
   was submitted"; "what does DHIS2 hold right now" needs the facade to query the
-  instance per request rather than serve a startup snapshot. The shape exists: the
-  register and the enrollment listing already read the instance per request under
-  `--live`, beside the loaded store rather than from it. What is unstarted is the
-  *data* half - no `dataValueSets` or event read is proxied - and the request log
-  is what says which reads are worth proxying first.
+  instance per request rather than serve a startup snapshot. Both halves are
+  served: the register, the enrollment listing, and one entity's own record read
+  the instance per request under `--live`, and
+  `GET /facade/data-sets/{uid}/responses` answers the aggregate half beside them.
+  What remains here is not a missing read but the consumers: the capture UI's
+  Responses page reading live DHIS2 beside its receipts, and the entity timeline
+  the screens do not draw yet.
 
 - **Attribute values on CodeSystem concepts.** Data-element and option attribute
   values have no `identifier` element to land in and no obvious carrier:
@@ -1733,12 +1741,14 @@ described, and the git history is where it was built. What is left:
   entity's own events as the QuestionnaireResponses their programme stages'
   published forms describe, so a FHIR client can round-trip a tracker event -
   capture through the guide, read back through the guide, without ever speaking the
-  DHIS2 API. What remains of the data leg is the aggregate half: no `dataValueSets`
-  read is proxied, so "what does DHIS2 hold for this form, this period, this
-  organisation unit" is still a question this facade does not answer. Two customers
-  are waiting for the half that shipped: the capture UI's Responses page reading
-  live DHIS2 beside its receipts, and the entity timeline the screens do not draw
-  yet.
+  DHIS2 API. The aggregate half is served too:
+  `GET /facade/data-sets/{uid}/responses?orgUnit=&period=` answers what the
+  instance holds for one form, at one organisation unit, over the periods a client
+  names, each reporting key as the response the data set's own published form
+  describes - so the same round trip closes for an aggregate form
+  ([Aggregate read-back](aggregate-read-back.md)). What the data leg is waiting on
+  now is consumers rather than reads: the capture UI's Responses page reading live
+  DHIS2 beside its receipts, and the entity timeline the screens do not draw yet.
 
 - **The record's remaining shapes.** The facade serves it -
   `GET /facade/tracked-entities/{uid}/events`, entity-scoped throughout, each event as

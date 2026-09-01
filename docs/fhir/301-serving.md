@@ -1155,6 +1155,123 @@ attribute value it holds. The same question gets the same records either way.
 [`examples/fhir/cli/serve_attribute_filter.sh`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/cli/serve_attribute_filter.sh)
 walks it against a live instance.
 
+### The data set values: the `[serve.data_sets]` table { #data_sets }
+
+`[serve.tracked_entities]` says what this server will tell a client about the
+instance's subjects. This table says what it will tell them about its aggregate
+values: what DHIS2 holds for one data set, at one organisation unit, over the
+periods a client names, served as the QuestionnaireResponse that data set's own
+published form describes. Every default offers everything, so a project writes
+the table when it wants less. [Aggregate read-back](design/aggregate-read-back.md)
+is the design behind it.
+
+```toml
+[serve.data_sets]
+responses = true         # false serves the forms and not the values reported against them
+page_size = 20
+page_size_limit = 100
+data_sets = []           # empty means the data sets the guide publishes
+period_limit = 12        # the most periods one read may name
+```
+
+#### `responses` { #data_sets-responses }
+
+**In plain words.** Whether "what does DHIS2 hold for this form, this period,
+this organisation unit" is a question this server answers. On - the default -
+`GET /facade/data-sets/{uid}/responses?orgUnit=&period=` comes back with one
+document per organisation unit, period, and attribute option combo the values are
+filed under, every cell typed by the very form a submission is checked against.
+Off, the data set's form is still published, read, searched, and captured
+against, and what was reported against it is refused.
+
+**When you would change it.** When publishing the form is agreed and publishing
+the numbers is not - a server that lets a partner discover what a district
+collects without handing over what it collected.
+
+**Example.**
+
+```toml
+[serve.data_sets]
+responses = false
+```
+
+A request for a data set's responses is refused with a message naming this key;
+everything else about that data set is served as it was.
+
+**Default:** `true` - **If you leave it out:** a live run answers what the
+instance holds for any data set its caller may read.
+
+**If you get it wrong:** TOML wants bare `true` or `false`; a printout naming
+`serve.data_sets.responses` is what a different value gets you.
+
+#### `page_size` and `page_size_limit` { #data_sets-page_size }
+
+**In plain words.** How many reported forms come back in one page when whoever
+asked did not say, and the largest page this server will build when they did. A
+client asking for more than the limit is served the limit rather than refused,
+which is what FHIR says a server may do with a `_count` it will not meet.
+
+**Default:** `20` and `100` - the register's own numbers, because a page of
+documents is a page of documents whichever surface built it.
+
+**If you get it wrong:** a `page_size` below 1 is a page carrying nothing, and a
+`page_size_limit` below `page_size` is a default that could never be served.
+Both are refused by name when the file is read.
+
+#### `data_sets` { #data_sets-data_sets }
+
+**In plain words.** Which data sets this server answers values for, by UID. Empty
+- the default - means the ones the guide publishes, which is what keeps this key
+out of a project that publishes exactly what it serves. Naming UIDs narrows the
+surface to them.
+
+**When you would change it.** When one data set in a published guide carries
+numbers that are not for a partner to read while the rest are.
+
+**Example.**
+
+```toml
+[serve.data_sets]
+data_sets = ["BfMAe6Itzgt", "TuL8IOPzpHh"]
+```
+
+**A data set outside the list is answered as one the guide publishes no form
+for** - a 404 naming the data set - rather than with a refusal naming this key. A
+refusal that named the key would tell every caller which data sets the instance
+holds.
+
+**Default:** `[]` - **If you leave it out:** every data set the guide publishes a
+form for is answered for.
+
+**If you get it wrong:** a name or a code here selects nothing, silently, so the
+file refuses anything that is not a DHIS2 UID and says which value it stopped on.
+
+#### `period_limit` { #data_sets-period_limit }
+
+**In plain words.** The most periods one read may name. `period` repeats, so a
+client comparing this month against last month asks for both in one request; each
+one named is read whole, so the count is what bounds what a request costs. Twelve
+- the default - is a year of monthly reporting.
+
+**When you would change it.** Up, when a client genuinely charts several years and
+the instance is comfortable with it. Down, on an instance where a single period of
+a national data set is already a large read.
+
+**Example.**
+
+```toml
+[serve.data_sets]
+period_limit = 4
+```
+
+A request naming more is refused with the count it gave and the limit, so the
+client knows how many requests to split the read into.
+
+**Default:** `12` - **If you leave it out:** twelve periods in one read.
+
+**If you get it wrong:** a limit below 1 would refuse every read there is, since
+a read naming no period is already refused; the file says so by name.
+
 ### What answers a search: the `[serve.search]` table { #search }
 
 `[serve.tracked_entities]` says what may be looked up. This table says what

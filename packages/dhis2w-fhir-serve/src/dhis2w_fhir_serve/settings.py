@@ -8,6 +8,7 @@ from dhis2w_client.profile import NoProfileError
 from dhis2w_fhir.config import (
     DEFAULT_BASEMAPS,
     BasemapSource,
+    DataSetsConfig,
     FhirProject,
     ProjectionConfig,
     SearchConfig,
@@ -87,6 +88,12 @@ class ServeSettings(BaseModel):
     makes once rather than per invocation. Which FHIR resources those subjects are served as is not
     stated here at all: the published `D2TET_CM` says that, and the register reads the artifact.
 
+    `data_sets` is what this run answers about the instance's aggregate data - whether the values
+    DHIS2 holds for a data set are served at all, which data sets they are served for, how a page is
+    sized, and how many periods one read may name. It comes off `[serve.data_sets]` and no flag
+    overrides it, for the reason `tracked_entities` states: what this facade tells a client about the
+    instance is its contract rather than a property of one invocation.
+
     `search` is what answers a register search - the `NameSearchIndex` backend behind every lookup.
     It comes off `[serve.search]` and no flag overrides it, for the reason `tracked_entities` states:
     which searches this server answers is its contract rather than a property of one invocation.
@@ -113,6 +120,7 @@ class ServeSettings(BaseModel):
     basemaps: list[BasemapSource] = Field(default_factory=lambda: list(DEFAULT_BASEMAPS))
     dhis2_base_url: str | None = None
     tracked_entities: TrackedEntitiesConfig = Field(default_factory=TrackedEntitiesConfig)
+    data_sets: DataSetsConfig = Field(default_factory=DataSetsConfig)
     search: SearchConfig = Field(default_factory=SearchConfig)
     projection: ProjectionConfig = Field(default_factory=ProjectionConfig)
 
@@ -206,6 +214,7 @@ class ServeSettings(BaseModel):
                 basemaps=resolved_basemaps,
                 dhis2_base_url=None if generation is None else generation.profile.base_url,
                 tracked_entities=serve_config.tracked_entities,
+                data_sets=serve_config.data_sets,
                 search=serve_config.search,
                 projection=serve_config.projection,
             ),

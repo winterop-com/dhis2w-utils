@@ -154,6 +154,8 @@ def test_the_groups_are_the_two_surfaces_and_the_specification_beside_them() -> 
         "/tracked-entities/{tracked_entity_uid}/enrollments",
         "/tracked-entities/{tracked_entity_uid}/events",
         "/tracked-entities/{tracked_entity_uid}/events/{event_uid}",
+        "/data-sets/{data_set_uid}/responses",
+        "/data-sets/{data_set_uid}/responses/{response_id}",
         "/evaluate",
         "/terminology/validate-code",
         "/terminology/lookup",
@@ -161,14 +163,16 @@ def test_the_groups_are_the_two_surfaces_and_the_specification_beside_them() -> 
     assert fhir_paths & facade_paths == set()
 
 
-def test_the_record_is_the_one_facade_router_that_negotiates() -> None:
-    """It answers a FHIR Bundle at an address FHIR declares no interaction for, so it carries both facts."""
+def test_the_instance_sourced_documents_are_the_facade_routers_that_negotiate() -> None:
+    """Both answer a FHIR Bundle at an address FHIR declares no interaction for, so both carry the pair."""
     routers = serve_routers()
     negotiated = {route.path for router in routers.negotiated for route in router.routes if isinstance(route, APIRoute)}
 
     assert negotiated == {
         "/tracked-entities/{tracked_entity_uid}/events",
         "/tracked-entities/{tracked_entity_uid}/events/{event_uid}",
+        "/data-sets/{data_set_uid}/responses",
+        "/data-sets/{data_set_uid}/responses/{response_id}",
     }
     assert all(routers.is_negotiated(router) is False for router in routers.fhir)
 
@@ -191,6 +195,8 @@ def test_the_facade_api_publishes_a_document_of_exactly_what_it_serves() -> None
         "/tracked-entities/{tracked_entity_uid}/enrollments",
         "/tracked-entities/{tracked_entity_uid}/events",
         "/tracked-entities/{tracked_entity_uid}/events/{event_uid}",
+        "/data-sets/{data_set_uid}/responses",
+        "/data-sets/{data_set_uid}/responses/{response_id}",
         "/evaluate",
         "/terminology/validate-code",
         "/terminology/lookup",

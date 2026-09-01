@@ -32,6 +32,11 @@ one - the address is the tracked entity's, and `read` and `search-type` on this 
 The register's own entries carry the pointer as well, so a client that found somebody learns where
 their record is without reading the whole statement.
 
+The aggregate half is stated on the same entry and for the same reason: what DHIS2 now holds for one
+data set, at one organisation unit, over the periods a client names, is read at
+`/facade/data-sets/{uid}/responses`, in the shape that data set's own published form describes. Its
+address is the data set's, so it is prose here and no interaction anywhere.
+
 A process serving `[serve] capture = false` declares that entry without `create`, and with nothing
 else about it changed. The receipts it already holds are read and searched at the same address, so
 dropping their interactions would be this statement claiming less than the server does. `$generate`
@@ -292,6 +297,23 @@ SUMMARY_DOCUMENTATION = (
     "not claim the Creator (IPS) actor's obligations."
 )
 
+#: What the QuestionnaireResponse entry adds where a live run serves a data set's own values.
+#:
+#: The third question this resource type answers here, after "what did a client send me" and "what has
+#: happened to this person": what the instance holds for one form, one place, one period. The address
+#: is the data set's, so it is named in prose exactly as the record's is - `read` and `search-type` on
+#: this entry remain the receipts.
+DATA_SET_RESPONSES_DOCUMENTATION = (
+    "What the instance holds for one data set now is a third read, at "
+    "`GET /facade/data-sets/{uid}/responses?orgUnit=&period=`: one QuestionnaireResponse per "
+    "organisation unit, period, and attribute option combo the values are filed under, each as the "
+    "response the data set's own published form describes, and each read from DHIS2 at request time "
+    "under the authorization of whoever asked. `orgUnit` and at least one `period` are required, "
+    "because a read without them is every organisation unit for every period the data set collects; "
+    "`period` repeats, `_count` and `page` walk the pages, and one reported form is read at "
+    "`GET /facade/data-sets/{uid}/responses/{responseId}`."
+)
+
 #: What a register entry adds where the record is served: where to read what happened to one of them.
 REGISTER_RECORD_DOCUMENTATION = (
     "What one of them has been through is read at `GET /facade/tracked-entities/{uid}/events`, as one "
@@ -490,6 +512,7 @@ def build_server_capability(
             canonical,
             capture=settings.capture,
             record=settings.live and register_surface.serves_events(),
+            data_set_responses=settings.live and settings.data_sets.responses,
         ),
         *(
             _read_resource(resource_type, project.config.generate.identifier_system_base, canonical, names)
@@ -769,7 +792,7 @@ def _operations(
 
 
 def _response_resource(
-    project: FhirProject, canonical: str, *, capture: bool, record: bool = False
+    project: FhirProject, canonical: str, *, capture: bool, record: bool = False, data_set_responses: bool = False
 ) -> CapabilityStatementResource:
     """Declare the capture type: create where this server receives, read and search either way.
 
@@ -783,13 +806,21 @@ def _response_resource(
     than received from a client, and the entry says which address answers which question. The
     interactions are unchanged, because a record is read under the tracked entity it belongs to and
     not at this type's own address.
+
+    `data_set_responses` states the aggregate half of the same thing, and is stated separately because
+    a project may serve either without the other: the register's events and a data set's values are
+    two surfaces behind two keys. The interactions are unchanged for its reason too - a reported form
+    is read under the data set it belongs to.
     """
     declarations = build_captured_response_profile_declarations(project.config.generate)
     stated = RESPONSE_DOCUMENTATION if capture else RESPONSE_VIEWER_DOCUMENTATION
+    sentences = [stated, *([RECORD_DOCUMENTATION] if record else [])]
+    if data_set_responses:
+        sentences.append(DATA_SET_RESPONSES_DOCUMENTATION)
     return CapabilityStatementResource(
         type=QUESTIONNAIRE_RESPONSE_RESOURCE_TYPE,
         supportedProfile=[f"{canonical}/StructureDefinition/{declaration.profile_id}" for declaration in declarations],
-        documentation=f"{stated}. {RECORD_DOCUMENTATION}" if record else stated,
+        documentation=". ".join(sentences),
         interaction=[
             *([CapabilityStatementInteraction(code="create")] if capture else []),
             CapabilityStatementInteraction(code="read"),

@@ -1074,6 +1074,42 @@ async def test_instance_mode_walks_back_to_the_newest_period_holding_data(
 
 
 @respx.mock
+async def test_instance_mode_reads_an_envelope_that_states_the_keys_once(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A single-unit export states the reporting key on the envelope, and the example reports for it.
+
+    DHIS2 reads the envelope's organisation unit and period as the default for every value that names
+    none, and `dhis2w_fhir.group_data_values` reads them the same way round - so an export shaped like
+    this yields the form it reports rather than a group with no unit to be subject to.
+    """
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path, examples='per_target = 1\nsource = "instance"')
+    _mock_metadata()
+    bare = {
+        "dataSet": "BfMAe6Itzgt",
+        "period": "202606",
+        "orgUnit": "Ou1aaaaaaaa",
+        "dataValues": [
+            {"dataElement": "De1aaaaaaaa", "categoryOptionCombo": "Coc1aaaaaaa", "value": "11"},
+            {"dataElement": "De1aaaaaaaa", "categoryOptionCombo": "Coc2aaaaaaa", "value": "22"},
+        ],
+    }
+    respx.get(f"{_HOST}/api/dataValueSets").mock(return_value=httpx.Response(200, json=bare))
+    respx.get(f"{_HOST}/api/tracker/events").mock(return_value=httpx.Response(200, json={"instances": []}))
+
+    report = await service.generate_examples(resolve_profile("probe"), load_project(tmp_path))
+
+    assert report.example_count == 1
+    content = (tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY / "BfMAe6Itzgt-1.fsh").read_text(encoding="utf-8")
+    assert "Instance: QuestionnaireResponse-BfMAe6Itzgt-202606-Ou1aaaaaaaa" in content
+    assert "* subject = Reference(Location/Ou1aaaaaaaa)" in content
+    assert "* item[=].item[=].item[=].answer[+].valueInteger = 11" in content
+
+
+@respx.mock
 @pytest.mark.parametrize("envelope", ["instances", "events"])
 async def test_instance_mode_reads_events_under_either_envelope_key(
     probe_profile: None,  # noqa: ARG001

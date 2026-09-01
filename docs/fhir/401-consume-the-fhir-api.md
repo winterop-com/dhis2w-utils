@@ -106,8 +106,9 @@ than with resources out of it: everything under `/facade` - the spool and the
 run's settings [below](#facade-api), the enrollment listing, the evaluator, the
 two terminology reads, the caller - answers plain `application/json` whatever a
 request asked for, and so does `/cds-services`, whose path CDS Hooks fixes at
-the base URL. The one exception is the record at
-`/facade/tracked-entities/{uid}/events`, which answers a FHIR `Bundle` as
+the base URL. The two exceptions are the record at
+`/facade/tracked-entities/{uid}/events` and a data set's responses at
+`/facade/data-sets/{uid}/responses`, which both answer a FHIR `Bundle` as
 `application/fhir+json`.
 
 **`_format` overrides the header, which is what makes a FHIR query a link.**
@@ -850,6 +851,112 @@ about them:
 $ curl -s 'localhost:8391/facade/tracked-entities/geghdTobFoE/events'
 {"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"this facade serves no `events`: this project publishes who its tracked entities are and not what was recorded about them; set `[serve.tracked_entities] events = true` in fhir.toml and serve again"}]}
 ```
+
+## `/facade/data-sets/{uid}/responses`: what DHIS2 holds for one form
+
+The record answers "what has happened to this person". This answers "what does
+DHIS2 hold for this form, this period, this organisation unit" - one
+`QuestionnaireResponse` per reporting key, each in the shape the data set's own
+published form describes, read from DHIS2 while you wait and under your own
+authorization where the server runs [`auth = "dhis2"`](301-serving.md#auth).
+
+**`orgUnit` and at least one `period` are required.** A read missing either is
+every organisation unit that reports the data set, for every period it collects,
+in one answer - so the two are a bound on the response rather than a rule about
+who may see what. `period` repeats, up to
+[`period_limit`](301-serving.md#data_sets-period_limit):
+
+```console
+$ curl -s 'localhost:8391/facade/data-sets/BfMAe6Itzgt/responses?orgUnit=ImspTQPwCqd&period=202607' | jq .
+{
+  "resourceType": "Bundle",
+  "type": "searchset",
+  "total": 1,
+  "link": [
+    { "relation": "self", "url": "http://localhost:8391/facade/data-sets/BfMAe6Itzgt/responses?orgUnit=ImspTQPwCqd&period=202607&_count=20&page=bzA" }
+  ],
+  "entry": [
+    {
+      "fullUrl": "http://localhost:8391/facade/data-sets/BfMAe6Itzgt/responses/ImspTQPwCqd-202607-default",
+      "resource": {
+        "resourceType": "QuestionnaireResponse",
+        "id": "ImspTQPwCqd-202607-default",
+        "meta": { "profile": ["http://localhost:8391/fhir/StructureDefinition/d2-aggregate-response"] },
+        "extension": [
+          {
+            "url": "http://localhost:8391/fhir/StructureDefinition/d2-period",
+            "extension": [
+              { "url": "iso", "valueString": "202607" },
+              { "url": "type", "valueCode": "Monthly" },
+              { "url": "period", "valuePeriod": { "start": "2026-07-01", "end": "2026-07-31" } }
+            ]
+          },
+          { "url": "http://localhost:8391/fhir/StructureDefinition/d2-form-type", "valueCode": "aggregate" }
+        ],
+        "questionnaire": "http://localhost:8391/fhir/Questionnaire/BfMAe6Itzgt",
+        "status": "completed",
+        "subject": { "reference": "Location/ImspTQPwCqd" },
+        "item": [
+          { "linkId": "Y2rk0vzgvAx", "item": [
+            { "linkId": "s46m5MS0hxu", "item": [
+              { "linkId": "s46m5MS0hxu.Prlt0C1RF0s", "answer": [{ "valueInteger": 12 }] }
+            ] }
+          ] }
+        ]
+      },
+      "search": { "mode": "match" }
+    }
+  ]
+}
+```
+
+`id` is the reporting key - `{orgUnit}-{period}-{attributeOptionCombo}`, with
+`default` in the third place where the values named no attribute option combo at
+all - and `fullUrl` is where that one document is served. The id carries all three keys, so
+`GET /facade/data-sets/{uid}/responses/{responseId}` needs no parameters at all.
+
+**A data set on a non-default category combination answers one document per
+combo.** The combo is the third reporting key, so one organisation unit and one
+period can report several forms at once, each carrying the coding this guide
+publishes for its combo:
+
+```json
+{ "url": "http://localhost:8391/fhir/StructureDefinition/d2-attribute-option-combo",
+  "valueCoding": {
+    "system": "http://localhost:8391/fhir/CodeSystem/d2-aoc-idcDPkDtepR-cs",
+    "code": "oawMLLH7OjA",
+    "display": "Provide access to basic education" } }
+```
+
+`attributeOptionCombo=<uid>` narrows the answer to one of them.
+
+**Cells are typed by the very form a submission is checked against**, so a value
+reads back the way it would have been written: an integer question answers
+`valueInteger`, a coded one answers the concept the served CodeSystem publishes,
+and a value the terminology cannot code comes back as the string DHIS2 stored.
+
+**Paging.** `_count` and `page` walk the ordered selection, `_count` clamped at
+[`page_size_limit`](301-serving.md#data_sets-page_size), and `_count=0` answers
+how many forms the selection holds and returns none of them. The order is the
+reporting key itself, ascending, so two reads of an unchanged period answer the
+same bytes. Every link carries the bounds the read was made under, because a
+`next` link that dropped them would name a request this server refuses.
+
+The five parameters above - `orgUnit`, `period`, `attributeOptionCombo`,
+`_count`, `page` - are the whole surface. Anything else is refused rather than
+ignored:
+
+```console
+$ curl -s 'localhost:8391/facade/data-sets/BfMAe6Itzgt/responses?orgUnit=ImspTQPwCqd&period=202607&children=true'
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"invalid","diagnostics":"`children` is not a search parameter this server answers `responses` on: it answers `orgUnit`, `period`, `attributeOptionCombo`, `_count`, `page`"}]}
+```
+
+Like the register, this is live-only.
+[`[serve.data_sets] responses = false`](301-serving.md#data_sets-responses) takes
+it away on its own, for a project that publishes its forms and not the values
+reported against them, and a data set outside a stated
+[`data_sets`](301-serving.md#data_sets-data_sets) list is answered as one the
+guide publishes no form for.
 
 ## `$summary`: one person's International Patient Summary
 

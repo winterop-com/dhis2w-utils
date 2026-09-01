@@ -20,6 +20,7 @@ from dhis2w_fhir.config import (
     REPORTS_DIRECTORY,
     BasemapSource,
     CorrectionPosture,
+    DataSetsConfig,
     FhirProject,
     FhirProjectConfig,
     ForwardConfig,
@@ -232,6 +233,7 @@ from dhis2w_fhir.foundation import (
     tracked_entity_attribute_value_extension_url,
     tracked_entity_attribute_value_extensions,
 )
+from dhis2w_fhir.grouping import ReportedForm, ReportedValue, group_data_values
 from dhis2w_fhir.hostile_names import HostileNameGate, HostileRewrite, HostileRewriteConfirmation
 from dhis2w_fhir.i18n import TRANSLATION_EXTENSION_URL, TranslationIn, name_translations, normalize_locale
 from dhis2w_fhir.ips import (
@@ -877,6 +879,7 @@ __all__ = [
     "DATA_ELEMENT_TERMINOLOGY",
     "DATA_VALUE_SET_ELEMENTS",
     "DataDictionaryDocumentBuild",
+    "DataSetsConfig",
     "DateLabelIn",
     "decimal_wire_value",
     "DEFAULT_BASEMAP_NAME",
@@ -1028,6 +1031,7 @@ __all__ = [
     "grade_drift",
     "grade_forward",
     "grade_oracle",
+    "group_data_values",
     "grouping_identifiers",
     "GroupingIdentifier",
     "HostileNameGate",
@@ -1205,6 +1209,8 @@ __all__ = [
     "render_validation_csv",
     "render_validation_markdown",
     "render_validation_pdf",
+    "ReportedForm",
+    "ReportedValue",
     "REPORTS_DIRECTORY",
     "requeue_rejected_responses",
     "RequeuedReceipt",
