@@ -15,7 +15,7 @@ of curl.
 
 **Before you start:** a project you can serve
 ([Serve the guide](201-serve.md)). An installed wheel ships the UI already;
-a checkout needs `make build-frontend` once.
+a checkout needs `make ui` once.
 
 **You will be able to:**
 
@@ -96,7 +96,7 @@ than serving a blank page:
 
 ```
 error: `--ui` needs a built frontend at .../dhis2w_fhir_serve/static, and there is
-none. Build it with `make build-frontend` (an installed wheel ships it already).
+none. Build it with `make ui` (an installed wheel ships it already).
 ```
 
 ## The Overview
@@ -637,6 +637,8 @@ stored no receipt* is a fact about the spool and nothing more - data entered int
 the instance by any other route leaves none here - and where the record is drawn
 below, the sentence goes on to say that the instance is read there.
 
+![The Responses page of a live run holding no receipt yet: the empty spool said as the fact it is, and under it one tracked entity found by an identifier value, with one of their events opened onto the answers this DHIS2 instance holds](../img/fhir/capture-ui-live-responses-record.png)
+
 ## The register
 
 A **live** server carries one more page, at `#/tracked-entities`: the people -
@@ -736,6 +738,8 @@ type has nothing to choose between and shows no chips at all. Narrowing starts
 the paging again at the server's first page, because a page token names a place
 inside a scope and means nothing in the scope next door.
 
+![The register of a live run serving three tracked entity types on one resource: the type chips over the table, the attribute filter beside them, and a row per tracked entity with the attribute values this DHIS2 instance holds](../img/fhir/capture-ui-live-register.png)
+
 **What a row shows is what the server states about a person, and nothing
 more.** The identifier values that name them - the values of the attributes
 DHIS2 declares unique, each labelled with the attribute it belongs to - then the
@@ -797,6 +801,8 @@ stores beside it, a yes/no answer as Yes or No, and everything else as the value
 the document carries. A question nobody answered is not in the document and so
 is not on the screen; an event the instance holds no answer on says exactly
 that.
+
+![One record's events: two rows closed, the third opened onto the answers this DHIS2 instance holds for it, each question named the way the served form asks it and each coded answer carrying the code DHIS2 stores](../img/fhir/capture-ui-live-register-person-event.png)
 
 !!! warning "A completed enrollment is listed, and said to be completed"
     DHIS2 accepts a new event into a completed enrollment with no error and no
@@ -902,6 +908,9 @@ that.
     selection it covers. Every table under that is closed, and each closed
     heading states what is inside it - which severity, which DHIS2 collection,
     how many rows - so opening one is the drill-down rather than the arrival.
+
+    ![Metadata health as it opens: the three severity counts, how many objects were read and which hostile-names posture they were graded under, the translation coverage per locale, and the severity shelves closed under the filter box](../img/fhir/capture-ui-live-metadata-health.png)
+
     The findings are shelved by severity first and by DHIS2 collection second -
     an error stops the build whichever kind of object it sits on, and somebody
     fixing names fixes a run of data elements at once. Each row names the object
@@ -912,6 +921,8 @@ that.
     report files, less the head it opens with - the validator names its subject
     because a terminal line has to, and a row whose first two cells are the
     object and the field would be saying it a third time.
+
+    ![One severity opened onto the DHIS2 collections under it, and one collection opened onto its findings table: the object and its uid, the field at fault, the problem, and what the grade costs](../img/fhir/capture-ui-live-metadata-health-findings.png)
 
     **Translations** is the analysis the command does not do, and it is coverage
     rather than deficiency. The locales are the union of the tags the selection's
@@ -1227,39 +1238,53 @@ profile's name and its credentials do not.
 
 ## How the screenshots on this page are made
 
-Every image above is produced by one Playwright spec in the repository,
-`packages/dhis2w-fhir-serve/frontend/e2e/docs-screenshots.spec.ts`, which
-runs against the same committed fixture project the browser suite tests -
-so the forms, counts, and receipts in the shots are reproducible rather
-than somebody's laptop state. Each shot is a page or a sub-state this page
-describes, at one viewport, and every drawn answer comes from a stated seed
-typed into the form's own **Seed** box. The spec is skipped by default (CI
-has no business rewriting documentation images); to re-shoot after a UI
-change:
+Two Playwright specs in the repository produce them, and one make target runs
+both:
 
 ```bash
-cd packages/dhis2w-fhir-serve/frontend
-pnpm build
-DOCS_SCREENSHOTS=1 pnpm exec playwright test e2e/docs-screenshots.spec.ts
+make screenshot                                  # the compiled shoot alone
+make screenshot D2W_SCREENSHOT_PROJECT=~/ig      # and the live-only pages
 ```
 
-Run it alone, not as part of the full suite, so the spool holds exactly the
-receipts the spec posts. The images land in `docs/img/fhir/`; commit them
-with the change that moved the UI.
+The target builds the bundle first, kills anything left on the ports the two
+shoots bind, and runs each spec alone rather than inside the suite. Both are
+skipped by default - CI has no business rewriting documentation images - and the
+images land in `docs/img/fhir/`; commit them with the change that moved the UI.
 
-Three things in the shots move between shoots, and all three are the server
-being a server rather than the spec being loose: a receipt id is minted per
-submission, the instant a capture arrived is the instant it arrived, and the
-Playground states the round trip it measured. An aggregate form's reporting
-period counts back from the day of the shoot for the same reason.
+**The compiled shoot** is `e2e/docs-screenshots.spec.ts`, against the same
+committed fixture project the browser suite tests, so the forms, counts, and
+receipts in the shots are reproducible rather than somebody's laptop state. Each
+shot is a page or a sub-state this page describes, at one viewport, and every
+drawn answer comes from a stated seed typed into the form's own **Seed** box.
 
-**The register shots are the one place the browser is shown something this
-server did not say.** A compiled guide has no DHIS2 instance behind it, so the
-fixture project states `tracked_entities.enabled = false` and this run offers no
-register at all - correctly, because there is nothing to read. The two shots put
-a live instance in front of the browser and nothing else, over the same
-identities `e2e/register.spec.ts` proves the page against; every other page in
-the shot is the real server answering.
+Three things in it move between shoots, and all three are the server being a
+server rather than the spec being loose: a receipt id is minted per submission,
+the instant a capture arrived is the instant it arrived, and the Playground
+states the round trip it measured. An aggregate form's reporting period counts
+back from the day of the shoot for the same reason.
+
+**The register shots of the compiled shoot are the one place the browser is
+shown something this server did not say.** A compiled guide has no DHIS2
+instance behind it, so the fixture project states
+`tracked_entities.enabled = false` and this run offers no register at all -
+correctly, because there is nothing to read. The two shots put a live instance in
+front of the browser and nothing else, over the same identities
+`e2e/register.spec.ts` proves the page against; every other page in the shot is
+the real server answering.
+
+**The live shoot** is `e2e/docs-screenshots-live.spec.ts`, and it exists because
+three surfaces on this page cannot be drawn by a compiled guide at all: Metadata
+health grades a DHIS2 instance, and both the record page and the record under the
+Responses table read one out of it. It stands up its own `d2w fhir serve --live`
+over the project `D2W_SCREENSHOT_PROJECT` names - reading a copy of that
+project's `fhir.toml` with `[serve] spool_dir` pointed into a temporary
+directory, so the project's own receipts are never written to, and every request
+the shoot makes is a read.
+
+Its images are illustrative rather than pinned. The instance behind them moves,
+so the names, counts, and findings in them are whatever was true on the day; the
+spec asserts no number and names no subject, picking whichever tracked entity the
+instance currently holds an answered event for.
 
 Next: [Forward captures into DHIS2](201-forward.md) - drain the queue every
 page of this UI keeps pointing at.

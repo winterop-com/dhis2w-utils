@@ -54,7 +54,7 @@ venv.bak/
 # Frontend (packages/dhis2w-fhir-serve/frontend)
 node_modules/
 # The built capture UI. Unlike a repo that commits its bundle, this workspace
-# publishes wheels from CI, and CI runs `make build-frontend` before packaging -
+# publishes wheels from CI, and CI runs `make ui` before packaging -
 # so a committed copy would only be the same bytes going stale between rebuilds.
 # The directory itself is kept by a .gitkeep the vite build rewrites.
 packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/static/*

@@ -443,7 +443,7 @@ def test_serve_ui_without_a_built_bundle_refuses_before_the_banner(
 
     assert result.exit_code == 1
     assert isinstance(result.exception, ui_module.UiBundleMissingError)
-    assert "make build-frontend" in str(result.exception)
+    assert "make ui" in str(result.exception)
     assert recorded_run.calls == 0
     assert "starting" not in result.stderr
 
@@ -453,7 +453,7 @@ def test_serve_ui_says_the_surface_it_is_serving(workdir: Path, recorded_run: _R
     from dhis2w_fhir_serve import ui as ui_module
 
     if not ui_module.ui_bundle_present():
-        pytest.skip("no built frontend; run `make build-frontend`")
+        pytest.skip("no built frontend; run `make ui`")
 
     project = _scaffold(workdir)
     _compile(project)

@@ -20,7 +20,7 @@ would be a one-segment path and the search catch-all would claim it. There is no
 directory in the frontend for exactly this reason.
 
 A missing bundle is a refusal rather than a blank page. `--ui` on a checkout that has never run
-`make build-frontend` has no `index.html` to serve, and mounting an empty directory would answer
+`make ui` has no `index.html` to serve, and mounting an empty directory would answer
 404 for the shell and 200 for nothing. So the mount raises while the app is being built, naming
 the command that fixes it.
 """
@@ -57,7 +57,7 @@ class UiBundleMissingError(LookupError):
         """Carry the refusal naming the directory that is empty and the command that fills it."""
         super().__init__(
             f"`--ui` needs a built frontend at {STATIC_DIRECTORY}, and there is none. "
-            "Build it with `make build-frontend` (an installed wheel ships it already)."
+            "Build it with `make ui` (an installed wheel ships it already)."
         )
 
 

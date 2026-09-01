@@ -3158,13 +3158,21 @@ an identifier search and a paged listing on one page, with a detail route at
   type is still an OperationOutcome rather than a page.
 - **Routing is hash-based**, so a reload needs no SPA fallback.
 - **`--ui` without a built bundle refuses in one line** naming
-  `make build-frontend` rather than serving a blank page.
+  `make ui` rather than serving a blank page.
 - **Covered by vitest unit tests** over its wire layer and by a Playwright
   suite (`make e2e-frontend`) that boots a real `d2w fhir serve --ui` on its
   own port over a fixture IG project and drives the capture loop end to end
   twice: at the API level (`$generate`, post, the receipt appearing on the
   Responses page) and through the renderer (open the form, fill with test data,
   submit, land on the listing).
+- **The documentation images are produced, not curated**: `make screenshot`
+  builds the bundle and runs two skipped-by-default producer specs into
+  `docs/img/fhir/` - one over the fixture project from stated seeds, and, where
+  `D2W_SCREENSHOT_PROJECT` names a project, one over its own
+  `d2w fhir serve --live` for the three surfaces a compiled guide cannot draw
+  (Metadata health, a tracked entity's record, and the record under the
+  Responses table). The live shoot serves a copy of the project's `fhir.toml`
+  with the spool pointed at a temporary directory, and only ever reads.
 ### Forward captures into DHIS2
 
 `d2w fhir forward` is the third verb, and it closes the loop
