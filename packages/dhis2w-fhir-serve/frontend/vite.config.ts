@@ -9,7 +9,7 @@ import tailwindcss from '@tailwindcss/vite'
 // src/dhis2w_fhir_serve/static/ and ships inside the wheel.
 //
 // That directory is gitignored: this workspace publishes wheels from CI, which
-// runs `make build-frontend` before packaging. A committed bundle would only be
+// runs `make ui` before packaging. A committed bundle would only be
 // a second copy of the same bytes, going stale between rebuilds.
 //
 // The dev server proxies every path the facade claims to a running `d2w fhir

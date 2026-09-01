@@ -8,7 +8,7 @@ OperationOutcome saying `assets` is not a served resource type - a white page wh
 404 and whose cause is in the router table. So the assets mount goes before the catch-alls and the
 shell mount goes after, and both halves are held here.
 
-The bundle is a build artifact, gitignored and produced by `make build-frontend`, so these tests
+The bundle is a build artifact, gitignored and produced by `make ui`, so these tests
 write a minimal stand-in rather than requiring node to be installed to run pytest. The one test
 that reads the real bundle skips when it has not been built.
 """
@@ -157,7 +157,7 @@ def test_a_missing_bundle_is_one_line(missing_bundle: Path, compiled_project: Fh
     with pytest.raises(UiBundleMissingError) as raised:
         create_app(ServeSettings(project_dir=compiled_project.project_root, ui=True))
     message = str(raised.value)
-    assert "make build-frontend" in message
+    assert "make ui" in message
     assert "\n" not in message
 
 
@@ -176,9 +176,9 @@ def test_bundle_presence_reads_the_shell_not_the_directory(missing_bundle: Path)
     assert ui_bundle_present() is True
 
 
-@pytest.mark.skipif(not ui_bundle_present(), reason="no built frontend; run `make build-frontend`")
+@pytest.mark.skipif(not ui_bundle_present(), reason="no built frontend; run `make ui`")
 async def test_the_real_bundle_serves_every_asset_its_shell_names(compiled_project: FhirProject) -> None:
-    """Against a real `make build-frontend` output, every script and stylesheet the shell names loads.
+    """Against a real `make ui` output, every script and stylesheet the shell names loads.
 
     The stand-in bundle above proves the two mounts are ordered correctly; this one proves the
     vite build actually emits what those mounts expect - everything under `assets/`, referenced by

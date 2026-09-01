@@ -646,7 +646,7 @@ API](401-consume-the-fhir-api.md).
 `--ui` mounts a browser front end on the same port the facade answers on -
 same-origin, so it needs no CORS and no second process. The source is
 `packages/dhis2w-fhir-serve/frontend/`; the build output ships in the wheel and
-is gitignored in the repository, so `make build-frontend` runs before
+is gitignored in the repository, so `make ui` runs before
 `make build` and a missing bundle raises before the server prints its banner.
 
 Eleven pages: Overview, Forms, FormFill, Responses, ResponseDetail,

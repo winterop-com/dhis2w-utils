@@ -83,7 +83,7 @@ jobs:
         # into the Python package's static/. `--ui` refuses to start without it,
         # so this is a prerequisite of the browser suite rather than a separate
         # artifact, and it installs the node_modules the two steps below use.
-        run: make build-frontend
+        run: make ui
 
       - name: Lint + type-check the capture UI
         run: make lint-frontend

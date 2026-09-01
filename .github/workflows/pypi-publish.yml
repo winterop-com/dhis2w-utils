@@ -84,7 +84,7 @@ jobs:
 
       - name: Build the capture UI into the package
         if: matrix.package == 'dhis2w-fhir-serve'
-        run: make build-frontend
+        run: make ui
 
       - name: Build wheel + sdist
         run: uv build --package ${{ matrix.package }}

@@ -1,14 +1,14 @@
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+
+import { VIEWPORT, shoot } from './docs-shots.ts'
 
 /**
  * The screenshot producer for `docs/fhir/201-capture-ui.md` - NOT a test.
  *
  * SKIPPED BY DEFAULT. This file asserts nothing the other specs do not already
  * prove; its whole output is the PNGs under `docs/img/fhir/`, and CI has no
- * business rewriting documentation images on every run. To re-shoot them:
+ * business rewriting documentation images on every run. `make screenshot` runs
+ * it the way it has to be run; by hand that is:
  *
  *     cd packages/dhis2w-fhir-serve/frontend
  *     pnpm build                                # the bundle `--ui` serves
@@ -43,12 +43,12 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
  * periods of its data set's period type, so the reporting period reads as the
  * month the shoot was taken in. That is a date in frame by design: the control's
  * whole point is that it counts back from now.
+ *
+ * THE PAGES THIS SERVER CANNOT SHOW are shot by `docs-screenshots-live.spec.ts`
+ * beside this file, against a real `d2w fhir serve --live`: Metadata health, one
+ * tracked entity's own record, and the record read under the Responses table. A
+ * compiled guide has no instance to grade and no subject to read.
  */
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-
-/** Where the docs page reads the images from. This directory is owned by the docs, not the suite. */
-const screenshotDirectory = path.resolve(here, '../../../../docs/img/fhir')
 
 /** The everyday aggregate form - the quick-entry card the Overview leads with. */
 const AGGREGATE_FORM = 'BfMAe6Itzgt'
@@ -63,17 +63,6 @@ const DATA_ELEMENT_CODE_SYSTEM = 'd2-de-cs'
 const DISTRICT = 'O6uvpzGd5pu'
 
 const FHIR_JSON = 'application/fhir+json'
-
-/** One viewport for every shot, so the docs images line up beside each other. */
-const VIEWPORT = { width: 1280, height: 860 }
-
-/** Write one image under the name the docs page embeds it by. */
-async function shoot(page: Page, slug: string): Promise<void> {
-    await page.screenshot({
-        path: path.join(screenshotDirectory, `capture-ui-${slug}.png`),
-        animations: 'disabled',
-    })
-}
 
 /** Fill one form server-side and post the answer back, returning the receipt id. */
 async function generateAndPost(request: APIRequestContext, questionnaireId: string, seed: number): Promise<string> {

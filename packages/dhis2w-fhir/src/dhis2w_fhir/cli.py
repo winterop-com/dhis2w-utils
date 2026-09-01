@@ -1642,7 +1642,7 @@ def serve_command(
             "--ui/--no-ui",
             help="Serve the capture UI at `/` alongside the FHIR routes, overriding `\\[serve] ui`. "
             "The bundle is mounted around them and shadows none of them; a checkout that has never "
-            "run `make build-frontend` is refused rather than served blank.",
+            "run `make ui` is refused rather than served blank.",
         ),
     ] = None,
     basemap: Annotated[

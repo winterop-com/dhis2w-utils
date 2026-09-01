@@ -177,7 +177,7 @@ refuses to start.
 | `error: port 8391 on 127.0.0.1 is already in use (usually the local DHIS2 instance; set [serve] port in fhir.toml or pass --port)` | Something else holds the address - typically a local DHIS2 stack on 8080. | Set `[serve] port` in `fhir.toml`, or `--port`. |
 | **No** refusal, and `d2w fhir serve` starts on a port your local DHIS2 already answers on | The probe binds an IPv4 socket and the other listener holds the port on IPv6 only. Docker Desktop on macOS publishing `8080` is exactly that (`TCP *:8080 (LISTEN)`, IPv6), so serve starts beside DHIS2 and then answers some of the `localhost:8080` requests meant for it. | Choose the port in `[serve]` rather than relying on the probe. `lsof -nP -iTCP:<port> -sTCP:LISTEN` shows who really holds it. |
 | `` `d2w fhir serve` `` `needs the dhis2w-fhir-serve package. Install it with` `` `uv add dhis2w-fhir-serve` `` `or` `` `pip install 'dhis2w-cli[serve]'` `` | The serve package is an extra, and this environment does not have it. A scaffolded project declares it, so `uv sync` there is enough. | Install it either way the message names. |
-| `` error: `--ui` needs a built frontend at .../dhis2w_fhir_serve/static, and there is none. Build it with `make build-frontend` (an installed wheel ships it already). `` | Running `--ui` from a source checkout that never built the frontend bundle. | `make build-frontend` in the checkout; installed wheels ship the bundle. |
+| `` error: `--ui` needs a built frontend at .../dhis2w_fhir_serve/static, and there is none. Build it with `make ui` (an installed wheel ships it already). `` | Running `--ui` from a source checkout that never built the frontend bundle. | `make ui` in the checkout; installed wheels ship the bundle. |
 
 ## Forward outcomes
 

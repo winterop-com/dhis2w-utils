@@ -49,6 +49,17 @@ export function pageStateHeading(outcome: ReadOutcome | null | undefined): strin
  * `<code className="font-mono">` the way prose elsewhere in the app does, rather
  * than as backticks a browser renders as the characters they are.
  */
+/**
+ * A state card keeps its own height, whatever else is on the page.
+ *
+ * The page body is a flex column, and a flex item that hides its overflow has no automatic minimum
+ * height - so on a page whose content is taller than the viewport the browser is free to squeeze
+ * this card down and clip the sentence inside it. That is exactly the Responses page of a live run
+ * on its first day: nothing captured yet, the sentence saying so, and the tracked entity record
+ * under it making the column overflow. The sentence is the whole card, so it never shrinks.
+ */
+const STATE_CARD = 'shrink-0'
+
 export function PageState({
     loading,
     error,
@@ -91,7 +102,7 @@ export function PageState({
 }) {
     if (loading) {
         return (
-            <Card>
+            <Card className={STATE_CARD}>
                 <CardContent className="text-muted-foreground flex items-center gap-2 py-8 text-sm">
                     <Loader2 className="size-4 animate-spin" aria-hidden />
                     Reading from the server
@@ -101,7 +112,7 @@ export function PageState({
     }
     if (error) {
         return (
-            <Card>
+            <Card className={STATE_CARD}>
                 <CardContent className="flex items-start gap-3 py-8">
                     <ServerCrash className="text-destructive mt-0.5 size-4 shrink-0" aria-hidden />
                     <div className="space-y-1">
@@ -117,7 +128,7 @@ export function PageState({
     if (empty) {
         if (emptyRender !== undefined) return <>{emptyRender}</>
         return (
-            <Card>
+            <Card className={STATE_CARD}>
                 <CardContent className="text-muted-foreground py-8 text-sm">{emptyMessage}</CardContent>
             </Card>
         )

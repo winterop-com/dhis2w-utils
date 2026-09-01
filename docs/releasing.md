@@ -68,7 +68,7 @@ naming a sibling version the index has not seen yet. `make publish-<member>` doe
 
 ```bash
 export UV_PUBLISH_TOKEN=...   # a PyPI API token; both targets refuse to run without one
-make build-frontend           # or the dhis2w-fhir-serve wheel ships no capture UI
+make ui           # or the dhis2w-fhir-serve wheel ships no capture UI
 make publish-all
 ```
 

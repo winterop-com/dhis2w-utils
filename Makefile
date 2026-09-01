@@ -1,4 +1,4 @@
-.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage frontend-dev build-frontend lint-frontend test-frontend e2e-frontend docs docs-serve docs-build docs-cli docs-mcp docs-d2path build publish-all deps-upgrade clean clean-artifacts dhis2-run dhis2-down dhis2-seed dhis2-versions-check dhis2-versions-bump dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples verify-igs bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
+.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage frontend-dev ui lint-frontend test-frontend e2e-frontend screenshot docs docs-serve docs-build docs-cli docs-mcp docs-d2path build publish-all deps-upgrade clean clean-artifacts dhis2-run dhis2-down dhis2-seed dhis2-versions-check dhis2-versions-bump dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples verify-igs bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -26,7 +26,7 @@ help:
 	@echo "  test-contract    Run live-schema contract tests against play.im.dhis2.org"
 	@echo "  test-durations   Show 20 slowest tests"
 	@echo "  coverage         Run tests with coverage reporting"
-	@echo "  build            Build all workspace wheels (run build-frontend first, or the wheel ships no UI)"
+	@echo "  build            Build all workspace wheels (run 'make ui' first, or the wheel ships no UI)"
 	@echo "  publish-<member> Build + upload one dhis2w-<member> to PyPI (requires UV_PUBLISH_TOKEN env)"
 	@echo "                   Members: $(PUBLISHABLE_MEMBERS)"
 	@echo "  publish-all      Upload every publishable member in dependency order (same token)"
@@ -36,12 +36,14 @@ help:
 	@echo ""
 	@echo "Capture UI (needs node + pnpm; not part of lint/test):"
 	@echo "  frontend-dev     Vite dev server, proxying FHIR calls to \$$(SERVE_TARGET) (default :8080)"
-	@echo "  build-frontend   Build the React app into dhis2w-fhir-serve's static/ (run before 'make build')"
+	@echo "  ui               Build the React app into dhis2w-fhir-serve's static/ (run before 'make build')"
 	@echo "  lint-frontend    oxlint + tsc --noEmit over the frontend"
 	@echo "  test-frontend    vitest run over the frontend"
 	@echo "  e2e-frontend     Playwright specs against a real 'd2w fhir serve --ui' on :8377"
-	@echo "                   (prereqs, not run for you: 'make build-frontend' and"
+	@echo "                   (prereqs, not run for you: 'make ui' and"
 	@echo "                    'cd $(FRONTEND_DIR) && pnpm exec playwright install chromium')"
+	@echo "  screenshot       Re-shoot the docs images into docs/img/fhir (builds the bundle first);"
+	@echo "                   set D2W_SCREENSHOT_PROJECT=<project> to also shoot the live-only pages"
 	@echo ""
 	@echo "Docs:"
 	@echo "  docs             Alias for docs-serve"
@@ -168,7 +170,7 @@ frontend-dev:
 	@echo "    Start the endpoint it talks to first: 'd2w fhir serve' in your IG project"
 	@cd $(FRONTEND_DIR) && VITE_SERVE_TARGET=$(SERVE_TARGET) pnpm dev
 
-build-frontend:
+ui:
 	@echo ">>> Building the capture UI into packages/dhis2w-fhir-serve/src/dhis2w_fhir_serve/static"
 	@cd $(FRONTEND_DIR) && pnpm install --frozen-lockfile && pnpm build
 
@@ -189,13 +191,43 @@ test-frontend:
 # test command should do behind your back.
 e2e-frontend:
 	@echo ">>> Running capture UI browser tests (playwright, chromium, :8377)"
-	@echo "    Needs 'make build-frontend' first, and chromium installed once:"
+	@echo "    Needs 'make ui' first, and chromium installed once:"
 	@echo "    cd $(FRONTEND_DIR) && pnpm exec playwright install chromium"
 	@cd $(FRONTEND_DIR) && pnpm exec playwright test
 
+# The two screenshot producers behind docs/fhir/201-capture-ui.md. Both are skipped
+# unless DOCS_SCREENSHOTS=1, and both run ALONE rather than inside the suite: the
+# compiled shoot counts the receipts it posted itself, and another spec posting
+# beside it would be in those counts.
+#
+# THE COMPILED SHOOT always runs, over the fixture project the browser suite uses.
+# Any server left on 8377 is killed first, because Playwright reuses one it finds
+# and its spool is then what gets shot rather than a fresh one.
+#
+# THE LIVE SHOOT runs only where D2W_SCREENSHOT_PROJECT names a FHIR project, and
+# covers the three surfaces a compiled guide cannot draw at all - Metadata health,
+# one tracked entity's record, and the record under the Responses table. It stands
+# up its own `d2w fhir serve --live` on 8378 over a COPY of that project's
+# fhir.toml whose spool_dir points into a temporary directory, so the project's
+# own receipts are never written to, and it only ever reads.
+screenshot: ui
+	@echo ">>> Re-shooting docs/img/fhir from the compiled fixture server (:8377)"
+	@lsof -ti:8377 | xargs kill 2>/dev/null || true
+	@cd $(FRONTEND_DIR) && DOCS_SCREENSHOTS=1 pnpm exec playwright test e2e/docs-screenshots.spec.ts
+ifeq ($(strip $(D2W_SCREENSHOT_PROJECT)),)
+	@echo ">>> Skipping the live-only pages: D2W_SCREENSHOT_PROJECT names no project"
+	@echo "    Metadata health, a tracked entity's record, and the record under Responses"
+	@echo "    need a live run: make screenshot D2W_SCREENSHOT_PROJECT=~/path/to/project"
+else
+	@echo ">>> Re-shooting the live-only pages from $(D2W_SCREENSHOT_PROJECT) (:8378)"
+	@lsof -ti:8378 | xargs kill 2>/dev/null || true
+	@cd $(FRONTEND_DIR) && DOCS_SCREENSHOTS=1 D2W_SCREENSHOT_PROJECT="$(D2W_SCREENSHOT_PROJECT)" \
+		pnpm exec playwright test e2e/docs-screenshots-live.spec.ts
+endif
+
 build:
 	@echo ">>> Building all workspace wheels"
-	@echo "    (the dhis2w-fhir-serve wheel ships whatever 'make build-frontend' last produced)"
+	@echo "    (the dhis2w-fhir-serve wheel ships whatever 'make ui' last produced)"
 	@$(UV) build --all-packages
 
 # Releasing from the terminal. The other path to PyPI is a tag: push vX.Y.Z and
@@ -238,7 +270,7 @@ publish-all:
 	}
 	@echo ">>> Publishing every dhis2w-* package in dependency order:"
 	@echo "    $(PUBLISHABLE_MEMBERS)"
-	@echo "    (the dhis2w-fhir-serve wheel ships whatever 'make build-frontend' last produced)"
+	@echo "    (the dhis2w-fhir-serve wheel ships whatever 'make ui' last produced)"
 	@for member in $(PUBLISHABLE_MEMBERS); do \
 		$(MAKE) --no-print-directory publish-$$member || exit 1; \
 	done
