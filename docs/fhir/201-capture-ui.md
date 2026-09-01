@@ -614,6 +614,29 @@ the server re-reads that directory to answer. So running `d2w fhir forward` or
 nothing restarted - hit **Reload**, or just switch back to the browser,
 which refetches on focus.
 
+**Under the receipts sits the other source: one tracked entity in this DHIS2
+instance.** A receipt is a submission this server took; a record is what the
+instance holds right now, and on most deployments the two are not the same set -
+data captured straight into DHIS2 never passed through this spool, and a receipt
+the forwarder drained is a file whose events now live in the instance. So a
+**live** server that answers the record puts a picker below the table: find a
+tracked entity by an identifier value, and their events arrive underneath,
+one unfoldable row per DHIS2 event, exactly as the register's own record draws
+them. Where the run serves more than one register - people and specimen batches,
+say - the register is chosen first, named by what the instance calls the types
+riding it. There is no feed of everything the instance holds, and there is not
+going to be one: `GET /facade/tracked-entities/{uid}/events` is entity-scoped as
+a security boundary, so a record is answered for a named subject or not at all.
+
+The section is on the page only where this server can answer it - a live run
+that serves the register with `[serve.tracked_entities] events` left on
+([Configure serving](301-serving.md#tracked_entities)). A compiled guide, or a
+run that switched the record off, gets no picker rather than one whose every
+choice ends in a refusal. The empty table is worded for both: *This server has
+stored no receipt* is a fact about the spool and nothing more - data entered into
+the instance by any other route leaves none here - and where the record is drawn
+below, the sentence goes on to say that the instance is read there.
+
 ## The register
 
 A **live** server carries one more page, at `#/tracked-entities`: the people -
@@ -639,9 +662,11 @@ page, rather than a page that apologises.
     kind, each titled by the names the instance holds for the types riding it.
     Everything below is the same either way, section for section.
 
-Everything on it is read from the instance while you wait, which is the one way
-it differs from every other page here. Responses shows receipts - what was
-submitted. This shows what DHIS2 holds right now.
+Everything on it is read from the instance while you wait. The Responses page's
+table is the other reading: receipts, what was submitted through this server.
+This page is what the instance holds right now, and it browses - a whole register
+at a time, with the search over it - where the record under the receipts answers
+about one subject somebody names.
 
 **Two ways to arrive at a person, and the page offers both.** Type an
 identifier - a card number, a register number, whatever value the person is

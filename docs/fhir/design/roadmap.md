@@ -1746,9 +1746,12 @@ described, and the git history is where it was built. What is left:
   instance holds for one form, at one organisation unit, over the periods a client
   names, each reporting key as the response the data set's own published form
   describes - so the same round trip closes for an aggregate form
-  ([Aggregate read-back](aggregate-read-back.md)). What the data leg is waiting on
-  now is consumers rather than reads: the capture UI's Responses page reading live
-  DHIS2 beside its receipts, and the entity timeline the screens do not draw yet.
+  ([Aggregate read-back](aggregate-read-back.md)). The capture UI's Responses page
+  reads both halves of what it can: the receipts this server stored, and, under
+  them, what the DHIS2 instance holds for one tracked entity somebody picks - a
+  picker rather than a feed, because the record is entity-scoped as a security
+  boundary and there is no instance-wide event feed to draw. The one consumer
+  still waiting is the entity timeline the screens do not draw.
 
 - **The record's remaining shapes.** The facade serves it -
   `GET /facade/tracked-entities/{uid}/events`, entity-scoped throughout, each event as

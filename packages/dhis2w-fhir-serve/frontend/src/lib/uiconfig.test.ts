@@ -7,6 +7,7 @@ import {
     NO_REGISTER_OFFERED,
     PEOPLE_RESOURCE_TYPE,
     REGISTER_TITLE,
+    registerChoices,
     registerResourceForSubjectType,
     registerSectionTitle,
     registerSubject,
@@ -14,6 +15,7 @@ import {
     registerWords,
     servesPeopleOnly,
     subjectOfTypeName,
+    trackedEntityRecordOffered,
     trackedEntitySettings,
     type TrackedEntitiesSettings,
     type UiConfig,
@@ -336,5 +338,114 @@ describe('whether this run can report on the metadata behind its guide', () => {
         // to a page with nothing on it.
         expect(metadataHealthOffered(withHealth(null))).toBe(false)
         expect(metadataHealthOffered(DEFAULT_UI_CONFIG)).toBe(false)
+    })
+})
+
+/**
+ * Whether one tracked entity's own record is answered, and which registers one can be picked out of.
+ *
+ * WHY THESE TWO ARE WORTH A TEST OF THEIR OWN. Both decide whether a control exists rather than how
+ * it renders, and each guards a failure that has to be prevented ahead of the request: a picker on a
+ * run that answers no record is a picker whose every choice ends in a refusal, and a picker over one
+ * hard-wired register cannot reach a specimen batch on an instance that tracks several kinds.
+ */
+describe('whether this run answers one tracked entity’s own record', () => {
+    it('answers it where the server serves the register and answers the events', () => {
+        expect(
+            trackedEntityRecordOffered({
+                enabled: true,
+                listing: true,
+                events: true,
+                registers: [PEOPLE_REGISTER],
+            }),
+        ).toBe(true)
+    })
+
+    it('keeps the record and the register as two separate offers', () => {
+        // A deployment can answer who somebody is and decline to answer what they have been
+        // through, which is what `[serve.tracked_entities] events = false` says.
+        expect(
+            trackedEntityRecordOffered({
+                enabled: true,
+                listing: true,
+                events: false,
+                registers: [PEOPLE_REGISTER],
+            }),
+        ).toBe(false)
+    })
+
+    it('answers none on a run serving no register, since a record is read under a tracked entity', () => {
+        expect(
+            trackedEntityRecordOffered({ enabled: false, listing: false, events: true, registers: [] }),
+        ).toBe(false)
+    })
+
+    it('reads a server that stated nothing as a server answering no record', () => {
+        expect(
+            trackedEntityRecordOffered({ enabled: true, listing: true, registers: [PEOPLE_REGISTER] }),
+        ).toBe(false)
+        expect(trackedEntityRecordOffered(trackedEntitySettings(DEFAULT_UI_CONFIG))).toBe(false)
+        expect(trackedEntityRecordOffered(NO_REGISTER_OFFERED)).toBe(false)
+    })
+})
+
+describe('the registers a tracked entity is picked out of', () => {
+    it('offers the one a person-only run serves, which is nothing to choose between', () => {
+        expect(
+            registerChoices({ enabled: true, listing: true, events: true, registers: [PEOPLE_REGISTER] }),
+        ).toEqual([{ resource: 'Patient', label: 'Person', subject: { kind: 'people' } }])
+    })
+
+    it('offers one per served resource where the instance tracks several kinds', () => {
+        const choices = registerChoices({
+            enabled: true,
+            listing: true,
+            events: true,
+            registers: [PEOPLE_REGISTER, SPECIMEN_REGISTER],
+        })
+
+        expect(choices.map((choice) => choice.resource)).toEqual(['Patient', 'Specimen'])
+        // Named the way the instance names the types riding each register, never by the FHIR
+        // resource the guide projects them onto.
+        expect(choices.map((choice) => choice.label)).toEqual(['Person', 'Specimen batch'])
+        expect(choices[1].subject).toEqual({ kind: 'type', name: 'Specimen batch' })
+    })
+
+    it('names a register over several types by every one of them, and speaks of none of them', () => {
+        const choices = registerChoices({
+            enabled: true,
+            listing: true,
+            events: true,
+            registers: [
+                {
+                    resource: 'Patient',
+                    types: [
+                        { uid: 'TetPerson01', name: 'Person' },
+                        { uid: 'TetFocusAr1', name: 'Focus area' },
+                    ],
+                },
+            ],
+        })
+
+        expect(choices[0].label).toBe('Person, Focus area')
+        // One of the two types is a place, so the control cannot be worded for people without
+        // calling a focus area somebody.
+        expect(choices[0].subject).toEqual({ kind: 'tracked-entities' })
+    })
+
+    it('falls back to the register where the guide published no name for what rides it', () => {
+        expect(
+            registerChoices({
+                enabled: true,
+                listing: true,
+                events: true,
+                registers: [{ resource: 'Patient', types: [] }],
+            })[0].label,
+        ).toBe(REGISTER_TITLE)
+    })
+
+    it('offers none at all where the run serves no register', () => {
+        expect(registerChoices(NO_REGISTER_OFFERED)).toEqual([])
+        expect(registerChoices(trackedEntitySettings(DEFAULT_UI_CONFIG))).toEqual([])
     })
 })

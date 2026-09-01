@@ -87,16 +87,15 @@ export function PersonPicker({
     // listing, the row, and the quick view each read.
     const naming = useTrackedEntityNaming()
     const type = trackedEntityTypeLabel(naming.types, trackedEntityTypeUid)
-    const words = registerWords(
-        subjectOfTypeName(type !== null && !type.isMachineSpelling ? type.text : null),
-    )
+    const subject = subjectOfTypeName(type !== null && !type.isMachineSpelling ? type.text : null)
+    const words = registerWords(subject)
     // Sentence-initial, and the name is DHIS2's own string - so only the first letter is touched,
     // and a name the instance already spells "Focus area" is left exactly as it spells it.
-    const subject = words.one.charAt(0).toUpperCase() + words.one.slice(1)
+    const legend = words.one.charAt(0).toUpperCase() + words.one.slice(1)
 
     return (
         <fieldset className="bg-card text-card-foreground grid gap-2 rounded-lg border p-4">
-            <legend className="px-1 text-sm font-medium">{subject}</legend>
+            <legend className="px-1 text-sm font-medium">{legend}</legend>
             {/* The second sentence is about the other option, so it is on screen exactly when that
                 option is - a panel that described finding a subject and then said it cannot be done
                 here was promising a capability the next line took back. */}
@@ -156,6 +155,7 @@ export function PersonPicker({
                     controlId="person-identifier"
                     enabled
                     resource={resource}
+                    subject={subject}
                     onChoose={(patient) => {
                         setSearching(false)
                         onChange('instance', patient)
