@@ -280,6 +280,84 @@ DEFAULT_REGISTER_PAGE_SIZE = 20
 #: The largest `_count` the register listing honours; a client asking for more is served this many.
 DEFAULT_REGISTER_PAGE_SIZE_LIMIT = 100
 
+#: The most periods one data set read may name at once. A read is answered whole - `/api/dataValueSets`
+#: offers no cursor - so the periods a request names are what bounds its cost, and twelve of them is a
+#: year of monthly reporting, which is the span somebody comparing a form against last year asks for.
+DEFAULT_DATA_SET_PERIOD_LIMIT = 12
+
+
+class DataSetsConfig(BaseModel):
+    """What a live run answers about the instance's aggregate data - the `[serve.data_sets]` table.
+
+    The register's sibling, and the same posture: every default offers everything, and the table
+    exists for the deployment that wants less. It says what this facade will tell a client about the
+    values the instance holds for a data set, which is a decision a project makes once rather than
+    one per invocation, so no flag overrides it.
+
+    `responses` is the whole surface: false and `GET /facade/data-sets/{uid}/responses` answers the
+    not-supported outcome naming this key, while the guide's own forms, the receipts, and the
+    register are served exactly as they were. There is no second `enabled` key beside it, because
+    there is no aggregate register for one to take away - a data set's values are the only thing
+    this table is about.
+
+    `page_size` is what one page carries when the client names no `_count`, and `page_size_limit` is
+    the largest `_count` honoured: a client asking for more is served the limit rather than refused.
+
+    `data_sets` means "the ones the guide publishes" when empty, which is what keeps this table
+    absent from a project that publishes what it serves. Naming UIDs restricts the surface to them,
+    and a data set outside the list is answered exactly as one the guide publishes no form for.
+
+    `period_limit` is the most periods one read may name. Every read is answered whole, so the
+    periods a request names are what bounds its cost; a request naming more is refused with the
+    limit and the count it gave.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    responses: bool = True
+    page_size: int = DEFAULT_REGISTER_PAGE_SIZE
+    page_size_limit: int = DEFAULT_REGISTER_PAGE_SIZE_LIMIT
+    data_sets: list[str] = Field(default_factory=list)
+    period_limit: int = DEFAULT_DATA_SET_PERIOD_LIMIT
+
+    @field_validator("page_size")
+    @classmethod
+    def _at_least_one_response_per_page(cls, value: int) -> int:
+        """A page carrying no response is a listing that never ends, so the smallest page is one response."""
+        if value < 1:
+            raise ValueError(f"page_size is {value}: a page carries at least one response")
+        return value
+
+    @field_validator("period_limit")
+    @classmethod
+    def _at_least_one_period_per_read(cls, value: int) -> int:
+        """A read naming no period is refused, so a limit below one would refuse every read there is."""
+        if value < 1:
+            raise ValueError(f"period_limit is {value}: a read names at least one period")
+        return value
+
+    @field_validator("data_sets")
+    @classmethod
+    def _dhis2_data_set_uids(cls, value: list[str]) -> list[str]:
+        """The list names DHIS2 data sets by UID - a name or a code here would select nothing, silently."""
+        for uid in value:
+            if not is_dhis2_uid(uid):
+                raise ValueError(
+                    f"{uid!r} is not a DHIS2 UID (one letter followed by ten alphanumeric places): "
+                    "name the data set by its UID, since names and codes are not unique in DHIS2"
+                )
+        return value
+
+    @model_validator(mode="after")
+    def _limit_holds_the_default(self) -> DataSetsConfig:
+        """The limit is the largest page this run serves, so a default above it could never be served."""
+        if self.page_size_limit < self.page_size:
+            raise ValueError(
+                f"page_size_limit is {self.page_size_limit} and page_size is {self.page_size}: the limit is "
+                "the largest page this server serves, so it cannot be smaller than the page it serves by default"
+            )
+        return self
+
 
 class TrackedEntitiesConfig(BaseModel):
     """The register a live run serves - the `[serve.tracked_entities]` table of `fhir.toml`.
@@ -643,8 +721,13 @@ class ServeConfig(BaseModel):
 
     `[serve.tracked_entities]` is the register: whether the instance's tracked entities are served at
     all, whether they can be listed rather than only searched for, and how a listing is paged. It is
-    the one part of this table that says what a live run will tell a client about the instance behind
-    it.
+    one of the two parts of this table that say what a live run will tell a client about the instance
+    behind it.
+
+    `[serve.data_sets]` is the other: whether a live run answers what the instance holds for a data
+    set, which data sets it answers for, how a page is sized, and how many periods one read may name.
+    The register says what this facade will tell a client about the instance's subjects, and this
+    says what it will tell them about its aggregate values.
 
     `[serve.search]` is what answers a register search - the instance itself, or the materialized
     projection beside it. It says how a lookup is answered where `[serve.tracked_entities]` says
@@ -684,6 +767,7 @@ class ServeConfig(BaseModel):
     spool_dir: str = SPOOL_RELATIVE_PATH
     basemaps: list[BasemapSource] = Field(default_factory=lambda: list(DEFAULT_BASEMAPS))
     tracked_entities: TrackedEntitiesConfig = Field(default_factory=TrackedEntitiesConfig)
+    data_sets: DataSetsConfig = Field(default_factory=DataSetsConfig)
     search: SearchConfig = Field(default_factory=SearchConfig)
     projection: ProjectionConfig = Field(default_factory=ProjectionConfig)
 

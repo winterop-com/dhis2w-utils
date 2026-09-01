@@ -68,6 +68,7 @@ from dhis2w_fhir.conversion.schemas import (
 )
 from dhis2w_fhir.conversion.translator import translate_responses
 from dhis2w_fhir.foundation import build_foundation_artifacts
+from dhis2w_fhir.grouping import ReportedForm, group_data_values
 from dhis2w_fhir.hostile_names import HostileNameGate
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.names import StemResolution, StemSubject, code_or_uid
@@ -2294,56 +2295,27 @@ async def _fetch_data_value_responses(
             "/api/dataValueSets",
             params={"dataSet": source.uid, "orgUnit": root_uid, "children": "true", "period": iso},
         )
-        groups = _data_value_groups(raw, source.uid, iso)
+        groups = _example_groups(DataValueSet.model_validate(raw), iso)
         if groups:
-            return groups[:per_target]
+            return [_data_value_response(group, source.uid) for group in groups[:per_target]]
     return []
 
 
-class _DataValueGroup(BaseModel):
-    """One `(orgUnit, period, attributeOptionCombo)` key of a data value set and the values under it."""
+def _example_groups(data_value_set: DataValueSet, requested_iso: str) -> list[ReportedForm]:
+    """The forms one envelope reports, richest first and then by organisation unit - an example-picking order.
 
-    organisation_unit_uid: str
-    period_iso: str
-    attribute_option_combo_uid: str
-    answers: list[ExampleAnswerIn] = Field(default_factory=list)
-
-
-def _data_value_groups(raw: dict[str, object], data_set_uid: str, fallback_iso: str) -> list[ExampleResponseIn]:
-    """Group a data value set by its reporting key, richest group first, then by organisation unit."""
-    values = raw.get("dataValues")
-    grouped: dict[str, _DataValueGroup] = {}
-    for entry in values if isinstance(values, list) else []:
-        if not isinstance(entry, dict):
-            continue
-        data_element_uid = _optional_text(entry.get("dataElement"))
-        value = entry.get("value")
-        if data_element_uid is None or not isinstance(value, str):
-            continue
-        organisation_unit_uid = _optional_text(entry.get("orgUnit")) or ""
-        period_iso = _optional_text(entry.get("period")) or fallback_iso
-        attribute_option_combo_uid = _optional_text(entry.get("attributeOptionCombo")) or ""
-        key = f"{organisation_unit_uid}.{period_iso}.{attribute_option_combo_uid}"
-        group = grouped.setdefault(
-            key,
-            _DataValueGroup(
-                organisation_unit_uid=organisation_unit_uid,
-                period_iso=period_iso,
-                attribute_option_combo_uid=attribute_option_combo_uid,
-            ),
-        )
-        group.answers.append(
-            ExampleAnswerIn(
-                data_element_uid=data_element_uid,
-                category_option_combo_uid=_optional_text(entry.get("categoryOptionCombo")),
-                value=value,
-            )
-        )
-    ordered = sorted(grouped.values(), key=lambda group: (-len(group.answers), group.organisation_unit_uid))
-    return [_data_value_response(group, data_set_uid) for group in ordered if group.organisation_unit_uid]
+    The grouping itself is `dhis2w_fhir.grouping.group_data_values`, which the facade's data set
+    read-back reads the same envelope through; the order is this target's own, because an example
+    corpus wants the fullest form it can find and a served record wants a stable one. A form the
+    envelope names no organisation unit for is left out: an example is subject to a Location, and
+    there would be none to name.
+    """
+    groups = group_data_values(data_value_set, default_period_iso=requested_iso)
+    reportable = [group for group in groups if group.organisation_unit_uid]
+    return sorted(reportable, key=lambda group: (-len(group.values), group.organisation_unit_uid))
 
 
-def _data_value_response(group: _DataValueGroup, data_set_uid: str) -> ExampleResponseIn:
+def _data_value_response(group: ReportedForm, data_set_uid: str) -> ExampleResponseIn:
     """Turn one grouped data value key into the example projection, resolving its period's dates.
 
     The attribute option combo travels on: it is the third of the three keys the group was formed
@@ -2361,8 +2333,15 @@ def _data_value_response(group: _DataValueGroup, data_set_uid: str) -> ExampleRe
         organisation_unit_uid=group.organisation_unit_uid,
         status_code=COMPLETED_STATUS,
         period=period,
-        attribute_option_combo_uid=group.attribute_option_combo_uid or None,
-        answers=group.answers,
+        attribute_option_combo_uid=group.attribute_option_combo_uid,
+        answers=[
+            ExampleAnswerIn(
+                data_element_uid=value.data_element_uid,
+                category_option_combo_uid=value.category_option_combo_uid,
+                value=value.value,
+            )
+            for value in group.values
+        ],
     )
 
 

@@ -33,13 +33,14 @@ mounts in that same group for exactly that reason: `/{ResourceType}/$summary` is
 would never be reached and a client asking for one would be told there is no resource with the id
 `$summary`. `dhis2w_fhir_serve.routes.summary` is what it answers.
 
-THE TRACKED ENTITY LISTINGS ARE THE FACADE'S, BOTH OF THEM. `/facade/tracked-entities/{uid}/enrollments`
-lists what one entity is enrolled in and `/facade/tracked-entities/{uid}/events` is that entity's
-record, and neither is a FHIR interaction: the CapabilityStatement names both in prose and declares
-neither, because FHIR has no interaction at either address. The record answers
-`application/fhir+json` all the same - a Bundle of QuestionnaireResponses is a FHIR document however
-it was asked for - which is why it carries the `Accept` negotiation as its own mount-time requirement
-rather than as the group's. `ServeRouters.negotiated` is that requirement stated as data.
+THE INSTANCE-SOURCED READS ARE THE FACADE'S, ALL THREE OF THEM. `/facade/tracked-entities/{uid}/enrollments`
+lists what one entity is enrolled in, `/facade/tracked-entities/{uid}/events` is that entity's
+record, and `/facade/data-sets/{uid}/responses` is what the instance holds for one data set - and
+none of them is a FHIR interaction: the CapabilityStatement names them in prose and declares none,
+because FHIR has no interaction at any of those addresses. The record and the data set responses
+answer `application/fhir+json` all the same - a Bundle of QuestionnaireResponses is a FHIR document
+however it was asked for - which is why they carry the `Accept` negotiation as their own mount-time
+requirement rather than as the group's. `ServeRouters.negotiated` is that requirement stated as data.
 
 `/facade/whoami` is the one path whose ANSWER a posture decides rather than a scope guarding it.
 Every other route is mounted by every run and the posture only decides which of them carry the check;
@@ -134,8 +135,8 @@ FACADE_API_SUMMARY = "Everything a d2w fhir serve facade answers about itself, r
 FACADE_API_DESCRIPTION = """
 This is the operational API of one `d2w fhir serve` process: the receipts it is holding, the
 settings it was started with, who it decided the caller is, the expression evaluator, the
-vocabularies the served guide publishes, and the DHIS2 register listings a live run reads per
-request.
+vocabularies the served guide publishes, and the DHIS2 register listings and data set values a
+live run reads per request.
 
 **It is not the FHIR API.** The FHIR surface is served at the base URL beside this mount, and its
 contract is the CapabilityStatement at `GET /metadata` - not this document. A client reading
@@ -143,9 +144,9 @@ Questionnaires, posting a QuestionnaireResponse, or searching the register wants
 two are separate on purpose: FHIR's paths belong to the specification, and these belong to this
 server.
 
-Every operation here answers `application/json`, except the tracked entity record, which answers a
-FHIR `Bundle` as `application/fhir+json` - it is a FHIR document read at an address FHIR defines no
-interaction for.
+Every operation here answers `application/json`, except the tracked entity record and one data
+set's responses, which answer a FHIR `Bundle` as `application/fhir+json` - both are FHIR documents
+read at addresses FHIR defines no interaction for.
 
 Refusals are FHIR `OperationOutcome` documents, exactly as they are on the FHIR surface, so one
 client reads one refusal shape whichever surface it met.
@@ -168,6 +169,10 @@ FACADE_API_TAGS = [
     {
         "name": "Register",
         "description": "What a live run reads about one tracked entity from the DHIS2 instance, per request.",
+    },
+    {
+        "name": "Data sets",
+        "description": "What a live run reads from the DHIS2 instance about one data set's own values, per request.",
     },
     {"name": "Evaluation", "description": "Running a FHIRPath expression or a CQL library over what is served."},
     {"name": "Terminology", "description": "Asking about the code systems and value sets this guide publishes."},
@@ -213,8 +218,8 @@ class ServeRouters(BaseModel):
     Mounted under one prefix as an application of its own, which is what gives them an OpenAPI
     document of their own. Their order is the order a reader meets them in: who is calling
     (`/whoami`), what a running server holds (`/spool`, `/uiconfig`, `/metadata-health`), what it
-    answers about the instance (`/tracked-entities/{uid}/enrollments` and the record beside it), and
-    what it runs over either (`/evaluate`, `/terminology/*`).
+    answers about the instance (`/tracked-entities/{uid}/enrollments`, the record beside it, and one
+    data set's own responses), and what it runs over either (`/evaluate`, `/terminology/*`).
     """
 
     read: APIRouter
@@ -233,10 +238,11 @@ class ServeRouters(BaseModel):
     negotiated: tuple[APIRouter, ...] = ()
     """The routers outside the FHIR group that carry the `Accept` negotiation anyway.
 
-    A subset for the same reason `guarded` is one, and today it names one router: the tracked entity
-    record. It is the facade's own address - FHIR declares no interaction there - and what it answers
-    is a FHIR Bundle, so a client that takes no JSON is refused before it runs exactly as it is on the
-    FHIR surface. Every other router in `facade` answers `application/json` and negotiates nothing.
+    A subset for the same reason `guarded` is one, and today it names two routers: the tracked entity
+    record and one data set's own responses. Both are the facade's own addresses - FHIR declares no
+    interaction at either - and what both answer is a FHIR Bundle, so a client that takes no JSON is
+    refused before it runs exactly as it is on the FHIR surface. Every other router in `facade`
+    answers `application/json` and negotiates nothing.
     """
 
     def is_guarded(self, router: APIRouter) -> bool:
@@ -282,6 +288,7 @@ def serve_routers(
     from dhis2w_fhir_serve.routes.capture import refusal_router as capture_refusal_router
     from dhis2w_fhir_serve.routes.capture import router as capture_router
     from dhis2w_fhir_serve.routes.cds import router as cds_router
+    from dhis2w_fhir_serve.routes.data_sets import router as data_sets_router
     from dhis2w_fhir_serve.routes.enrollments import router as enrollments_router
     from dhis2w_fhir_serve.routes.evaluate import router as evaluate_router
     from dhis2w_fhir_serve.routes.evaluate_operation import router as evaluate_operation_router
@@ -322,6 +329,7 @@ def serve_routers(
         metadata_health_router,
         enrollments_router,
         history_router,
+        data_sets_router,
         evaluate_router,
         terminology_router,
     )
@@ -330,7 +338,7 @@ def serve_routers(
         cds_hooks=cds_hooks,
         facade=facade,
         read=read_router,
-        negotiated=(history_router,),
+        negotiated=(history_router, data_sets_router),
         guarded=_guarded_routers(
             auth=auth,
             auth_scope=auth_scope,

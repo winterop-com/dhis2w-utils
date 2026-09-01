@@ -24,12 +24,13 @@ A `_format` naming anything else is refused even where `Accept` would have admit
 named the format it wants, and this server has only the one. An absent or blank `_format` says
 nothing, and the header decides alone.
 
-This applies to the FHIR surface, and to one route outside it. The facade API under `/facade` answers
-plain `application/json` about this facade rather than resources out of it, `/cds-services` answers
-plain JSON to an EHR, and the UI mounts serve a browser whose `Accept` is about HTML - none of those
-is a FHIR interaction to negotiate. The exception is the tracked entity record at
-`/facade/tracked-entities/{uid}/events`, which answers a FHIR Bundle from a facade-owned address and
-carries this check as its own mount-time requirement - see `dhis2w_fhir_serve.routes.ServeRouters`.
+This applies to the FHIR surface, and to two routers outside it. The facade API under `/facade`
+answers plain `application/json` about this facade rather than resources out of it, `/cds-services`
+answers plain JSON to an EHR, and the UI mounts serve a browser whose `Accept` is about HTML - none
+of those is a FHIR interaction to negotiate. The exceptions are the tracked entity record at
+`/facade/tracked-entities/{uid}/events` and one data set's responses at
+`/facade/data-sets/{uid}/responses`, which answer FHIR Bundles from facade-owned addresses and carry
+this check as their own mount-time requirement - see `dhis2w_fhir_serve.routes.ServeRouters`.
 """
 
 from __future__ import annotations

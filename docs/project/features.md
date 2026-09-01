@@ -1953,6 +1953,29 @@ reads that table.
   `fullUrl` points at - never `QuestionnaireResponse/{id}`, which answers the
   spool's receipts. `[serve.tracked_entities] events = false` refuses the record
   and leaves identity served.
+- **`GET /facade/data-sets/{uid}/responses?orgUnit=&period=`** is the aggregate half
+  of the same question: what the DHIS2 instance holds for one data set, at one
+  organisation unit, over the periods the request names, as one
+  `QuestionnaireResponse` per organisation unit, period, and attribute option
+  combo the values are filed under - the data set's canonical as `questionnaire`,
+  the reporting unit as `subject`, the period and the combo as extensions, and one
+  item per cell typed by the very form a submission is validated against. The
+  shape is the capture contract's own, so an aggregate form captured through the
+  guide reads back through the guide. `orgUnit` and at least one `period` are
+  required, because a read without them is every organisation unit for every
+  period the data set collects; `period` repeats up to
+  `[serve.data_sets] period_limit`, `attributeOptionCombo` narrows to one combo,
+  `_count` and `page` walk the pages on the table's own dials, `_count=0` answers
+  how many forms the selection holds, and any other parameter is refused rather
+  than ignored. The selection is read whole - `/api/dataValueSets` offers no
+  cursor and its `limit` truncates silently - and ordered here on
+  `(orgUnit, period, attributeOptionCombo)`, so two reads of an unchanged period
+  answer the same bytes. One reported form is read at
+  `GET /facade/data-sets/{uid}/responses/{responseId}`, whose id is those three
+  keys, so the item read needs no parameters. `[serve.data_sets] responses = false`
+  refuses the values and leaves the forms published; a `data_sets` list narrows
+  which data sets are answered for, and one outside it is answered as one the
+  guide publishes no form for.
 - **A compiled run holds no client**, so all of them answer a `not-supported`
   OperationOutcome naming `--live`, and `/metadata` declares no register
   resource at all - which is where the record's address is stated too, on the
@@ -3531,8 +3554,9 @@ full key set and refuses anything else.
 | `[generate.tracked_entity_forms]` | Person-only registration form selection |
 | `[generate.tracked_entity_types]` | UID to FHIR resource type map |
 | `[generate.examples]` | `per_target`, `source` |
-| `[serve]` | `host`, `port`, `strict_codes`, `capture`, `ui`, `spool_dir`, `basemaps`, `tracked_entities`, `search` |
-| `[serve.tracked_entities]` | `enabled`, `listing`, `page_size`, `page_size_limit`, `tracked_entity_types`, `search_attributes` |
+| `[serve]` | `host`, `port`, `strict_codes`, `capture`, `ui`, `spool_dir`, `basemaps`, `tracked_entities`, `data_sets`, `search` |
+| `[serve.tracked_entities]` | `enabled`, `listing`, `events`, `page_size`, `page_size_limit`, `tracked_entity_types`, `search_attributes` |
+| `[serve.data_sets]` | `responses`, `page_size`, `page_size_limit`, `data_sets`, `period_limit` |
 | `[serve.search]` | `backend` (`dhis2`, `projection`) |
 | `[serve.projection]` | `store` (`none`, `sqlite`), `path`, `overlap_seconds` |
 | `[forward]` | `live`, `import`, `register_completeness`, `overwrites`, `corrections`, `withdrawals` |
@@ -3547,8 +3571,9 @@ full key set and refuses anything else.
 - **Flags beat the table beats the defaults** on `[serve]` and `[forward]`
   alike, and `--strict-codes` / `--no-strict-codes` reaches all three levels.
   `[serve] capture` and `[serve] spool_dir` have no flag at all, and neither do
-  `[serve.tracked_entities]`, `[serve.search]`, and `[serve.projection]`, because
-  each states what the server is rather than what one run does.
+  `[serve.tracked_entities]`, `[serve.data_sets]`, `[serve.search]`, and
+  `[serve.projection]`, because each states what the server is rather than what
+  one run does.
 - **The `[forward] import` key is spelled `import` in the file** (the field is
   `import_responses` in Python, because `import` is a keyword), and the file
   accepts no other spelling of it.

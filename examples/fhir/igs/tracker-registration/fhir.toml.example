@@ -137,6 +137,17 @@ page_size_limit = 100               # the largest page anyone may ask for; a big
 # (absent = the attributes DHIS2 declares unique or searchable). -> 301-serving#tracked_entities-search_attributes
 # search_attributes = ["lZGmxYbs97q"]
 
+[serve.data_sets]
+# What a live run answers about the values the instance holds for a data set; a compiled guide
+# answers none of it, and no command-line flag overrides this table. -> 301-serving#data_sets
+responses = true                    # false publishes the forms and not the values reported against them -> 301-serving#data_sets-responses
+page_size = 20                      # reported forms per page when the caller asks for no size -> 301-serving#data_sets-page_size
+page_size_limit = 100               # the largest page anyone may ask for; a bigger ask gets this -> 301-serving#data_sets-page_size
+period_limit = 12                   # the most periods one read may name; a year of monthly reporting -> 301-serving#data_sets-period_limit
+# Data sets whose values are answered for, by UID (absent = the ones the guide publishes a form
+# for). -> 301-serving#data_sets-data_sets
+# data_sets = ["BfMAe6Itzgt"]
+
 [serve.search]
 # What answers a search for a person. `dhis2` is the instance itself: one exact-match query per
 # key while the caller waits. `projection` is the synced copy below: one indexed query, plus

@@ -85,7 +85,6 @@ from dhis2w_fhir.r4 import (
     Extension,
     Identifier,
     Meta,
-    Period,
     Questionnaire,
     QuestionnaireItem,
     QuestionnaireResponse,
@@ -107,12 +106,7 @@ from dhis2w_fhir_serve.capture.index import (
     CaptureQuestion,
     asked_link_ids,
 )
-from dhis2w_fhir_serve.capture.naming import (
-    PERIOD_ISO_SUB_EXTENSION,
-    PERIOD_RANGE_SUB_EXTENSION,
-    PERIOD_TYPE_SUB_EXTENSION,
-    CaptureNaming,
-)
+from dhis2w_fhir_serve.capture.naming import CaptureNaming, period_extension
 from dhis2w_fhir_serve.capture.resolve import CodingResolverSet, ResolvedCoding
 from dhis2w_fhir_serve.spool import ResponseLifecycle, ResponseSpool, StoredReceipt
 from dhis2w_fhir_serve.store import IdentifierToken, ResourceStore, StoreEntry
@@ -430,7 +424,7 @@ class _Generator(BaseModel):
             if tracker.incident_at is not None:
                 extensions.append(Extension(url=self.naming.incident_at_url, valueDateTime=tracker.incident_at))
         if period is not None:
-            extensions.append(_period_extension(period, self.naming))
+            extensions.append(period_extension(period, self.naming))
         extensions.extend(self._attribute_option_combo())
         extensions.append(Extension(url=self.naming.form_type_url, valueCode=self.index.form_kind))
         return extensions
@@ -821,21 +815,6 @@ def _coding(system: str, option: ResolvedCoding) -> Coding:
         system=system,
         code=option.concept_code,
         display=flatten_whitespace(option.display) if option.display else None,
-    )
-
-
-def _period_extension(period: PeriodValue, naming: CaptureNaming) -> Extension:
-    """The D2Period extension: the DHIS2 ISO identifier, its period type, and the range it resolves to."""
-    return Extension(
-        url=naming.period_url,
-        extension=[
-            Extension(url=PERIOD_ISO_SUB_EXTENSION, valueString=period.iso),
-            Extension(url=PERIOD_TYPE_SUB_EXTENSION, valueCode=period.period_type),
-            Extension(
-                url=PERIOD_RANGE_SUB_EXTENSION,
-                valuePeriod=Period(start=period.start_date.isoformat(), end=period.end_date.isoformat()),
-            ),
-        ],
     )
 
 

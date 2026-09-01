@@ -4,6 +4,12 @@ Every name here is derived from `fhir.toml` - the IG canonical for the extension
 pin, and `[generate] identifier_system_base` for the DHIS2 identifier systems a response names
 its tracked entity, its enrollment, and its program under. Nothing is hard-coded: a project that
 renames its prefix token renames its extensions, and the capture path follows without an edit.
+
+`period_extension` is here rather than beside either of its two callers, because both of them are
+writing the same D2Period out of these three sub-extension urls: `$generate` when it drafts an
+aggregate response, and the data set read-back when it serves one out of the instance. One
+spelling of the period is the whole point of putting it here - a draft and a served document that
+dated themselves differently would be two contracts wearing one profile.
 """
 
 from __future__ import annotations
@@ -12,10 +18,12 @@ from typing import TYPE_CHECKING
 
 from dhis2w_fhir.foundation.schemas import IDENTIFIER_SYSTEM_SUBJECTS, FoundationNaming
 from dhis2w_fhir.names import join_id_tokens
+from dhis2w_fhir.r4 import Extension, Period
 from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import FhirProject
+    from dhis2w_fhir.period.schemas import PeriodValue
     from dhis2w_fhir.resources.questionnaires.schemas import FormKind
 
 #: The sub-extension urls D2Period slices its three facts under, as `d2-period.fsh.jinja` names them.
@@ -68,6 +76,16 @@ class CaptureNaming(BaseModel):
 
     tracked_entity_system: str
     tracker_enrollment_system: str
+    data_set_identifier_system: str
+    """Identifier system a served Questionnaire names the DHIS2 data set it was generated from under.
+
+    What finds the form one data set's values are read back through, exactly as
+    `program_stage_identifier_system` finds a stage's: a read names a data set's UID, and the data
+    set's form is the served Questionnaire carrying that UID under this system. The join is by
+    identifier rather than by canonical, because what a form is called follows `[generate.naming]
+    source` and what it is about does not.
+    """
+
     program_identifier_system: str
     program_stage_identifier_system: str
     """Identifier system a served Questionnaire names the DHIS2 program stage it was generated from under.
@@ -111,6 +129,7 @@ class CaptureNaming(BaseModel):
             subject_exists_url=_definition_url(canonical, names.subject_exists_extension_id),
             tracked_entity_system=_identifier_system(base, "TrackedEntity"),
             tracker_enrollment_system=_identifier_system(base, "TrackerEnrollment"),
+            data_set_identifier_system=_identifier_system(base, "DataSet"),
             program_identifier_system=_identifier_system(base, "Program"),
             program_stage_identifier_system=_identifier_system(base, "ProgramStage"),
             generate_seed_system=f"{canonical}/{GENERATE_SEED_IDENTIFIER_SEGMENT}",
@@ -134,6 +153,21 @@ class CaptureNaming(BaseModel):
         if form_kind == "tracked-entity":
             return self.tracked_entity_response_profile_url
         return self.event_response_profile_url
+
+
+def period_extension(period: PeriodValue, naming: CaptureNaming) -> Extension:
+    """The D2Period extension: the DHIS2 ISO identifier, its period type, and the range it resolves to."""
+    return Extension(
+        url=naming.period_url,
+        extension=[
+            Extension(url=PERIOD_ISO_SUB_EXTENSION, valueString=period.iso),
+            Extension(url=PERIOD_TYPE_SUB_EXTENSION, valueCode=period.period_type),
+            Extension(
+                url=PERIOD_RANGE_SUB_EXTENSION,
+                valuePeriod=Period(start=period.start_date.isoformat(), end=period.end_date.isoformat()),
+            ),
+        ],
+    )
 
 
 def _definition_url(canonical: str, definition_id: str) -> str:

@@ -20,7 +20,8 @@ placed by.
 - **The facade's own API, under `/facade`** - `/facade/whoami`,
   `/facade/spool`, `/facade/uiconfig`, `/facade/evaluate`,
   `/facade/metadata-health`, `/facade/terminology/lookup`,
-  `/facade/terminology/validate-code`, and the two tracked entity listings.
+  `/facade/terminology/validate-code`, the two tracked entity listings, and
+  `/facade/data-sets/{uid}/responses` with the one reported form beside it.
   Plain `application/json` about the process rather than resources out of it,
   consumed by the capture UI and by operators. It is served as an application of
   its own, so it has a contract of its own: `/facade/openapi.json` describes
@@ -45,7 +46,9 @@ placed by.
    record is the case that proves the rule: it answers a FHIR `Bundle` under
    `application/fhir+json`, and it is under the mount anyway, because FHIR
    declares no interaction at `/{type}/{uid}/events` and the address is this
-   facade's own invention.
+   facade's own invention. A data set's responses are the same case on the
+   aggregate side - [Aggregate read-back](aggregate-read-back.md) works the rules
+   through for that one.
 3. A facade-own endpoint is a **flat hyphenated noun** naming what it answers,
    never a verb ceremony (`metadata-health`, not `check-metadata`).
 4. A **prefix inside the mount** is introduced only when a family exists - two

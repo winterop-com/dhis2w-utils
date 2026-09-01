@@ -168,6 +168,72 @@ class RecordDisabledError(ServeError):
         self.resource_type = resource_type
 
 
+class DataSetResponsesDisabledError(ServeError):
+    """This project publishes its data set forms and not the values the instance holds for them.
+
+    `[serve.data_sets] responses` is false, so the forms are served and what was reported against
+    them is not. Same status and issue code as every other "this server does not serve that here",
+    with the key named so an operator reads it as a decision this project wrote down rather than as
+    a missing feature.
+    """
+
+    status_code = 404
+    issue_code = "not-supported"
+
+    def __init__(self, resource_type: str) -> None:
+        super().__init__(
+            f"this facade serves no `{resource_type}`: this project publishes its data set forms and not "
+            "the values the DHIS2 instance holds for them; set `[serve.data_sets] responses = true` in "
+            "fhir.toml and serve again"
+        )
+        self.resource_type = resource_type
+
+
+class MissingSearchParameterError(ServeError):
+    """A read this server bounds by a parameter was asked without it.
+
+    Refused rather than answered widely, which is the whole point: a data set read missing its
+    organisation unit or its period is a read of every organisation unit for every period the data
+    set collects, and a client that asked about one clinic last month would take that answer for it.
+    The refusal names every parameter the read is bounded by, so one round trip states the whole
+    requirement rather than one missing name at a time.
+    """
+
+    status_code = 400
+    issue_code = "invalid"
+
+    def __init__(self, resource_type: str, parameter: str, requirement: str, why: str) -> None:
+        """Carry the refusal naming what was missing, what the read needs, and what it costs to omit it."""
+        super().__init__(f"`{parameter}` is required here and this request named none: {requirement}, because {why}")
+        self.resource_type = resource_type
+        self.parameter = parameter
+        self.requirement = requirement
+
+
+class TooManySearchValuesError(ServeError):
+    """One parameter was repeated more times than this server answers a single read over.
+
+    The count and the limit are both named, because the client can act on neither without the other:
+    a read this server will not answer is a read the client has to split, and how many pieces that
+    takes is what these two numbers say.
+    """
+
+    status_code = 400
+    issue_code = "invalid"
+
+    def __init__(self, resource_type: str, parameter: str, given: int, limit: int, key: str) -> None:
+        """Carry the refusal naming the parameter, the count it carried, the limit, and the key that sets it."""
+        super().__init__(
+            f"this request names {given} `{parameter}` values and this server answers at most {limit} in one "
+            f"read: ask for {limit} or fewer, or raise `{key}` in fhir.toml and serve again. Every value named "
+            "is read whole, so the count is what bounds what one request costs."
+        )
+        self.resource_type = resource_type
+        self.parameter = parameter
+        self.given = given
+        self.limit = limit
+
+
 class SummaryDisabledError(ServeError):
     """This project publishes no patient summary: `[ips] enabled` is false.
 
