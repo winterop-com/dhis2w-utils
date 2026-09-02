@@ -870,7 +870,9 @@ this server answers. On - the default - one tracked entity's own events come
 back at `GET /facade/tracked-entities/{uid}/events`, each as the response its programme
 stage's published form describes: when it happened, which form it answers, and
 every value that was recorded, with the codes this guide publishes for them. Off,
-the register still says who somebody is, and their record is refused.
+the register still says who somebody is, and their record is refused - and the
+capture UI draws no events section at all on such a run, rather than a heading
+over the refusal.
 
 **When you would change it.** When publishing identity is agreed and publishing
 what was recorded is not - a directory that lets a partner system confirm a

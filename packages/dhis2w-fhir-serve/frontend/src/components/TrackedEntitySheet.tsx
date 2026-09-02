@@ -51,18 +51,25 @@ export function TrackedEntitySheet({
     opened,
     onOpenChange,
     dhis2BaseUrl,
+    eventsOffered,
 }: {
     /** The entity to show, or `NO_TRACKED_ENTITY_OPENED` while the listing is being read. */
     opened: OpenedTrackedEntity
     onOpenChange: (open: boolean) => void
     dhis2BaseUrl: string | null
+    /** Whether this run answers what the subject has been through, which the record's sections follow. */
+    eventsOffered: boolean
 }) {
     const open = opened.trackedEntityUid !== NOTHING_OPENED
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent data-testid="tracked-entity-sheet" className="sm:max-w-[min(64rem,92vw)]">
                 {open && (
-                    <TrackedEntityQuickView opened={opened} dhis2BaseUrl={dhis2BaseUrl} />
+                    <TrackedEntityQuickView
+                        opened={opened}
+                        dhis2BaseUrl={dhis2BaseUrl}
+                        eventsOffered={eventsOffered}
+                    />
                 )}
             </SheetContent>
         </Sheet>
@@ -73,11 +80,13 @@ export function TrackedEntitySheet({
 function TrackedEntityQuickView({
     opened,
     dhis2BaseUrl,
+    eventsOffered,
 }: {
     opened: OpenedTrackedEntity
     dhis2BaseUrl: string | null
+    eventsOffered: boolean
 }) {
-    const record = useTrackedEntityRecord(opened.resourceType, opened.trackedEntityUid)
+    const record = useTrackedEntityRecord(opened.resourceType, opened.trackedEntityUid, eventsOffered)
     const { heading, type, words } = record
 
     return (

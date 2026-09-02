@@ -11,6 +11,7 @@ import {
     type PublishedName,
 } from '@/lib/patients'
 import { registerWords, subjectOfTypeName, type RegisterWords } from '@/lib/uiconfig'
+import { countedNoun } from '@/lib/utils'
 
 /** Everything this server answers about one tracked entity, and the words to say it in. */
 export interface TrackedEntityRecordState {
@@ -30,6 +31,8 @@ export interface TrackedEntityRecordState {
     heading: string
     enrollments: PatientEnrollmentsState
     events: TrackedEntityEventsState
+    /** Whether this run answers what the entity has been through, which decides whether it is read at all. */
+    eventsOffered: boolean
     naming: TrackedEntityNaming
 }
 
@@ -49,14 +52,22 @@ export interface TrackedEntityRecordState {
  * "National identifier" because `D2TEA_CS` published that name, and a tracked entity type uid becomes
  * "Person" because a registration form was generated from that type and titled with its name.
  * Anything this project never published keeps the spelling DHIS2 sent, in the mono face that says so.
+ *
+ * WHAT THE RUN DOES NOT ANSWER IS NOT ASKED FOR. `[serve.tracked_entities] events = false` is a
+ * deployment saying who somebody is and declining what they have been through, so `eventsOffered`
+ * false reads three of the four rather than sending a request whose answer is a refusal - and the
+ * sections drawn from this leave the events out entirely. Which reads happen and which surfaces
+ * exist are then the one decision, taken here, rather than two that can disagree.
  */
 export function useTrackedEntityRecord(
     resourceType: string,
     trackedEntityUid: string,
+    /** Whether this run answers one entity's own events - `lib/uiconfig.trackedEntityRecordOffered`. */
+    eventsOffered: boolean,
 ): TrackedEntityRecordState {
     const { resource, loading, error, status } = useFhirResource<Patient>(resourceType, trackedEntityUid)
     const enrollments = usePatientEnrollments(trackedEntityUid)
-    const events = useTrackedEntityEvents(trackedEntityUid)
+    const events = useTrackedEntityEvents(eventsOffered ? trackedEntityUid : null)
     const naming = useTrackedEntityNaming()
     const person = resource === null ? null : patientProjection(resource)
     const type = trackedEntityTypeLabel(naming.types, person?.trackedEntityTypeUid ?? null)
@@ -79,6 +90,37 @@ export function useTrackedEntityRecord(
         heading: person === null ? trackedEntityUid : patientLeadValue(person),
         enrollments,
         events,
+        eventsOffered,
         naming,
     }
+}
+
+/**
+ * What the bar under the record says this instance holds about the subject, or nothing.
+ *
+ * A COUNT IS STATED ONLY ONCE IT IS KNOWN. A read still in flight has no count, and a bar that
+ * counted the empty array it is holding meanwhile would state "0 enrollments - 0 events" beneath a
+ * screenful of rows, then correct itself a moment later - so a line with a read still in flight is
+ * no line, and the bar keeps saying nothing until every half of it can be said.
+ *
+ * A HALF THIS RUN DOES NOT ANSWER IS NOT A NOUGHT. `[serve.tracked_entities] events = false` takes
+ * the events section off the record, and "0 events" beside it would be this bar counting a surface
+ * the server never offered. The same holds for a read the server refused: the section says what
+ * went wrong, and a count of nothing is not what happened.
+ */
+export function trackedEntityRecordSummary(
+    record: Pick<TrackedEntityRecordState, 'enrollments' | 'events' | 'eventsOffered'>,
+): string | null {
+    if (record.enrollments.loading) return null
+    if (record.eventsOffered && record.events.loading) return null
+    const counted: string[] = []
+    if (record.enrollments.error === null) {
+        counted.push(countedNoun(record.enrollments.enrollments.length, 'enrollment'))
+    }
+    if (record.eventsOffered && record.events.error === null) {
+        // The events count is of what the record's first page carries when the instance stated no
+        // total - the section itself says so where that matters, and a bar cannot carry the caveat.
+        counted.push(countedNoun(record.events.total ?? record.events.events.length, 'event'))
+    }
+    return counted.length === 0 ? null : counted.join(' - ')
 }

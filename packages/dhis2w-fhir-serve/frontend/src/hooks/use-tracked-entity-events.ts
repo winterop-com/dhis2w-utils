@@ -53,51 +53,98 @@ export interface TrackedEntityEventsState {
 /** How many events one page of the record asks for. */
 export const TRACKED_ENTITY_EVENT_PAGE_SIZE = 20
 
+/** What one read answered, stamped with the tracked entity it was read for. */
+export interface AnsweredTrackedEntityEvents {
+    /** The entity the answer is about, or null for the answer that is about nobody. */
+    trackedEntityUid: string | null
+    error: string | null
+    events: TrackedEntityEvent[]
+    total: number | null
+}
+
+/** Nothing read, which is what the hook holds until an answer lands and what asking about nobody leaves. */
+export const NO_EVENTS_ANSWERED: AnsweredTrackedEntityEvents = {
+    trackedEntityUid: null,
+    error: null,
+    events: [],
+    total: null,
+}
+
+/**
+ * How a held answer reads against the tracked entity being asked about now.
+ *
+ * AN ANSWER BELONGS TO THE ENTITY IT WAS READ FOR, and a read that has not landed is in flight
+ * rather than empty. An effect runs after the render that starts it, so state that began settled
+ * hands the first paint a settled nought - and the summary line under the record then states "0
+ * events" over three rows of them, which is what a reader sees before the answer lands. The same
+ * render happens again whenever the uid changes under a mounted component, where the held answer is
+ * another entity's. So the answer carries the uid it answered about, and one that is not the uid
+ * being asked about is reported as the read it actually is: in flight, with nothing to show.
+ *
+ * ASKING ABOUT NOBODY IS NOT A READ IN FLIGHT. A null uid is what a caller hands this on a run that
+ * answers no record and what a page holds before its route has resolved, and there is no request to
+ * wait for - so it reads settled and empty, and a section drawn from it never spins.
+ */
+export function trackedEntityEventsState(
+    answered: AnsweredTrackedEntityEvents,
+    trackedEntityUid: string | null,
+): TrackedEntityEventsState {
+    const wanted = eventsReadFor(trackedEntityUid)
+    if (answered.trackedEntityUid !== wanted) {
+        return { loading: wanted !== null, error: null, events: [], total: null }
+    }
+    return { loading: false, error: answered.error, events: answered.events, total: answered.total }
+}
+
 /**
  * Read what one tracked entity has been through.
  *
  * A read of its own rather than part of the entity read, for the reason the enrollments are: this
  * costs the DHIS2 instance a request and it answers about the one entity somebody has opened, so it
  * happens when they open one and never before. An empty uid reads nothing, which is the state the
- * page is in before the route has resolved.
+ * page is in before the route has resolved and what a run that answers no record hands in - see
+ * `lib/uiconfig.trackedEntityRecordOffered`.
  */
 export function useTrackedEntityEvents(trackedEntityUid: string | null): TrackedEntityEventsState {
-    const [events, setEvents] = useState<TrackedEntityEvent[]>([])
-    const [total, setTotal] = useState<number | null>(null)
-    const [loading, setLoading] = useState(false)
-    const [error, setError] = useState<string | null>(null)
+    const [answered, setAnswered] = useState<AnsweredTrackedEntityEvents>(NO_EVENTS_ANSWERED)
 
     useEffect(() => {
-        if (trackedEntityUid === null || trackedEntityUid === '') {
-            setEvents([])
-            setTotal(null)
-            setLoading(false)
-            setError(null)
-            return
+        const wanted = eventsReadFor(trackedEntityUid)
+        if (wanted === null) {
+            setAnswered(NO_EVENTS_ANSWERED)
+            return () => undefined
         }
         let cancelled = false
-        setLoading(true)
-        setError(null)
-        readTrackedEntityEvents(trackedEntityUid)
+        readTrackedEntityEvents(wanted)
             .then((bundle) => {
                 if (cancelled) return
-                setEvents(bundleResources<QuestionnaireResponse>(bundle).map(trackedEntityEvent))
-                setTotal(bundle.total ?? null)
-                setLoading(false)
+                setAnswered({
+                    trackedEntityUid: wanted,
+                    error: null,
+                    events: bundleResources<QuestionnaireResponse>(bundle).map(trackedEntityEvent),
+                    total: bundle.total ?? null,
+                })
             })
             .catch((failure: unknown) => {
                 if (cancelled) return
-                setEvents([])
-                setTotal(null)
-                setError(failure instanceof Error ? failure.message : String(failure))
-                setLoading(false)
+                setAnswered({
+                    trackedEntityUid: wanted,
+                    error: failure instanceof Error ? failure.message : String(failure),
+                    events: [],
+                    total: null,
+                })
             })
         return () => {
             cancelled = true
         }
     }, [trackedEntityUid])
 
-    return { loading, error, events, total }
+    return trackedEntityEventsState(answered, trackedEntityUid)
+}
+
+/** The entity a read is for, with every way of naming nobody spelled as the one that reads nothing. */
+function eventsReadFor(trackedEntityUid: string | null): string | null {
+    return trackedEntityUid === null || trackedEntityUid === '' ? null : trackedEntityUid
 }
 
 /**

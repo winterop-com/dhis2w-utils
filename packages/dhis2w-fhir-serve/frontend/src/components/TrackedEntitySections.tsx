@@ -41,6 +41,11 @@ import { cn, formatCount } from '@/lib/utils'
  * the detail route opens the same thing as a page for a link somebody was sent. What the two do not
  * share is the heading and the way back, which are each caller's own - the record itself must read
  * identically either way, so it is written once.
+ *
+ * THE EVENTS ARE HERE ONLY WHERE THIS RUN ANSWERS THEM. `[serve.tracked_entities] events = false`,
+ * and a compiled run, answer nothing about what a subject has been through - so the section is
+ * absent rather than drawn over a refusal, which is what the receipts page's own record section
+ * does with the same fact. Nothing is read for it either; see `useTrackedEntityRecord`.
  */
 export function TrackedEntitySections({
     record,
@@ -80,7 +85,7 @@ export function TrackedEntitySections({
                         trackedEntityUid={trackedEntityUid}
                         dhis2BaseUrl={dhis2BaseUrl}
                     />
-                    <EventSection state={record.events} words={words} />
+                    {record.eventsOffered && <EventSection state={record.events} words={words} />}
                 </div>
             )}
         </PageState>

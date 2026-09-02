@@ -780,7 +780,11 @@ programmes they are enrolled in - the name this project publishes for the
 programme where it publishes one, the state of the enrollment in words, when it
 began, and the organisation unit it sits at; and what they have been through,
 one row per DHIS2 event of those enrollments, named by the published title of
-the stage form it answered.
+the stage form it answered. That last one is there where this run answers it:
+under `[serve.tracked_entities] events = false`, and on a compiled run, the
+record is the first three and the summary line under it counts the enrollments
+alone - a section drawn over a refusal states nothing a reader can use, and "0
+events" would be the bar counting a surface this server never offered.
 
 ![One person in the register: the identifier values that name them, every attribute value this DHIS2 instance holds, and the programmes they are enrolled in](../img/fhir/capture-ui-register-person.png)
 
