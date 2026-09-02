@@ -1,6 +1,6 @@
 [project]
 name = "dhis2w-fhir-engine"
-version = "1.10.0.dev0"
+version = "1.10.0"
 description = "FHIRPath, CQL, and ELM evaluation over FHIR data, with clinical quality measure evaluation. Version-neutral grammar and evaluator core with the FHIR release bound in as a value."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
