@@ -8,11 +8,15 @@ import { Badge } from '@/components/ui/badge'
 import { TrackedEntityTypeBadge } from '@/components/KindBadge'
 import { Button } from '@/components/ui/button'
 import { useStatusLine } from '@/hooks/use-status-bar'
-import { useTrackedEntityRecord } from '@/hooks/use-tracked-entity-record'
+import { trackedEntityRecordSummary, useTrackedEntityRecord } from '@/hooks/use-tracked-entity-record'
 import { useUiConfig } from '@/hooks/use-ui-config'
-import { countedNoun } from '@/lib/utils'
 import { RegisterNotServed } from '@/pages/TrackedEntities'
-import { PEOPLE_RESOURCE_TYPE, registerTitle, trackedEntitySettings } from '@/lib/uiconfig'
+import {
+    PEOPLE_RESOURCE_TYPE,
+    registerTitle,
+    trackedEntityRecordOffered,
+    trackedEntitySettings,
+} from '@/lib/uiconfig'
 
 /**
  * One tracked entity the DHIS2 instance holds, as a page of its own.
@@ -52,6 +56,7 @@ export function TrackedEntityDetail() {
             trackedEntityUid={trackedEntityUid}
             dhis2BaseUrl={config.dhis2_base_url}
             listingTitle={registerTitle(trackedEntitySettings(config))}
+            eventsOffered={trackedEntityRecordOffered(trackedEntitySettings(config))}
         />
     )
 }
@@ -62,22 +67,20 @@ function TrackedEntityRecord({
     trackedEntityUid,
     dhis2BaseUrl,
     listingTitle,
+    eventsOffered,
 }: {
     resourceType: string
     trackedEntityUid: string
     dhis2BaseUrl: string | null
     listingTitle: string
+    /** Whether this run answers what the subject has been through, which the record's sections follow. */
+    eventsOffered: boolean
 }) {
-    const record = useTrackedEntityRecord(resourceType, trackedEntityUid)
+    const record = useTrackedEntityRecord(resourceType, trackedEntityUid, eventsOffered)
     const { heading, type } = record
-    // What this instance holds about this one subject, beyond the attribute values on the page. The
-    // events count is of what the record's first page carries when the instance stated no total -
-    // the section itself says so where that matters, and a bar cannot carry the caveat.
-    useStatusLine(
-        record.enrollments.loading || record.events.loading
-            ? null
-            : `${countedNoun(record.enrollments.enrollments.length, 'enrollment')} - ${countedNoun(record.events.total ?? record.events.events.length, 'event')}`,
-    )
+    // What this instance holds about this one subject, beyond the attribute values on the page -
+    // stated once every half of it is known, and never about a half this run does not answer.
+    useStatusLine(trackedEntityRecordSummary(record))
 
     return (
         <>

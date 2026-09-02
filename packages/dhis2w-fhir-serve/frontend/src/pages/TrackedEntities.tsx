@@ -79,6 +79,7 @@ import {
     registerTitle,
     registerWords,
     servesPeopleOnly,
+    trackedEntityRecordOffered,
     trackedEntitySettings,
     type FilterAttribute,
     type Register,
@@ -382,6 +383,7 @@ function RegisterBrowser({
                         naming={naming}
                         headed={settings.registers.length > 1}
                         dhis2BaseUrl={dhis2BaseUrl}
+                        eventsOffered={trackedEntityRecordOffered(settings)}
                     />
                 ))}
             </div>
@@ -425,6 +427,7 @@ function RegisterSection({
     headed,
     leads,
     dhis2BaseUrl,
+    eventsOffered,
 }: {
     register: Register
     listing: boolean
@@ -448,6 +451,8 @@ function RegisterSection({
     leads: boolean
     /** The DHIS2 instance's address, which a quick view's enrollment rows link into Capture with. */
     dhis2BaseUrl: string | null
+    /** Whether this run answers what a subject has been through, which a quick view's sections follow. */
+    eventsOffered: boolean
 }) {
     // The opened quick view lives in the URL as `?open=<uid>`, like the type and attribute
     // narrowings: what is on screen is what the address says, so a reload or a sent link opens on
@@ -595,6 +600,7 @@ function RegisterSection({
                     if (!next) writeOpened(null)
                 }}
                 dhis2BaseUrl={dhis2BaseUrl}
+                eventsOffered={eventsOffered}
             />
         </section>
     )

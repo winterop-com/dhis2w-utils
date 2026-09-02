@@ -2914,6 +2914,17 @@ an identifier search and a paged listing on one page, with a detail route at
   as one row per DHIS2 event, named by the published title of the stage form it
   answered, with the date DHIS2 dates it - and the register's own words for an
   instance holding none.
+- **A run that answers no record draws none.** `[serve.tracked_entities] events
+  = false`, and a compiled run, leave the events out of the record and out of
+  the quick view the listing opens - no heading and no refusal prose, the way
+  the Responses page's own record section is absent on the same run - and
+  nothing is read for them. The summary line then counts the enrollments alone,
+  since "0 events" would be a count of a surface this server does not offer.
+- **The summary line waits for the reads it counts.** A read that has not landed
+  is in flight rather than an answer of none, so the bar under a record says
+  nothing until every half of it is known - never "0 enrollments - 0 events"
+  over rows the next paint fills in - and a half the server refused is left out
+  rather than counted as nought.
 - **An event unfolds in place into what it recorded.** Every row of the record
   opens onto its own answers, closed to start with and opened where it stands -
   no second page and no second read. The answers keep the nesting the served

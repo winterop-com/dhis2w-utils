@@ -244,6 +244,9 @@ async function serveALiveRegister(page: Page): Promise<void> {
                 tracked_entities: {
                     enabled: true,
                     listing: true,
+                    // The record's events section is drawn only where the run answers one entity's
+                    // own events, and the shot below is of a whole record.
+                    events: true,
                     registers: [{ resource: 'Patient', types: [{ uid: 'TetPerson01', name: 'Person' }] }],
                 },
             }),

@@ -845,7 +845,9 @@ test.describe('the people this DHIS2 instance holds', () => {
     })
 
     test('opens one person in full, with what the instance holds and what it has them in', async ({ page }) => {
-        await serveRegisterSettings(page, { enabled: true, listing: true })
+        // `events: true` is what puts the record's third section on the page: a run answering who
+        // somebody is and declining what they have been through draws no events at all.
+        await serveRegisterSettings(page, { enabled: true, listing: true, events: true })
         await serveALiveInstance(page)
 
         await page.goto(`/#/tracked-entities/Patient/${PERSON_UID}`)
@@ -903,10 +905,80 @@ test.describe('the people this DHIS2 instance holds', () => {
         )
         await expect(link).toHaveAttribute('target', '_blank')
         await expect(link).toHaveAttribute('rel', 'noreferrer noopener')
+
+        // What the bar says about the subject, once both reads it counts have landed.
+        await expect(page.getByTestId('status-bar-summary')).toHaveText('2 enrollments - 1 event')
+    })
+
+    test('counts nothing under the record until the reads it counts have landed', async ({ page }) => {
+        // WHAT THIS HOLDS. A read that has not started is not a read that answered none, and the bar
+        // is one line for the whole window: a count published early stands there as a claim about
+        // this subject until something else publishes over it. Held here by delaying the events
+        // answer, so the page is drawn with the enrollments in and the events still in flight -
+        // which is the state every first paint is in, for as long as the instance takes to answer.
+        await serveRegisterSettings(page, { enabled: true, listing: true, events: true })
+        await serveALiveInstance(page)
+        await page.route('**/tracked-entities/*/events**', async (route) => {
+            await new Promise((resolve) => {
+                setTimeout(resolve, 2000)
+            })
+            await route.fulfill({ status: 200, contentType: FHIR_JSON, body: JSON.stringify(EVENTS) })
+        })
+
+        await page.goto(`/#/tracked-entities/Patient/${PERSON_UID}`)
+
+        const summary = page.getByTestId('status-bar-summary')
+        await expect(page.getByTestId('patient-enrollments')).toContainText('Antenatal care')
+        // The bar is empty rather than counting the empty arrays it is holding: never "0
+        // enrollments", never "0 events", and never a half of the line on its own.
+        await expect(summary).toHaveText('')
+
+        await expect(summary).toHaveText('2 enrollments - 1 event')
+    })
+
+    test('leaves the events out of the record entirely on a run that answers none', async ({ page }) => {
+        // `[serve.tracked_entities] events = false`, and a compiled run: a deployment answering who
+        // somebody is and declining what they have been through. The section is absent rather than
+        // drawn over a refusal, which is what the receipts page does with the same fact.
+        await serveRegisterSettings(page, { enabled: true, listing: true, events: false })
+        await serveALiveInstance(page)
+        const asked: string[] = []
+        page.on('request', (request) => {
+            if (request.url().includes('/events')) asked.push(request.url())
+        })
+
+        await page.goto(`/#/tracked-entities/Patient/${PERSON_UID}`)
+
+        // The record itself is here in full - this run serves the register, and only the third
+        // section is missing.
+        await expect(page.getByRole('heading', { name: NATIONAL_ID })).toBeVisible()
+        await expect(page.getByTestId('patient-enrollments')).toContainText('Antenatal care')
+
+        await expect(page.getByTestId('tracked-entity-events')).toHaveCount(0)
+        await expect(page.getByText('Events this DHIS2 instance holds')).toHaveCount(0)
+        await expect(page.getByText('This DHIS2 instance holds no event for this')).toHaveCount(0)
+        await expect(page.getByText('has been through could not be read')).toHaveCount(0)
+
+        // And the bar counts what it has rather than calling an unoffered surface nought.
+        const summary = page.getByTestId('status-bar-summary')
+        await expect(summary).toHaveText('2 enrollments')
+        await expect(summary).not.toContainText('event')
+
+        // Nothing was read for a section nothing draws.
+        expect(asked).toEqual([])
+
+        // The same record in the sheet the listing opens, which draws the same sections.
+        await page.goto('/#/tracked-entities')
+        await page.getByTestId('patient-listing').getByRole('row').filter({ hasText: NATIONAL_ID }).click()
+        const sheet = page.getByTestId('tracked-entity-sheet')
+        await expect(sheet).toContainText('National identifier')
+        await expect(sheet.getByTestId('tracked-entity-events')).toHaveCount(0)
+        await expect(sheet.getByText('Events this DHIS2 instance holds')).toHaveCount(0)
+        expect(asked).toEqual([])
     })
 
     test('a row answers over the listing, and Esc gives the listing back', async ({ page }) => {
-        await serveRegisterSettings(page, { enabled: true, listing: true })
+        await serveRegisterSettings(page, { enabled: true, listing: true, events: true })
         await serveALiveInstance(page)
 
         await page.goto('/#/tracked-entities')
