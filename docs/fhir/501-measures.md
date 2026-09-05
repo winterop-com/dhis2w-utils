@@ -170,6 +170,11 @@ group, the definition, and the message; the group holding it gets no
 partly broken measure shows what it could compute and what it could not, instead
 of reading as a plausible score.
 
+The contained `OperationOutcome` is pointed at by an extension on the
+`MeasureReport`, under this project's own canonical
+`https://winterop-com.github.io/dhis2w-utils/fhir/StructureDefinition/measure-evaluation-errors`,
+and this page is where it is defined.
+
 ## The FHIR MeasureReport
 
 `to_fhir()` renders the typed report as a FHIR R4 `MeasureReport` - the resource an
