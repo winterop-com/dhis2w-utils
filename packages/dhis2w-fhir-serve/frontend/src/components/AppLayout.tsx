@@ -260,7 +260,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         ? null
         : (named.find((item) => item.path !== '' && current.startsWith(`${item.path}/`))?.label ??
           NAV_ITEMS.find((item) => item.path !== '' && current.startsWith(`${item.path}/`))?.label ??
-          'DHIS2 FHIR capture')
+          'DHIS2 FHIR Capture')
 
     // The mobile strip scrolls, but a cut-off label was the only hint that it
     // does. The fade is the affordance - and it must vanish once the end is
