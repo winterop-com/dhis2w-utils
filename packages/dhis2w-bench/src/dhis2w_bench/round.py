@@ -165,7 +165,7 @@ def _to_openai_tool(tool: Any) -> dict[str, Any]:
         "function": {
             "name": tool.name,
             "description": (tool.description or "")[:6000],
-            "parameters": tool.inputSchema,
+            "parameters": tool.input_schema,
         },
     }
 

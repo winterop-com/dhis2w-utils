@@ -111,13 +111,13 @@ def _annotate_read_only_hints(server: FastMCP) -> None:
             if not isinstance(component, Tool):
                 continue
             annotations = component.annotations
-            if annotations is not None and annotations.readOnlyHint is not None:
+            if annotations is not None and annotations.read_only_hint is not None:
                 continue  # respect a hand-set hint
             read_only = is_read_tool(component.name)
             if annotations is None:
-                component.annotations = ToolAnnotations(readOnlyHint=read_only)
+                component.annotations = ToolAnnotations(read_only_hint=read_only)
             else:
-                annotations.readOnlyHint = read_only
+                annotations.read_only_hint = read_only
 
 
 if __name__ == "__main__":

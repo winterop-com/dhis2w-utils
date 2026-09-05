@@ -21,7 +21,7 @@ from dhis2w_core.security_core import AccountAuthorities, VersionPosture
 from dhis2w_core.v41.plugins.security import service
 from dhis2w_core.v41.plugins.security.models import SecuritySettings
 
-_READ = ToolAnnotations(readOnlyHint=True)
+_READ = ToolAnnotations(read_only_hint=True)
 
 
 def register(mcp: Any) -> None:

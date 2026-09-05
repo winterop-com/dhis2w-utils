@@ -269,7 +269,7 @@ async def test_no_write_tool_advertises_read_only_hint() -> None:
     server = build_server()
     all_tools = await server.list_tools(run_middleware=False)  # every registered tool, guard bypassed
     hinted_read = {
-        tool.name for tool in all_tools if tool.annotations is not None and tool.annotations.readOnlyHint is True
+        tool.name for tool in all_tools if tool.annotations is not None and tool.annotations.read_only_hint is True
     }
     leaked = hinted_read - _VERIFIED_READ_TOOLS
     assert not leaked, f"tools advertising readOnlyHint=True but not on the verified read allowlist: {sorted(leaked)}"
