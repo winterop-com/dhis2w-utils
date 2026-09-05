@@ -195,6 +195,9 @@ if TYPE_CHECKING:
     from dhis2w_client.v42.client_context import (
         open_client as open_client,
     )
+    from dhis2w_client.v42.complete_data_set_registrations import (
+        CompleteDataSetRegistrationsAccessor as CompleteDataSetRegistrationsAccessor,
+    )
     from dhis2w_client.v42.customize import (
         CustomizationResult as CustomizationResult,
     )
@@ -683,6 +686,7 @@ __all__ = [
     "CategoryOptionsAccessor",
     "CompleteDataSetRegistration",
     "CompleteDataSetRegistrations",
+    "CompleteDataSetRegistrationsAccessor",
     "Conflict",
     "ConflictRow",
     "CopyOp",
@@ -914,6 +918,7 @@ _LAZY_EXPORTS: dict[str, str] = {
     "CategoryOptionsAccessor": "dhis2w_client.v42.category_options",
     "CompleteDataSetRegistration": "dhis2w_client.v42.aggregate",
     "CompleteDataSetRegistrations": "dhis2w_client.v42.aggregate",
+    "CompleteDataSetRegistrationsAccessor": "dhis2w_client.v42.complete_data_set_registrations",
     "Conflict": "dhis2w_client.v42.envelopes",
     "ConflictRow": "dhis2w_client.v42.envelopes",
     "CopyOp": "dhis2w_client.v42.json_patch",

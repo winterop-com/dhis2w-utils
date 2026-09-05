@@ -69,6 +69,7 @@ class DataValuesAccessor:
         dry_run: bool = False,
         preheat_cache: bool = True,
         import_strategy: str | None = None,
+        atomic_mode: str | None = None,
         id_scheme: str | None = None,
         data_element_id_scheme: str | None = None,
         org_unit_id_scheme: str | None = None,
@@ -85,6 +86,9 @@ class DataValuesAccessor:
         - `dry_run` → `dryRun=true`: validate without committing.
         - `preheat_cache=False` → `preheatCache=false`.
         - `import_strategy`: `CREATE` / `UPDATE` / `CREATE_AND_UPDATE` / `DELETE`.
+        - `atomic_mode`: `ALL` rejects the whole import if any row is
+          rejected; `OBJECT` commits the rows that pass and skips the rest.
+          DHIS2 defaults to `ALL` when unset.
         - `id_scheme` / `data_element_id_scheme` / `org_unit_id_scheme`: pick
           the identifier scheme for the payload (`UID` / `CODE` / `NAME` / ...).
         - `skip_audit=True` → `skipAudit=true`.
@@ -105,6 +109,8 @@ class DataValuesAccessor:
             params["preheatCache"] = "false"
         if import_strategy is not None:
             params["importStrategy"] = import_strategy
+        if atomic_mode is not None:
+            params["atomicMode"] = atomic_mode
         if id_scheme is not None:
             params["idScheme"] = id_scheme
         if data_element_id_scheme is not None:

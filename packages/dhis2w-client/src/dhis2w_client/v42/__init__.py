@@ -190,6 +190,9 @@ if TYPE_CHECKING:
     from dhis2w_client.v42.client_context import (
         open_client as open_client,
     )
+    from dhis2w_client.v42.complete_data_set_registrations import (
+        CompleteDataSetRegistrationsAccessor as CompleteDataSetRegistrationsAccessor,
+    )
     from dhis2w_client.v42.customize import (
         CustomizationResult as CustomizationResult,
     )
@@ -671,6 +674,7 @@ __all__ = [
     "CategoryOptionGroupSetsAccessor",
     "CategoryOptionGroupsAccessor",
     "CategoryOptionsAccessor",
+    "CompleteDataSetRegistrationsAccessor",
     "Conflict",
     "ConflictRow",
     "CopyOp",
@@ -898,6 +902,7 @@ _LAZY_EXPORTS: dict[str, str] = {
     "CategoryOptionGroupSetsAccessor": "dhis2w_client.v42.category_option_group_sets",
     "CategoryOptionGroupsAccessor": "dhis2w_client.v42.category_option_groups",
     "CategoryOptionsAccessor": "dhis2w_client.v42.category_options",
+    "CompleteDataSetRegistrationsAccessor": "dhis2w_client.v42.complete_data_set_registrations",
     "Conflict": "dhis2w_client.v42.envelopes",
     "ConflictRow": "dhis2w_client.v42.envelopes",
     "CopyOp": "dhis2w_client.v42.json_patch",
