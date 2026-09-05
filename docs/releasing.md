@@ -46,7 +46,7 @@ The eleven publishable workspace members ship to PyPI in lockstep — every rele
    git push origin main v0.6.0
    ```
 
-6. **Watch the workflow**. The tag triggers `.github/workflows/pypi-publish.yml`. One `build` job per publishable member produces wheels in parallel; one `publish` job uploads them all via PyPI Trusted Publishing (OIDC, no API token), with `skip-existing` so a re-run after a partial publish is safe.
+6. **Watch the workflow**. The tag triggers `.github/workflows/pypi-publish.yml`. A `resolve-version` job strips the tag to `X.Y.Z`, and every `build` leg refuses to build unless its package's `version =` equals that — a mistyped tag fails the run before anything reaches PyPI. One `build` job per publishable member then produces wheels in parallel; one `publish` job uploads them all via PyPI Trusted Publishing (OIDC, no API token), with `skip-existing` so a re-run after a partial publish is safe.
 
 7. **Create the GitHub release** (the tag alone does not — the Releases page stays on the previous version otherwise). Write the notes by hand — grouped by user-visible theme, release voice — and pass them as a file. Never `--generate-notes`: an auto-generated PR list is not release notes.
 
@@ -69,8 +69,12 @@ naming a sibling version the index has not seen yet. `make publish-<member>` doe
 ```bash
 export UV_PUBLISH_TOKEN=...   # a PyPI API token; both targets refuse to run without one
 make ui           # or the dhis2w-fhir-serve wheel ships no capture UI
-make publish-all
+make publish-all VERSION=0.6.0
 ```
+
+`VERSION=` is the same preflight the tag workflow runs: each member's `version =` must equal it
+or the target stops before building. Leave it off and the targets upload whatever version the
+checkout carries.
 
 Each target builds the member's wheel and sdist with `uv build --package dhis2w-<member>` and
 uploads that pair alone, removing the member's earlier artifacts from `dist/` first so a stale

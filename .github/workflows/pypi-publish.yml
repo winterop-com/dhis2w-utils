@@ -1,9 +1,15 @@
 name: Publish to PyPI
 
 # Triggers:
-#   - push of a `v*.*.*` tag (e.g. `v0.5.0`) — publishes every package whose
-#     pyproject.toml matches the tag's stripped version (`0.5.0`).
-#   - manual dispatch with an explicit version override.
+#   - push of a `v*.*.*` tag (e.g. `v0.5.0`).
+#   - manual dispatch with an explicit version.
+#
+# The `resolve-version` job strips the tag (or takes the dispatch input) once
+# and hands that version to every other job. Each `build` leg then asserts its
+# package's `project.version` in packages/<name>/pyproject.toml equals it, and
+# fails before `uv build` when it does not — so a mistyped tag or dispatch
+# input stops the run ahead of any upload, rather than shipping the version
+# that happens to be checked out. `verify` reads the same resolved value.
 #
 # Authentication uses PyPI Trusted Publishing (OIDC). Configure on PyPI at
 # https://pypi.org/manage/account/publishing/ for each `dhis2w-*` project,
@@ -27,8 +33,30 @@ permissions:
   contents: read
 
 jobs:
+  resolve-version:
+    name: Resolve release version
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.version.outputs.value }}
+    steps:
+      - name: Compute the release version from the tag (or the dispatch input)
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          if [ -z "${VERSION}" ]; then
+            echo "::error::no release version could be resolved from ${GITHUB_REF} or the dispatch input"
+            exit 1
+          fi
+          echo "releasing ${VERSION}"
+          echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build ${{ matrix.package }}
+    needs: resolve-version
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -85,6 +113,22 @@ jobs:
       - name: Build the capture UI into the package
         if: matrix.package == 'dhis2w-fhir-serve'
         run: make ui
+
+      - name: Refuse a package whose version is not the release version
+        # The wheel carries whatever packages/<name>/pyproject.toml says, so a
+        # tag that names a different version would upload the checked-out one
+        # under a release nobody bumped to. Compare the two before building.
+        env:
+          RELEASE_VERSION: ${{ needs.resolve-version.outputs.value }}
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          FILE="packages/${PACKAGE}/pyproject.toml"
+          FILE_VERSION="$(uv run --no-project python -c "import sys, tomllib; print(tomllib.load(open(sys.argv[1], 'rb'))['project']['version'])" "${FILE}")"
+          if [ "${FILE_VERSION}" != "${RELEASE_VERSION}" ]; then
+            echo "::error::${PACKAGE}: ${FILE} says ${FILE_VERSION}, the release names ${RELEASE_VERSION} — bump the package or retag"
+            exit 1
+          fi
+          echo "${PACKAGE}: ${FILE} version ${FILE_VERSION} matches the release version"
 
       - name: Build wheel + sdist
         run: uv build --package ${{ matrix.package }}
@@ -144,7 +188,7 @@ jobs:
 
   verify:
     name: Verify ${{ matrix.package }} from PyPI
-    needs: publish
+    needs: [resolve-version, publish]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -168,16 +212,7 @@ jobs:
       - name: Install Python 3.13
         run: uv python install 3.13
 
-      - name: Compute target version from tag (or workflow_dispatch input)
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "value=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Wait for every dhis2w-* ${{ steps.version.outputs.value }} on PyPI simple index
+      - name: Wait for every dhis2w-* ${{ needs.resolve-version.outputs.value }} on PyPI simple index
         # uv resolves against PyPI's simple index, which lags the per-project
         # JSON endpoint by several seconds. Poll the simple index — what uv
         # actually reads — and require every sibling package to be visible
@@ -191,7 +226,7 @@ jobs:
         # Grep for the normalized form, otherwise the pattern never matches
         # newer-style sdist/wheel filenames.
         run: |
-          VERSION="${{ steps.version.outputs.value }}"
+          VERSION="${{ needs.resolve-version.outputs.value }}"
           PACKAGES="dhis2w-client dhis2w-ql dhis2w-core dhis2w-cli dhis2w-browser dhis2w-mcp dhis2w-mcp-bridge dhis2w-mcp-router dhis2w-fhir dhis2w-fhir-serve dhis2w-fhir-engine"
           for pkg in $PACKAGES; do
             normalized="${pkg//-/_}"
@@ -221,7 +256,7 @@ jobs:
         # uv can still error with "No solution found" right after the wait
         # check passes. Retry with --refresh until the resolver catches up.
         run: |
-          VERSION="${{ steps.version.outputs.value }}"
+          VERSION="${{ needs.resolve-version.outputs.value }}"
           PKG="${{ matrix.package }}"
           MODULE="${PKG//-/_}"
 
