@@ -3,7 +3,8 @@
 Axis 1 of model validation — the non-bridge axis (axis 2 is `bench_bridge_models.py`). Three suites,
 all scored by execution or structural match, never by an AI judge:
 
-  - python  : the model writes a function/class; we exec it and run hidden test cases.
+  - python  : the model writes a function/class; we run it and the hidden test cases in a worker
+              process (curated PATH, temp cwd, wall-clock bound) and score what the worker reports.
   - cli     : the model writes a shell command for a goal; we run it in a curated-PATH tmp sandbox
               (only a small allowlist of safe tools is reachable, relative paths only) and check the
               effect (files created / stdout).
@@ -15,10 +16,11 @@ There is no hardcoded roster — name the model(s) to benchmark explicitly on th
 passed every task and flags SUSPECT tasks otherwise (an oracle failure means the TASK is mis-specified,
 not the model). Per-model JSON is appended to `RESULTS`; a Markdown table is printed at the end.
 
-CLI-sandbox threat model: commands run in a throwaway temp dir with `PATH` restricted to an allowlist
-of read/format tools (no `rm`/`curl`/`sudo`/...) and absolute paths / `~` / `..` rejected before
-execution. This bounds — it does not perfectly isolate — model-generated shell. Run it on a machine
-you trust.
+Execution threat model: generated shell and generated python both run in a throwaway temp dir with
+`PATH` restricted to an allowlist of read/format tools (no `rm`/`curl`/`sudo`/...), under a
+wall-clock bound, and python runs in a worker process so a crash or a loop costs one task. Shell
+commands with absolute paths / `~` / `..` are rejected before execution. This bounds — it does not
+isolate — model-generated code. Run it on a machine you trust.
 
 Prereqs: a running backend (LM Studio by default; `MODEL_BACKEND` to switch). The script loads/unloads
 each model itself, one at a time.
@@ -34,8 +36,10 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import base64
 import json
 import os
+import pickle
 import re
 import shutil
 import subprocess
@@ -913,21 +917,90 @@ def _extract_code(text: str, languages: tuple[str, ...]) -> str | None:
     return str(unclosed.group(1)) if unclosed else None
 
 
-def _run_python(text: str, task: PythonTask) -> tuple[int, int]:
-    """Extract + exec the symbol, run hidden cases. Returns (passed, total)."""
+class PythonRunOutcome(BaseModel):
+    """The score of one python task: how many hidden cases passed, out of how many were run."""
+
+    model_config = ConfigDict(frozen=True)
+
+    passed: int
+    total: int
+
+    @property
+    def failed(self) -> int:
+        """Hidden cases the answer did not pass."""
+        return self.total - self.passed
+
+
+#: Line prefix the worker prints its JSON verdict behind, so answer output on stdout is never read as a verdict.
+_PYTHON_RESULT_MARKER = "__BENCH_PYTHON_RESULT__"
+
+#: The worker program. argv[1] carries the parent's `sys.path` so the pickled checker's module imports;
+#: the pickled payload (answer source, symbol, checker) arrives on stdin. Every failure inside the worker —
+#: a compile error, an exception, a `SystemExit` — collapses to the same zero-score verdict, and anything
+#: that kills the worker outright is read as a failure by the parent.
+_PYTHON_WORKER = f"""
+import base64, json, pickle, sys
+
+sys.path[:] = json.loads(sys.argv[1])
+verdict = {{"passed": 0, "total": 1}}
+try:
+    payload = pickle.loads(base64.b64decode(sys.stdin.buffer.read()))
+    namespace = {{}}
+    exec(compile(payload["source"], "<model-answer>", "exec"), namespace)
+    symbol = namespace.get(payload["symbol"])
+    if symbol is not None:
+        outcomes = payload["check"](symbol)
+        verdict = {{"passed": sum(1 for ok in outcomes if ok), "total": len(outcomes)}}
+except BaseException:
+    verdict = {{"passed": 0, "total": 1}}
+sys.stdout.write("\\n" + {_PYTHON_RESULT_MARKER!r} + json.dumps(verdict) + "\\n")
+"""
+
+
+def _read_worker_verdict(stdout: str) -> PythonRunOutcome | None:
+    """Return the verdict printed behind the marker, or None when there is no parsable verdict line."""
+    for line in reversed(stdout.splitlines()):
+        if not line.startswith(_PYTHON_RESULT_MARKER):
+            continue
+        try:
+            parsed = json.loads(line[len(_PYTHON_RESULT_MARKER) :])
+        except json.JSONDecodeError:
+            return None
+        if isinstance(parsed, dict) and isinstance(parsed.get("passed"), int) and isinstance(parsed.get("total"), int):
+            return PythonRunOutcome(passed=int(parsed["passed"]), total=int(parsed["total"]))
+        return None
+    return None
+
+
+def _run_python(text: str, task: PythonTask, timeout: float = 20.0) -> PythonRunOutcome:
+    """Extract the answer and score it in a worker process; any worker failure scores the task zero."""
+    failed = PythonRunOutcome(passed=0, total=1)
     code = _extract_code(text, ("python", "py"))
     if code is None or f"{task.symbol}" not in code:
-        return (0, 1)
-    namespace: dict[str, object] = {}
-    try:
-        exec(code, namespace)  # noqa: S102 — sandboxed eval of model output in a throwaway harness
-        symbol = namespace.get(task.symbol)
-        if symbol is None:
-            return (0, 1)
-        outcomes = task.check(symbol)
-    except Exception:
-        return (0, 1)
-    return (sum(1 for ok in outcomes if ok), len(outcomes))
+        return failed
+    payload = base64.b64encode(pickle.dumps({"source": code, "symbol": task.symbol, "check": task.check}))
+    with tempfile.TemporaryDirectory() as tmp:
+        workdir = Path(tmp)
+        bindir = _sandbox_bin(workdir)
+        # What this isolation is: a separate interpreter process, the cli sandbox's curated PATH, a
+        # throwaway temp cwd, and a wall-clock bound, so a crash, a `SystemExit`, or a nonterminating
+        # loop costs one task instead of the run. What it is not: a security sandbox — the worker runs
+        # as this user with the same filesystem and network reach. Benchmark on a machine you trust.
+        try:
+            proc = subprocess.run(
+                [sys.executable, "-c", _PYTHON_WORKER, json.dumps(sys.path)],
+                cwd=workdir,
+                env={"PATH": str(bindir) if bindir else ""},
+                input=payload,
+                capture_output=True,
+                timeout=timeout,
+                check=False,
+            )
+        except (subprocess.TimeoutExpired, OSError, ValueError):
+            return failed
+    if proc.returncode != 0:
+        return failed
+    return _read_worker_verdict(proc.stdout.decode("utf-8", "replace")) or failed
 
 
 def _sandbox_bin(workdir: Path) -> Path | None:
@@ -980,11 +1053,18 @@ async def _benchmark_model(model: str) -> ModelReport:
     async with httpx.AsyncClient() as http:
         for py_task in PYTHON_TASKS:
             content, elapsed, tokens = await _chat(http, model, PY_SYSTEM, py_task.prompt)
-            passed, total = _run_python(content, py_task)
+            outcome = _run_python(content, py_task)
             results.append(
-                TaskResult(suite="python", key=py_task.key, passed=passed, total=total, seconds=elapsed, tokens=tokens)
+                TaskResult(
+                    suite="python",
+                    key=py_task.key,
+                    passed=outcome.passed,
+                    total=outcome.total,
+                    seconds=elapsed,
+                    tokens=tokens,
+                )
             )
-            print(f"  python {py_task.key}: {passed}/{total} {elapsed:.1f}s")
+            print(f"  python {py_task.key}: {outcome.passed}/{outcome.total} {elapsed:.1f}s")
         for cli_task in CLI_TASKS:
             content, elapsed, tokens = await _chat(http, model, CLI_SYSTEM, cli_task.goal)
             passed, total = _run_cli(content, cli_task)
