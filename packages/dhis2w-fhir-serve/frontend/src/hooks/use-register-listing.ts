@@ -77,10 +77,7 @@ export function useRegisterListing(
         attributeFilter,
         token: null,
     })
-    const [page, setPage] = useState<PatientPage>(NO_PATIENT_PAGE)
-    const [loading, setLoading] = useState(enabled)
-    const [error, setError] = useState<string | null>(null)
-    const [asOf, setAsOf] = useState<string | null>(null)
+    const [answered, setAnswered] = useState<AnsweredPage | null>(null)
     // The scope the caller is asking about now, with the token dropped when it is a different one -
     // read rather than written, so a new narrowing asks for its first page in the same render
     // instead of asking for the old scope's token first and correcting itself.
@@ -91,36 +88,38 @@ export function useRegisterListing(
             ? place
             : { resource, trackedEntityTypeUid, attributeFilter, token: null }
     const token = at.token
+    const readKey = placeKey(at)
 
     useEffect(() => {
-        if (!enabled) {
-            setPage(NO_PATIENT_PAGE)
-            setLoading(false)
-            setError(null)
-            setAsOf(null)
-            return
-        }
+        if (!enabled) return
+        const wanted = placeKey({ resource, trackedEntityTypeUid, attributeFilter, token })
         let cancelled = false
-        setLoading(true)
-        setError(null)
         listRegister(resource, token, PATIENT_PAGE_SIZE, trackedEntityTypeUid, attributeFilter)
             .then((answer) => {
                 if (cancelled) return
-                setPage(patientPage(answer.bundle))
-                setAsOf(projectionAsOfLine(answer.projectionAsOf, bundleOutcome(answer.bundle)))
-                setLoading(false)
+                setAnswered({
+                    readKey: wanted,
+                    page: patientPage(answer.bundle),
+                    asOf: projectionAsOfLine(answer.projectionAsOf, bundleOutcome(answer.bundle)),
+                    error: null,
+                })
             })
             .catch((failure: unknown) => {
                 if (cancelled) return
-                setPage(NO_PATIENT_PAGE)
-                setError(failure instanceof Error ? failure.message : String(failure))
-                setAsOf(null)
-                setLoading(false)
+                setAnswered({
+                    readKey: wanted,
+                    page: NO_PATIENT_PAGE,
+                    asOf: null,
+                    error: failure instanceof Error ? failure.message : String(failure),
+                })
             })
         return () => {
             cancelled = true
         }
     }, [attributeFilter, enabled, resource, token, trackedEntityTypeUid])
+
+    const landed = enabled && answered !== null && answered.readKey === readKey
+    const page = enabled ? (answered?.page ?? NO_PATIENT_PAGE) : NO_PATIENT_PAGE
 
     const showNext = useCallback(() => {
         if (page.next === null) return
@@ -132,5 +131,25 @@ export function useRegisterListing(
         setPlace({ resource, trackedEntityTypeUid, attributeFilter, token: page.previous })
     }, [attributeFilter, page.previous, resource, trackedEntityTypeUid])
 
-    return { page, loading, error, asOf, showNext, showPrevious }
+    return {
+        page,
+        loading: enabled && !landed,
+        error: landed ? answered.error : null,
+        asOf: enabled ? (answered?.asOf ?? null) : null,
+        showNext,
+        showPrevious,
+    }
+}
+
+/** What one read answered, stamped with the place in the register it was read from. */
+interface AnsweredPage {
+    readKey: string
+    page: PatientPage
+    asOf: string | null
+    error: string | null
+}
+
+/** One place as the string that decides whether a held answer is still the one on screen. */
+function placeKey(at: ListingPlace): string {
+    return JSON.stringify([at.resource, at.trackedEntityTypeUid, at.attributeFilter, at.token])
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Check, Keyboard, Palette, Search } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
@@ -106,19 +106,21 @@ export function SettingsDialog({
     )
 
     // Every open starts from the section it was opened at and from an empty box: a query left over
-    // from the last time would hide rows nobody asked to have hidden.
-    useEffect(() => {
-        if (!open) return
-        setActive(section)
-        setQuery('')
-    }, [open, section])
+    // from the last time would hide rows nobody asked to have hidden. Adjusted as the open arrives
+    // rather than after the paint that carried it, so no frame shows the last visit's query.
+    const [openedAt, setOpenedAt] = useState<SettingsSectionId | null>(open ? section : null)
+    if (open ? openedAt !== section : openedAt !== null) {
+        setOpenedAt(open ? section : null)
+        if (open) {
+            setActive(section)
+            setQuery('')
+        }
+    }
 
     // Typing something the section in front of you cannot answer moves you to the one that can.
-    useEffect(() => {
-        if (offered.length === 0) return
-        if (offered.some((candidate) => candidate.id === active)) return
+    if (offered.length > 0 && !offered.some((candidate) => candidate.id === active)) {
         setActive(offered[0].id)
-    }, [offered, active])
+    }
 
     const run = useCallback(
         (effect: SettingsEffect) => {

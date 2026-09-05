@@ -50,36 +50,35 @@ const NO_OFFER: Omit<EnrollmentOfferState, 'active' | 'loading' | 'reload'> = {
 export function useEnrollmentOptions(questionnaire: Questionnaire | null): EnrollmentOfferState {
     const programUid =
         questionnaire !== null && formTypeOf(questionnaire) === 'tracker-event' ? programOf(questionnaire) : null
-    const [options, setOptions] = useState<EnrollmentOption[]>([])
-    const [registrationFormId, setRegistrationFormId] = useState<string | null>(null)
-    const [loading, setLoading] = useState(programUid !== null)
-    const [error, setError] = useState<string | null>(null)
+    const [answered, setAnswered] = useState<AnsweredOffer | null>(null)
     const [nonce, setNonce] = useState(0)
+    const readKey = programUid === null ? null : `${String(nonce)} ${programUid}`
 
     const reload = useCallback(() => setNonce((value) => value + 1), [])
 
     useEffect(() => {
-        if (programUid === null) {
-            setOptions([])
-            setRegistrationFormId(null)
-            setLoading(false)
-            setError(null)
-            return
-        }
+        if (programUid === null) return
+        const wanted = `${String(nonce)} ${programUid}`
         let cancelled = false
-        setLoading(true)
         readOffer(programUid)
             .then((offer) => {
                 if (cancelled) return
-                setOptions(offer.options)
-                setRegistrationFormId(offer.registrationFormId)
-                setError(null)
-                setLoading(false)
+                setAnswered({
+                    readKey: wanted,
+                    options: offer.options,
+                    registrationFormId: offer.registrationFormId,
+                    error: null,
+                })
             })
             .catch((failure: unknown) => {
                 if (cancelled) return
-                setError(failure instanceof Error ? failure.message : String(failure))
-                setLoading(false)
+                const message = failure instanceof Error ? failure.message : String(failure)
+                setAnswered((held) => ({
+                    readKey: wanted,
+                    options: held?.options ?? [],
+                    registrationFormId: held?.registrationFormId ?? null,
+                    error: message,
+                }))
             })
         return () => {
             cancelled = true
@@ -96,7 +95,22 @@ export function useEnrollmentOptions(questionnaire: Questionnaire | null): Enrol
     if (programUid === null) {
         return { active: false, loading: false, reload, ...NO_OFFER }
     }
-    return { active: true, loading, error, options, registrationFormId, reload }
+    return {
+        active: true,
+        loading: answered === null || answered.readKey !== readKey,
+        error: answered?.error ?? null,
+        options: answered?.options ?? NO_OFFER.options,
+        registrationFormId: answered?.registrationFormId ?? null,
+        reload,
+    }
+}
+
+/** What one offer read answered, stamped with the program and the reload it answered. */
+interface AnsweredOffer {
+    readKey: string
+    options: EnrollmentOption[]
+    registrationFormId: string | null
+    error: string | null
 }
 
 /** The three reads an offer is made of: the forms, the spool, and each registration receipt. */

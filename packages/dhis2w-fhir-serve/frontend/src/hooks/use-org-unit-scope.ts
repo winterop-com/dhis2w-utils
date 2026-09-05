@@ -94,27 +94,32 @@ export function useOrgUnitRegistry(): OrgUnitScope {
     return useScope(null, true)
 }
 
+/** What one read answered, stamped with the assignment it was read for. */
+interface AnsweredScope {
+    assignmentListId: string | null
+    scope: OrgUnitScope
+}
+
 /** The read both hooks are: one assignment (or none), against the cached registry. */
 function useScope(assignmentListId: string | null, opened: boolean): OrgUnitScope {
-    const [scope, setScope] = useState<OrgUnitScope>(EMPTY_ORG_UNIT_SCOPE)
+    const [answered, setAnswered] = useState<AnsweredScope | null>(null)
 
     useEffect(() => {
-        if (!opened) {
-            setScope(EMPTY_ORG_UNIT_SCOPE)
-            return
-        }
+        if (!opened) return
         let cancelled = false
-        setScope((current) => ({ ...current, loading: true, error: null }))
         readScope(assignmentListId)
             .then((read) => {
                 if (cancelled) return
-                setScope(read)
+                setAnswered({ assignmentListId, scope: read })
             })
             .catch((failure: unknown) => {
                 if (cancelled) return
-                setScope({
-                    ...EMPTY_ORG_UNIT_SCOPE,
-                    error: failure instanceof Error ? failure.message : String(failure),
+                setAnswered({
+                    assignmentListId,
+                    scope: {
+                        ...EMPTY_ORG_UNIT_SCOPE,
+                        error: failure instanceof Error ? failure.message : String(failure),
+                    },
                 })
             })
         return () => {
@@ -122,8 +127,14 @@ function useScope(assignmentListId: string | null, opened: boolean): OrgUnitScop
         }
     }, [assignmentListId, opened])
 
-    return scope
+    if (!opened) return EMPTY_ORG_UNIT_SCOPE
+    if (answered === null) return SCOPE_IN_FLIGHT
+    if (answered.assignmentListId !== assignmentListId) return { ...answered.scope, loading: true, error: null }
+    return answered.scope
 }
+
+/** A read that has been started and has not landed - what a picker renders while it waits. */
+const SCOPE_IN_FLIGHT: OrgUnitScope = { ...EMPTY_ORG_UNIT_SCOPE, loading: true }
 
 /** Read the registry and the form's assignment, and fold them into what a picker offers. */
 async function readScope(assignmentListId: string | null): Promise<OrgUnitScope> {

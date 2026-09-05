@@ -70,10 +70,7 @@ export function usePatientEnrollments(trackedEntityUid: string | null): PatientE
 
     useEffect(() => {
         const wanted = enrollmentsReadFor(trackedEntityUid)
-        if (wanted === null) {
-            setAnswered(NO_ENROLLMENTS_ANSWERED)
-            return () => undefined
-        }
+        if (wanted === null) return () => undefined
         let cancelled = false
         readTrackedEntityEnrollments(wanted)
             .then((listing) => {

@@ -31,34 +31,43 @@ export interface MetadataHealthState {
  * table somebody is reading.
  */
 export function useMetadataHealth(): MetadataHealthState {
-    const [health, setHealth] = useState<MetadataHealth>(EMPTY_METADATA_HEALTH)
-    const [loaded, setLoaded] = useState(false)
-    const [inFlight, setInFlight] = useState(true)
-    const [error, setError] = useState<string | null>(null)
     const [nonce, setNonce] = useState(0)
+    const [answered, setAnswered] = useState<AnsweredHealth | null>(null)
 
     const reload = useCallback(() => setNonce((value) => value + 1), [])
 
     useEffect(() => {
+        const wanted = nonce
         let cancelled = false
-        setInFlight(true)
         readMetadataHealth()
             .then((next) => {
                 if (cancelled) return
-                setHealth(next)
-                setError(null)
-                setLoaded(true)
-                setInFlight(false)
+                setAnswered({ nonce: wanted, health: next, error: null })
             })
             .catch((failure: unknown) => {
                 if (cancelled) return
-                setError(failure instanceof Error ? failure.message : String(failure))
-                setInFlight(false)
+                const message = failure instanceof Error ? failure.message : String(failure)
+                setAnswered((held) => ({ nonce: wanted, health: held?.health ?? null, error: message }))
             })
         return () => {
             cancelled = true
         }
     }, [nonce])
 
-    return { health, loading: inFlight && !loaded, error, refreshing: inFlight && loaded, reload }
+    const inFlight = answered === null || answered.nonce !== nonce
+    const loaded = answered !== null && answered.health !== null
+    return {
+        health: answered?.health ?? EMPTY_METADATA_HEALTH,
+        loading: inFlight && !loaded,
+        error: answered?.error ?? null,
+        refreshing: inFlight && loaded,
+        reload,
+    }
+}
+
+/** What one read answered, stamped with the reload it answered - null health until one has landed. */
+interface AnsweredHealth {
+    nonce: number
+    health: MetadataHealth | null
+    error: string | null
 }

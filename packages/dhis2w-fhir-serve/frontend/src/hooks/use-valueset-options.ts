@@ -58,6 +58,13 @@ export interface ValueSetOptionsState {
 /** An expansion that has not been read yet - what a control renders before the first byte lands. */
 const NOTHING_EXPANDED: ValueSetExpansion = { title: null, options: [] }
 
+/** What one expansion answered, stamped with the canonical it was read for. */
+interface AnsweredExpansion {
+    canonical: string | null
+    expansion: ValueSetExpansion | null
+    error: string | null
+}
+
 /** Every expansion this session has already paid for, keyed by ValueSet canonical. */
 const expansions = new Map<string, ValueSetExpansion>()
 
@@ -66,46 +73,44 @@ const inFlight = new Map<string, Promise<ValueSetExpansion>>()
 
 /** The options one question offers, expanded once per canonical and shared across the form. */
 export function useValueSetOptions(canonical: string | null): ValueSetOptionsState {
-    const cached = canonical === null ? NOTHING_EXPANDED : (expansions.get(canonical) ?? null)
-    const [expansion, setExpansion] = useState<ValueSetExpansion>(cached ?? NOTHING_EXPANDED)
-    const [loading, setLoading] = useState(canonical !== null && cached === null)
-    const [error, setError] = useState<string | null>(null)
+    const [answered, setAnswered] = useState<AnsweredExpansion>({ canonical, expansion: null, error: null })
 
     useEffect(() => {
-        if (canonical === null) {
-            setExpansion(NOTHING_EXPANDED)
-            setLoading(false)
-            setError(null)
-            return
-        }
-        const known = expansions.get(canonical)
-        if (known !== undefined) {
-            setExpansion(known)
-            setLoading(false)
-            setError(null)
-            return
-        }
+        if (canonical === null) return
+        if (expansions.has(canonical)) return
         let cancelled = false
-        setLoading(true)
-        setError(null)
         expandValueSet(canonical)
             .then((expanded) => {
                 if (cancelled) return
-                setExpansion(expanded)
-                setLoading(false)
+                setAnswered({ canonical, expansion: expanded, error: null })
             })
             .catch((failure: unknown) => {
                 if (cancelled) return
-                setError(failure instanceof Error ? failure.message : String(failure))
-                setExpansion(NOTHING_EXPANDED)
-                setLoading(false)
+                setAnswered({
+                    canonical,
+                    expansion: NOTHING_EXPANDED,
+                    error: failure instanceof Error ? failure.message : String(failure),
+                })
             })
         return () => {
             cancelled = true
         }
     }, [canonical])
 
-    return { options: expansion.options, title: expansion.title, loading, error }
+    if (canonical === null) {
+        return { options: NOTHING_EXPANDED.options, title: null, loading: false, error: null }
+    }
+    const cached = expansions.get(canonical)
+    if (cached !== undefined) return { options: cached.options, title: cached.title, loading: false, error: null }
+    if (answered.canonical !== canonical || answered.expansion === null) {
+        return { options: NOTHING_EXPANDED.options, title: null, loading: true, error: null }
+    }
+    return {
+        options: answered.expansion.options,
+        title: answered.expansion.title,
+        loading: false,
+        error: answered.error,
+    }
 }
 
 /** Read one ValueSet and whatever it composes, answering with the options it admits. */

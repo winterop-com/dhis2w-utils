@@ -87,23 +87,21 @@ export function usePatientSearch(
     trackedEntityTypeUid: string | null = null,
     attributeFilter: string | null = null,
 ): PatientSearchState {
-    const [state, setState] = useState<PatientSearchState>(NOTHING_ASKED)
+    const [answered, setAnswered] = useState<AnsweredSearch | null>(null)
     const query = enabled ? patientSearchQuery(typed) : null
+    const searchKey = JSON.stringify([query, resource, key, trackedEntityTypeUid, attributeFilter])
 
     useEffect(() => {
-        if (query === null) {
-            setState(NOTHING_ASKED)
-            return
-        }
+        if (query === null) return
+        const wanted = JSON.stringify([query, resource, key, trackedEntityTypeUid, attributeFilter])
         let cancelled = false
-        setState((current) => ({ ...current, searching: true }))
         const timer = setTimeout(() => {
             searchRegister(resource, query, key, trackedEntityTypeUid, attributeFilter)
                 .then((answer) => {
                     if (cancelled) return
-                    setState({
+                    setAnswered({
+                        searchKey: wanted,
                         query,
-                        searching: false,
                         error: null,
                         results: bundleResources<Patient>(answer.bundle).map(patientProjection),
                         asOf: projectionAsOfLine(answer.projectionAsOf, bundleOutcome(answer.bundle)),
@@ -111,11 +109,11 @@ export function usePatientSearch(
                 })
                 .catch((failure: unknown) => {
                     if (cancelled) return
-                    setState({
+                    setAnswered({
+                        searchKey: wanted,
                         query,
-                        searching: false,
                         error: failure instanceof Error ? failure.message : String(failure),
-                        results: [],
+                        results: NOTHING_ASKED.results,
                         asOf: null,
                     })
                 })
@@ -126,5 +124,29 @@ export function usePatientSearch(
         }
     }, [attributeFilter, key, query, resource, trackedEntityTypeUid])
 
-    return state
+    if (query === null) return NOTHING_ASKED
+    if (answered === null) return { ...NOTHING_ASKED, searching: true }
+    return {
+        query: answered.query,
+        searching: answered.searchKey !== searchKey,
+        error: answered.error,
+        results: answered.results,
+        asOf: answered.asOf,
+    }
+}
+
+/**
+ * What one search answered, stamped with the search it was sent for.
+ *
+ * The stamp carries the whole search rather than only what was typed, because a register narrowed
+ * to another type or another attribute value is a different question about the same word - and the
+ * answer to the previous one must read as what it is, a result list with a newer search running
+ * over it, rather than as the answer to what is on screen now.
+ */
+interface AnsweredSearch {
+    searchKey: string
+    query: string
+    error: string | null
+    results: PatientProjection[]
+    asOf: string | null
 }
