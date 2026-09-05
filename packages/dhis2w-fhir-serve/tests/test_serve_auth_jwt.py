@@ -28,7 +28,10 @@ from typing import Any
 import httpx
 import pytest
 import respx
-from dhis2w_fhir.config import FhirProject, ServeAuth, ServeAuthScope, ServeJwtConfig
+from dhis2w_client.profile import NoProfileError, Profile
+from dhis2w_fhir.config import FhirProject, ServeAuth, ServeAuthScope, ServeJwtConfig, load_fhir_config
+from dhis2w_fhir.service import GenerationProfile
+from dhis2w_fhir_serve import settings as settings_module
 from dhis2w_fhir_serve.app import create_app
 from dhis2w_fhir_serve.auth import (
     JWT_VERIFIER_ATTRIBUTE,
@@ -63,6 +66,7 @@ from dhis2w_fhir_serve.passthrough import (
 )
 from dhis2w_fhir_serve.routes import FACADE_MOUNT_PATH
 from dhis2w_fhir_serve.routes.whoami import WHOAMI_PATH
+from dhis2w_fhir_serve.runtime import _forwards_credentials
 from dhis2w_fhir_serve.settings import ServeSettings
 from dhis2w_fhir_serve.spool import ResponseSpool, StoredResponseEnvelope
 from fastapi import FastAPI
@@ -809,3 +813,67 @@ async def test_the_pass_through_pool_is_opened_only_where_a_token_is_forwarded(
     withheld = create_app(_jwt_settings(serving_project, jwt={"forward_bearer": False}))
     async with withheld.router.lifespan_context(withheld):
         assert withheld.state.caller_client is None
+
+
+def _project_stating_jwt(project: FhirProject, table: str) -> FhirProject:
+    """The same project on disk, with a `[serve]` posture and a `[serve.jwt]` table written into its fhir.toml."""
+    config_path = project.project_root / "fhir.toml"
+    config_path.write_text(config_path.read_text(encoding="utf-8") + table, encoding="utf-8")
+    return FhirProject(config=load_fhir_config(config_path), config_path=config_path.resolve())
+
+
+async def test_a_facade_resolved_from_the_table_runs_on_the_issuer_it_names(
+    serving_project: FhirProject,
+    published_issuer: respx.MockRouter,
+    aggregate_response: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The posture a deployment writes down is the posture the socket answers with: `[serve.jwt]` end to end.
+
+    Every other case here hands the factory a settings object built in the test. This one goes
+    through `ServeSettings.resolve`, which is the path `d2w fhir serve` takes, so a table key that
+    never reaches the app factory is a failing test rather than a facade quietly trusting nobody.
+    """
+
+    def _refuse(project: FhirProject, explicit: str | None = None) -> GenerationProfile:
+        raise NoProfileError("no profile is named here")
+
+    monkeypatch.setattr(settings_module, "resolve_generation_profile", _refuse)
+    project = _project_stating_jwt(
+        serving_project,
+        f'\n[serve]\nauth = "jwt"\n\n[serve.jwt]\nissuer = "{ISSUER}"\naudience = "{AUDIENCE}"\n',
+    )
+
+    invocation = ServeSettings.resolve(project)
+
+    assert invocation.settings.auth is ServeAuth.JWT
+    assert invocation.settings.jwt.issuer == ISSUER
+    assert invocation.settings.jwt.audience == AUDIENCE
+
+    app = create_app(invocation.settings)
+    async with _client(app) as http:
+        refused = await http.post("/QuestionnaireResponse", content=json.dumps(aggregate_response))
+
+    assert refused.status_code == 401
+    assert ISSUER in refused.headers["www-authenticate"]
+
+
+def test_forward_bearer_written_down_is_what_the_runtime_opens_a_pool_for(
+    serving_project: FhirProject, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`forward_bearer = true` in the table is the value the pass-through decision reads off a resolved run."""
+    generation = GenerationProfile(
+        name="example",
+        origin="fhir.toml",
+        profile=Profile(base_url=INSTANCE_URL, auth="basic", username="admin", password="district"),
+    )
+    monkeypatch.setattr(settings_module, "resolve_generation_profile", lambda project, explicit=None: generation)
+    project = _project_stating_jwt(
+        serving_project,
+        f'\n[serve]\nauth = "jwt"\n\n[serve.jwt]\nissuer = "{ISSUER}"\nforward_bearer = true\n',
+    )
+
+    invocation = ServeSettings.resolve(project, live=True)
+
+    assert invocation.settings.jwt.forward_bearer is True
+    assert _forwards_credentials(invocation.settings) is True
