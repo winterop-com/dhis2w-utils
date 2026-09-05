@@ -29,7 +29,9 @@ help:
 	@echo "  build            Build all workspace wheels (run 'make ui' first, or the wheel ships no UI)"
 	@echo "  publish-<member> Build + upload one dhis2w-<member> to PyPI (requires UV_PUBLISH_TOKEN env)"
 	@echo "                   Members: $(PUBLISHABLE_MEMBERS)"
+	@echo "                   VERSION=X.Y.Z asserts the package's pyproject version before building"
 	@echo "  publish-all      Upload every publishable member in dependency order (same token)"
+	@echo "                   VERSION=X.Y.Z asserts every member's pyproject version before building"
 	@echo "  deps-upgrade     Re-resolve uv.lock to pick up newer versions"
 	@echo "  clean            Remove caches, build artifacts, coverage output, and run artifacts"
 	@echo "  clean-artifacts  Remove run artifacts alone: reports, screenshots, browser state"
@@ -244,6 +246,12 @@ build:
 # Names here are the suffix after `dhis2w-`; the targets are `publish-<suffix>`.
 PUBLISHABLE_MEMBERS := client ql core browser fhir fhir-engine fhir-serve cli mcp mcp-bridge mcp-router
 
+# The release version, when the caller names one: `make publish-all VERSION=1.2.0`
+# asserts every member's `project.version` equals it before anything is built,
+# the same check .github/workflows/pypi-publish.yml runs against the tag. Left
+# unset, the targets upload whatever version the checkout carries.
+VERSION ?=
+
 # `publish-<member>` is deliberately not declared .PHONY: GNU make skips pattern-rule
 # search for a phony target, and the pattern rule below is the whole family. Nothing
 # in the tree is named `publish-anything`, so there is no file for it to collide with.
@@ -257,6 +265,15 @@ publish-%:
 		echo "UV_PUBLISH_TOKEN is unset — export a PyPI token before publishing dhis2w-$*"; \
 		exit 2; \
 	}
+	@if [ -n "$(VERSION)" ]; then \
+		file="packages/dhis2w-$*/pyproject.toml"; \
+		file_version=$$($(UV) run --no-project python -c "import sys, tomllib; print(tomllib.load(open(sys.argv[1], 'rb'))['project']['version'])" "$$file"); \
+		if [ "$$file_version" != "$(VERSION)" ]; then \
+			echo "dhis2w-$*: $$file says $$file_version, the release names $(VERSION) — bump the package or fix VERSION"; \
+			exit 1; \
+		fi; \
+		echo ">>> dhis2w-$*: pyproject version $$file_version matches VERSION"; \
+	fi
 	@echo ">>> Building dhis2w-$* wheel + sdist"
 	@rm -f dist/$(subst -,_,dhis2w-$*)-*.whl dist/$(subst -,_,dhis2w-$*)-*.tar.gz
 	@$(UV) build --package dhis2w-$*
@@ -272,7 +289,7 @@ publish-all:
 	@echo "    $(PUBLISHABLE_MEMBERS)"
 	@echo "    (the dhis2w-fhir-serve wheel ships whatever 'make ui' last produced)"
 	@for member in $(PUBLISHABLE_MEMBERS); do \
-		$(MAKE) --no-print-directory publish-$$member || exit 1; \
+		$(MAKE) --no-print-directory publish-$$member VERSION="$(VERSION)" || exit 1; \
 	done
 	@echo ">>> Every member uploaded"
 
