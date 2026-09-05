@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import re
 import time
@@ -369,13 +370,13 @@ class Dhis2Client:
         Resolve the chain once, unauthenticated, so subsequent requests go
         directly to the resolved host with credentials preserved.
 
-        Cross-origin redirects are validated against `/api/system/info` on the
-        candidate host before being adopted — DHIS2 always returns JSON for
-        that endpoint regardless of auth state (200 with `version` field when
-        anon-accessible, 401 with a JSON error envelope otherwise), while
-        an SSO IdP or unrelated host returns HTML or a 404. Without this
-        probe, an SSO-protected deployment whose root redirects to an IdP
-        login page would leave subsequent `/api/*` calls pointed at the IdP.
+        Credentials stay bound to the configured origin unless the redirect
+        target earns adoption on all three counts: it keeps the configured
+        scheme (an HTTPS base URL is never traded for HTTP), it sits on the
+        same registrable domain as the configured host, and its
+        `/api/system/info` answers with a DHIS2 body. Anything else keeps the
+        configured URL, so an open redirect or an SSO IdP never receives the
+        instance's Authorization header.
         """
         candidate = base_url.rstrip("/")
         try:
@@ -395,6 +396,8 @@ class Dhis2Client:
                 break
         if Dhis2Client._same_origin(candidate, final):
             return final
+        if not Dhis2Client._cross_origin_target_is_trusted(candidate, final):
+            return candidate
         if await Dhis2Client._probe_looks_like_dhis2(final, verify=verify):
             return final
         return candidate
@@ -407,13 +410,56 @@ class Dhis2Client:
         return (a.scheme, a.host, a.port) == (b.scheme, b.host, b.port)
 
     @staticmethod
-    async def _probe_looks_like_dhis2(base_url: str, *, verify: bool | str = True) -> bool:
-        """Return True if `<base_url>/api/system/info` responds DHIS2-shaped.
+    def _cross_origin_target_is_trusted(configured: str, target: str) -> bool:
+        """Return True if `target` may be adopted as the canonical URL for `configured`.
 
-        DHIS2 returns JSON on `/api/system/info` regardless of auth state.
-        An SSO IdP or other host returns HTML / a 404, so the content-type
-        check rejects them. Used to validate cross-origin redirect targets
-        before adopting them as the canonical base URL.
+        Two conditions, both structural: the scheme is unchanged (an HTTPS
+        base URL is never traded for HTTP), and both hosts share a
+        registrable domain, which is what makes the DHIS2 `play.dhis2.org` ->
+        `play.im.dhis2.org` redirect adoptable while an unrelated host is not.
+        """
+        left = httpx.URL(configured)
+        right = httpx.URL(target)
+        if left.scheme != right.scheme:
+            return False
+        domain = Dhis2Client._registrable_domain(left.host)
+        return domain is not None and domain == Dhis2Client._registrable_domain(right.host)
+
+    @staticmethod
+    def _registrable_domain(host: str | None) -> str | None:
+        """Return the last two labels of `host`, or None when it has no registrable domain.
+
+        A deliberate approximation of the public-suffix list, chosen over a
+        bundled PSL snapshot that would need refreshing: `play.dhis2.org` and
+        `play.im.dhis2.org` both reduce to `dhis2.org`. An IP literal, or a
+        host of fewer than two labels such as `localhost`, has no registrable
+        domain and therefore never matches anything — such hosts reach the
+        canonical URL through the same-origin path instead.
+        """
+        if not host:
+            return None
+        cleaned = host.strip(".").strip("[]").lower()
+        try:
+            ipaddress.ip_address(cleaned)
+        except ValueError:
+            pass
+        else:
+            return None
+        labels = cleaned.split(".")
+        if len(labels) < 2 or not all(labels):
+            return None
+        return ".".join(labels[-2:])
+
+    @staticmethod
+    async def _probe_looks_like_dhis2(base_url: str, *, verify: bool | str = True) -> bool:
+        """Return True if `<base_url>/api/system/info` answers with a DHIS2 body.
+
+        The body is parsed, not sniffed: a content type is something any host
+        can claim. DHIS2 answers this endpoint either with system info (a
+        `version` / `contextPath` object) or, for an anonymous caller on a
+        locked-down instance, with its error envelope (`message` alongside
+        `httpStatus` / `httpStatusCode`). Any other JSON — an SSO IdP's login
+        descriptor, an unrelated API — is not DHIS2.
         """
         try:
             async with httpx.AsyncClient(
@@ -427,8 +473,15 @@ class Dhis2Client:
                 )
         except Exception:  # noqa: BLE001 — probe is best-effort
             return False
-        content_type = response.headers.get("content-type", "").lower()
-        return "json" in content_type
+        try:
+            body = response.json()
+        except Exception:  # noqa: BLE001 — a non-JSON body is not DHIS2
+            return False
+        if not isinstance(body, dict):
+            return False
+        if "version" in body or "contextPath" in body:
+            return True
+        return "message" in body and ("httpStatus" in body or "httpStatusCode" in body)
 
     async def close(self) -> None:
         """Close the underlying HTTP pool."""

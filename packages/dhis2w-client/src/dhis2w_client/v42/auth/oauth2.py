@@ -6,6 +6,7 @@ import asyncio
 import base64
 import contextlib
 import hashlib
+import html
 import secrets
 import sys
 import time
@@ -64,9 +65,18 @@ _REDIRECT_HTML = """<!doctype html>
 
 
 def _render_html(*, heading: str, body: str, success: bool) -> bytes:
-    """Render the small confirmation page returned to the browser."""
+    """Render the small confirmation page returned to the browser, escaping every interpolation.
+
+    `body` carries IdP-supplied text such as `error_description`, so every
+    value reaching the template goes through `html.escape` and lands in the
+    page as literal text.
+    """
     accent = "#4ade80" if success else "#f87171"
-    return _REDIRECT_HTML.format(heading=heading, body=body, accent=accent).encode("utf-8")
+    return _REDIRECT_HTML.format(
+        heading=html.escape(heading),
+        body=html.escape(body),
+        accent=html.escape(accent),
+    ).encode("utf-8")
 
 
 async def capture_code(
@@ -79,21 +89,22 @@ async def capture_code(
 ) -> str:
     """Listen on `redirect_uri`'s host:port for the OAuth2 redirect; return `code`.
 
-    Bare `asyncio.start_server` — no FastAPI / uvicorn dependency. Validates
-    `state` and surfaces `error` / `error_description` query params raised
-    by the IdP. The browser sees a styled HTML confirmation page either
-    way.
+    Bare `asyncio.start_server` — no FastAPI / uvicorn dependency. `state`
+    is validated before anything else is honoured, then `error` /
+    `error_description` query params raised by the IdP are surfaced. The
+    browser sees a styled HTML confirmation page either way.
 
     `auth_url` is opened with `webbrowser.open()` once the server is
     listening (skip with `open_browser=False`; URL is then printed to
     stderr so the user can paste it into any browser). `timeout` bounds
-    the wait — raises `OAuth2FlowError` on timeout, state mismatch, or
-    IdP error.
+    the wait — raises `OAuth2FlowError` on timeout or on an IdP error that
+    carries this flow's `state`.
 
-    Requests whose query string carries no `code` parameter (port scans,
-    browser preconnects, favicon fetches) get a 404 and are ignored — the
-    receiver keeps listening. Only a request that carries a `code` but a
-    wrong or missing `state` fails the flow.
+    Every request that does not carry this flow's `state` alongside a
+    `code` or an `error` gets a 404 and is ignored — port scans, browser
+    preconnects, favicon fetches, and forged callbacks alike. The receiver
+    keeps listening, so an unrelated request can neither resolve nor fail
+    the login.
     """
     parsed = urllib.parse.urlparse(redirect_uri)
     host = parsed.hostname or "localhost"
@@ -115,8 +126,17 @@ async def capture_code(
 
         status_line, body = b"HTTP/1.1 200 OK\r\n", b""
         try:
+            state_matches = params.get("state") == expected_state
             error = params.get("error")
             if error:
+                if not state_matches:
+                    # An error callback carrying someone else's state (or
+                    # none) belongs to another flow, or is forged. Answer it
+                    # like any other stray request and keep waiting — a
+                    # request that cannot prove it belongs to this login
+                    # must not be able to end it.
+                    status_line = b"HTTP/1.1 404 Not Found\r\n"
+                    return
                 description = params.get("error_description") or error
                 status_line = b"HTTP/1.1 400 Bad Request\r\n"
                 body = _render_html(heading="Authentication failed", body=description, success=False)
@@ -124,18 +144,13 @@ async def capture_code(
                     captured.set_exception(OAuth2FlowError(f"authorization failed: {description}"))
                 return
             code = params.get("code")
-            if not code:
-                # Not an OAuth2 redirect (port scan, browser preconnect,
-                # favicon fetch, ...) — 404 it and keep listening. The
-                # fixed loopback port makes stray local traffic routine;
-                # it must not kill the login.
+            if code is None or not state_matches:
+                # Not this flow's redirect: a port scan, a browser
+                # preconnect, a favicon fetch, or a code minted for some
+                # other login. 404 it and keep listening — the fixed
+                # loopback port makes stray local traffic routine, and none
+                # of it may resolve this login.
                 status_line = b"HTTP/1.1 404 Not Found\r\n"
-                return
-            if params.get("state") != expected_state:
-                status_line = b"HTTP/1.1 400 Bad Request\r\n"
-                body = _render_html(heading="Authentication failed", body="State mismatch.", success=False)
-                if not captured.done():
-                    captured.set_exception(OAuth2FlowError("state mismatch — possible CSRF"))
                 return
             body = _render_html(
                 heading="Authentication successful",
@@ -177,17 +192,26 @@ async def capture_code(
 
 
 class OAuth2Token(BaseModel):
-    """Access + refresh token pair with expiry info (unix epoch seconds).
+    """Access + refresh token pair with expiry info (unix epoch seconds) and the identity it was minted for.
 
     Both token values stay out of `repr()` (`Field(repr=False)`) and are masked
     in `model_dump()`; pass `context={"reveal": True}` to `model_dump()` to
     reveal them. Read the plain attributes when building an Authorization header
     or a token-endpoint request body.
+
+    `base_url` and `client_id` record the instance origin and OAuth2 client the
+    token belongs to, so a token store keyed on anything coarser can never hand
+    one instance's bearer token to another. A record carrying neither is treated
+    as unusable and the flow runs again.
     """
 
     access_token: str = Field(repr=False)
     refresh_token: str | None = Field(default=None, repr=False)
     expires_at: float
+    base_url: str | None = None
+    """Instance origin this token was minted against; a token without one is unusable."""
+    client_id: str | None = None
+    """OAuth2 client id this token was minted for; a token without one is unusable."""
 
     @field_serializer("access_token", "refresh_token")
     def _redact(self, value: str | None, info: SerializationInfo) -> str | None:
@@ -281,7 +305,7 @@ class OAuth2Auth:
         """
         async with self._refresh_lock:
             if self._token is None:
-                self._token = await self._token_store.get(self._store_key)
+                self._token = self._usable(await self._token_store.get(self._store_key))
             if self._token is None:
                 self._token = await self._run_authorization_flow()
             elif self._token.expires_at < time.time() + 60:
@@ -289,6 +313,21 @@ class OAuth2Auth:
             else:
                 return
             await self._token_store.set(self._store_key, self._token)
+
+    def _usable(self, token: OAuth2Token | None) -> OAuth2Token | None:
+        """Return `token` when it was minted for this provider's origin and client, else None.
+
+        A store keyed by profile name alone can hold a record from a different
+        instance or a different OAuth2 client. Matching the identity recorded
+        on the token keeps this provider from ever presenting another
+        instance's bearer token; a record that names no identity cannot be
+        checked, so it is discarded and the flow runs again.
+        """
+        if token is None:
+            return None
+        if token.base_url == self._base_url and token.client_id == self._client_id:
+            return token
+        return None
 
     async def _run_authorization_flow(self) -> OAuth2Token:
         """Run the browser-based PKCE authorization-code flow."""
@@ -344,6 +383,18 @@ class OAuth2Auth:
             raise OAuth2FlowError(_format_token_endpoint_failure("authorization-code exchange", response))
         return self._token_from_response(response.json())
 
+    def _token_from_response(self, data: dict[str, Any], fallback_refresh: str | None = None) -> OAuth2Token:
+        """Parse a token-endpoint JSON response into an OAuth2Token stamped with this provider's identity."""
+        expires_in = float(data.get("expires_in", 3600))
+        refresh = data.get("refresh_token") or fallback_refresh
+        return OAuth2Token(
+            access_token=str(data["access_token"]),
+            refresh_token=str(refresh) if refresh else None,
+            expires_at=time.time() + expires_in,
+            base_url=self._base_url,
+            client_id=self._client_id,
+        )
+
     async def _refresh(self, expired: OAuth2Token) -> OAuth2Token:
         """Refresh tokens using the refresh_token grant.
 
@@ -372,17 +423,6 @@ class OAuth2Auth:
                 "Run `d2w profile login <name>` to re-authorise."
             )
         return self._token_from_response(response.json(), fallback_refresh=expired.refresh_token)
-
-    @staticmethod
-    def _token_from_response(data: dict[str, Any], fallback_refresh: str | None = None) -> OAuth2Token:
-        """Parse a token-endpoint JSON response into an OAuth2Token."""
-        expires_in = float(data.get("expires_in", 3600))
-        refresh = data.get("refresh_token") or fallback_refresh
-        return OAuth2Token(
-            access_token=str(data["access_token"]),
-            refresh_token=str(refresh) if refresh else None,
-            expires_at=time.time() + expires_in,
-        )
 
 
 _TOKEN_ERROR_BODY_MAX = 400

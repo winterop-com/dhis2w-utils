@@ -254,6 +254,80 @@ async def test_resolve_canonical_base_url_strips_login_suffix() -> None:
     assert resolved == "http://localhost:8080"
 
 
+@respx.mock
+async def test_resolve_canonical_base_url_rejects_foreign_registrable_domain() -> None:
+    """A JSON-speaking host on another registrable domain is never adopted, and never sees credentials."""
+    respx.get("https://dhis2.example.org/").mock(
+        return_value=httpx.Response(302, headers={"location": "https://relay.example.net/"}),
+    )
+    respx.get("https://relay.example.net/").mock(
+        return_value=httpx.Response(200, headers={"content-type": "application/json"}, json={"version": "2.42.1"}),
+    )
+    probe = respx.get("https://relay.example.net/api/system/info").mock(
+        return_value=httpx.Response(200, json={"version": "2.42.1", "contextPath": "https://relay.example.net"}),
+    )
+    resolved = await Dhis2Client._resolve_canonical_base_url("https://dhis2.example.org")
+    assert resolved == "https://dhis2.example.org"
+    for call in respx.calls:
+        assert call.request.url.host != "relay.example.net" or "authorization" not in call.request.headers
+    assert probe.call_count == 0
+
+
+@respx.mock
+async def test_resolve_canonical_base_url_rejects_scheme_downgrade() -> None:
+    """An HTTPS base URL redirected to plain HTTP keeps the configured URL."""
+    respx.get("https://dhis2.example.org/").mock(
+        return_value=httpx.Response(302, headers={"location": "http://dhis2.example.org/"}),
+    )
+    respx.get("http://dhis2.example.org/").mock(
+        return_value=httpx.Response(200, headers={"content-type": "application/json"}, json={"version": "2.42.1"}),
+    )
+    respx.get("http://dhis2.example.org/api/system/info").mock(
+        return_value=httpx.Response(200, json={"version": "2.42.1"}),
+    )
+    resolved = await Dhis2Client._resolve_canonical_base_url("https://dhis2.example.org")
+    assert resolved == "https://dhis2.example.org"
+
+
+@respx.mock
+async def test_resolve_canonical_base_url_adopts_same_origin_path() -> None:
+    """A same-origin redirect onto the context path is adopted without a DHIS2 probe."""
+    respx.get("https://dhis2.example.org/").mock(
+        return_value=httpx.Response(302, headers={"location": "https://dhis2.example.org/dhis/"}),
+    )
+    respx.get("https://dhis2.example.org/dhis/").mock(
+        return_value=httpx.Response(200, text="<html>DHIS2</html>"),
+    )
+    resolved = await Dhis2Client._resolve_canonical_base_url("https://dhis2.example.org")
+    assert resolved == "https://dhis2.example.org/dhis"
+
+
+@respx.mock
+async def test_resolve_canonical_base_url_rejects_non_dhis2_json_on_same_domain() -> None:
+    """A sibling host on the same registrable domain still has to answer with a DHIS2 body."""
+    respx.get("https://dhis2.example.org/").mock(
+        return_value=httpx.Response(302, headers={"location": "https://sso.example.org/"}),
+    )
+    respx.get("https://sso.example.org/").mock(
+        return_value=httpx.Response(200, json={"login": "required"}),
+    )
+    respx.get("https://sso.example.org/api/system/info").mock(
+        return_value=httpx.Response(200, json={"login": "required", "realm": "corp"}),
+    )
+    resolved = await Dhis2Client._resolve_canonical_base_url("https://dhis2.example.org")
+    assert resolved == "https://dhis2.example.org"
+
+
+def test_registrable_domain_reduces_to_last_two_labels() -> None:
+    """The registrable-domain approximation folds sibling hosts together and rejects IP literals."""
+    assert Dhis2Client._registrable_domain("play.dhis2.org") == "dhis2.org"
+    assert Dhis2Client._registrable_domain("play.im.dhis2.org") == "dhis2.org"
+    assert Dhis2Client._registrable_domain("localhost") is None
+    assert Dhis2Client._registrable_domain("127.0.0.1") is None
+    assert Dhis2Client._registrable_domain("::1") is None
+    assert Dhis2Client._registrable_domain(None) is None
+
+
 # ---------- verify (TLS) ----------
 
 

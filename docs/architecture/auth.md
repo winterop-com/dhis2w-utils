@@ -77,12 +77,21 @@ The flow:
 2. It starts an asyncio loopback server on `redirect_uri`'s host:port.
 3. It opens the browser at `/oauth2/authorize?...`.
 4. The user authenticates in DHIS2 and gets redirected back.
-5. The loopback server captures `code` + `state`, validates state (CSRF).
+5. The loopback server validates `state` before it reads anything else (CSRF). A
+   request carrying a `code` or an `error` without this flow's `state` is answered
+   404 and ignored, exactly like a port scan, so nothing arriving on the fixed
+   loopback port can resolve or terminate a login it does not belong to. Every
+   value the receiver renders into its confirmation page, `error_description`
+   included, is HTML-escaped.
 6. The provider exchanges `code` for access + refresh tokens via POST `/oauth2/token`.
-7. Tokens are persisted via an injected `TokenStore`.
+7. Tokens are persisted via an injected `TokenStore`, each stamped with the
+   instance origin and OAuth2 client id it was minted for.
 
 On subsequent calls:
 
+- A cached token is used only when its recorded origin and client id are this
+  provider's; anything else, including a record naming no identity, is discarded
+  and the flow runs again.
 - If the access token is valid, just use it.
 - If it's within 60s of expiry, refresh via `refresh_token` grant.
 - If no refresh token exists or refresh fails, re-run the authorization flow.
