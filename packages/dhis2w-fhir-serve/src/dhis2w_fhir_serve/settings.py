@@ -207,6 +207,7 @@ class ServeSettings(BaseModel):
                 profile=profile,
                 auth=resolved_auth if resolved_auth is not None else ServeAuth.NONE,
                 auth_scope=auth_scope if auth_scope is not None else serve_config.auth_scope,
+                jwt=serve_config.jwt,
                 strict_codes=strict_codes if strict_codes is not None else serve_config.strict_codes,
                 capture=serve_config.capture,
                 ui=ui if ui is not None else serve_config.ui,

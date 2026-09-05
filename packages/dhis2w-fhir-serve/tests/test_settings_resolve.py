@@ -24,6 +24,7 @@ from dhis2w_fhir.config import (
     SearchBackend,
     ServeAuth,
     ServeAuthScope,
+    ServeJwtConfig,
     load_fhir_config,
 )
 from dhis2w_fhir.service import GenerationProfile
@@ -126,6 +127,23 @@ class PrecedenceCase(BaseModel):
         return f"{self.dial}-neither"
 
 
+#: The `[serve.jwt]` table one project writes down, every key of it away from its default, and the
+#: configuration a run over that project has to resolve to. No flag states any of it, so the row
+#: pair below is the whole table: what is written down, and what a silent project takes instead.
+JWT_TABLE = """
+[serve.jwt]
+issuer = "https://idp.example.org/realms/health"
+audience = "d2w-fhir-serve"
+username_claim = "sub"
+forward_bearer = true
+"""
+CONFIGURED_JWT = ServeJwtConfig(
+    issuer="https://idp.example.org/realms/health",
+    audience="d2w-fhir-serve",
+    username_claim="sub",
+    forward_bearer=True,
+)
+
 #: A `[serve]` table that binds every interface and says who is served, which is the pair a
 #: deployment writes together - the address alone is refused.
 OPEN_TO_EVERYONE_TABLE = "[serve]\nhost = '0.0.0.0'\nauth = 'none'\n"
@@ -207,6 +225,8 @@ PRECEDENCE_CASES = [
         stated={"basemaps": [STATED_BASEMAP]},
         expected=["Mirror"],
     ),
+    PrecedenceCase(dial="jwt", table="", stated={}, expected=ServeJwtConfig()),
+    PrecedenceCase(dial="jwt", table=JWT_TABLE, stated={}, expected=CONFIGURED_JWT),
 ]
 
 
