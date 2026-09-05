@@ -162,6 +162,20 @@ class WebMessageResponse(WebMessage):
             return job_type, task_uid
         return None
 
+    def notifier_endpoint(self) -> str | None:
+        """Return `response.relativeNotifierEndpoint` when DHIS2 returned a job-kickoff envelope.
+
+        A job-scheduling endpoint (`/api/resourceTables/analytics`, an async
+        import) sets `response.relativeNotifierEndpoint` to the
+        `/api/system/tasks/{jobType}/{id}` path its notifications stream from.
+        `task_ref()` gives the same `(job_type, task_uid)` as a tuple; this
+        returns the ready-made path when a caller wants it verbatim.
+        """
+        if self.response is None:
+            return None
+        endpoint = self.response.get("relativeNotifierEndpoint")
+        return str(endpoint) if isinstance(endpoint, str) else None
+
     def object_report(self) -> ObjectReport | None:
         """Validate `response` as an `ObjectReport` — useful after single-object CRUD."""
         return ObjectReport.model_validate(self.response) if self.response else None

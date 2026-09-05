@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -253,3 +254,91 @@ async def test_await_completion_unwraps_get_raw_data_wrapper(monkeypatch: pytest
 
     assert completion.final.uid == "only"
     assert completion.final.message == "done"
+
+
+@respx.mock
+async def test_poll_once_returns_only_rows_new_since_cursor(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
+    """A second `poll_once`, passed the first poll's cursor, returns only rows added since."""
+    mock_system_info(server_version)
+    respx.get("https://dhis2.example/api/system/tasks/ANALYTICS_TABLE/uid1").mock(
+        side_effect=[
+            _notifications(
+                [
+                    {"uid": "n1", "level": "INFO", "message": "one", "completed": False},
+                    {"uid": "n2", "level": "INFO", "message": "two", "completed": False},
+                ]
+            ),
+            _notifications(
+                [
+                    {"uid": "n1", "level": "INFO", "message": "one", "completed": False},
+                    {"uid": "n2", "level": "INFO", "message": "two", "completed": False},
+                    {"uid": "n3", "level": "INFO", "message": "three", "completed": False},
+                ]
+            ),
+        ]
+    )
+
+    client = Dhis2Client("https://dhis2.example", auth=BasicAuth(username="a", password="b"))
+    try:
+        await client.connect()
+        first = await client.tasks.poll_once(("ANALYTICS_TABLE", "uid1"))
+        second = await client.tasks.poll_once(("ANALYTICS_TABLE", "uid1"), cursor=first.cursor)
+    finally:
+        await client.close()
+
+    assert [n.uid for n in first.new] == ["n1", "n2"]  # chronological, oldest-first
+    assert first.completed is False
+    assert first.cursor == frozenset({"n1", "n2"})
+    assert [n.uid for n in second.new] == ["n3"]  # only the newly-arrived row
+    assert second.completed is False
+    assert second.cursor == frozenset({"n1", "n2", "n3"})
+    assert second.relative_notifier_endpoint == "/api/system/tasks/ANALYTICS_TABLE/uid1"
+
+
+@respx.mock
+async def test_poll_once_detects_completion_and_truncates(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
+    """A `completed=True` row sets `completed` and ends `new` — a single poll sees the terminal row."""
+    mock_system_info(server_version)
+    respx.get("https://dhis2.example/api/system/tasks/METADATA_IMPORT/done").mock(
+        return_value=_notifications(
+            [
+                {"uid": "a", "level": "INFO", "message": "start", "completed": False},
+                {"uid": "b", "level": "INFO", "message": "finished", "completed": True},
+            ]
+        ),
+    )
+
+    client = Dhis2Client("https://dhis2.example", auth=BasicAuth(username="a", password="b"))
+    try:
+        await client.connect()
+        poll = await client.tasks.poll_once("METADATA_IMPORT/done")
+    finally:
+        await client.close()
+
+    assert poll.completed is True
+    assert [n.uid for n in poll.new] == ["a", "b"]
+    assert poll.new[-1].completed is True
+
+
+@respx.mock
+async def test_poll_once_empty_feed_returns_nothing(server_version: str, mock_system_info: Callable[..., None]) -> None:
+    """An empty notification feed yields no rows, no completion, and an empty cursor."""
+    mock_system_info(server_version)
+    respx.get("https://dhis2.example/api/system/tasks/ANALYTICS_TABLE/fresh").mock(
+        return_value=httpx.Response(200, json=[]),
+    )
+
+    client = Dhis2Client("https://dhis2.example", auth=BasicAuth(username="a", password="b"))
+    try:
+        await client.connect()
+        poll = await client.tasks.poll_once(("ANALYTICS_TABLE", "fresh"))
+    finally:
+        await client.close()
+
+    assert poll.new == []
+    assert poll.completed is False
+    assert poll.cursor == frozenset()

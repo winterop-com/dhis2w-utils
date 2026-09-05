@@ -546,6 +546,9 @@ if TYPE_CHECKING:
         TaskModule as TaskModule,
     )
     from dhis2w_client.v42.tasks import (
+        TaskPoll as TaskPoll,
+    )
+    from dhis2w_client.v42.tasks import (
         TaskTimeoutError as TaskTimeoutError,
     )
     from dhis2w_client.v42.tasks import (
@@ -820,6 +823,7 @@ __all__ = [
     "SystemModule",
     "TaskCompletion",
     "TaskModule",
+    "TaskPoll",
     "TaskTimeoutError",
     "TestOp",
     "TokenStore",
@@ -1051,6 +1055,7 @@ _LAZY_EXPORTS: dict[str, str] = {
     "SystemModule": "dhis2w_client.v42.system",
     "TaskCompletion": "dhis2w_client.v42.tasks",
     "TaskModule": "dhis2w_client.v42.tasks",
+    "TaskPoll": "dhis2w_client.v42.tasks",
     "TaskTimeoutError": "dhis2w_client.v42.tasks",
     "TestOp": "dhis2w_client.v42.json_patch",
     "TokenStore": "dhis2w_client.v42.auth.oauth2",

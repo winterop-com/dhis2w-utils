@@ -1,7 +1,8 @@
-"""Tests for `client.maintenance.iter_integrity_issues` + `get_integrity_report`."""
+"""Tests for `client.maintenance.iter_integrity_issues` + `get_integrity_report` + `run_analytics_tables`."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -199,3 +200,72 @@ def test_integrity_issue_row_is_frozen() -> None:
     )
     with pytest.raises(Exception):  # pydantic.ValidationError on frozen model  # noqa: B017
         row.check_name = "other"
+
+
+def _analytics_job_envelope() -> httpx.Response:
+    """Canned `/api/resourceTables/analytics` job-kickoff `WebMessageResponse`."""
+    return httpx.Response(
+        200,
+        json={
+            "httpStatus": "OK",
+            "httpStatusCode": 200,
+            "status": "OK",
+            "message": "Initiated ANALYTICS_TABLE",
+            "response": {
+                "id": "task123ABCD",
+                "jobType": "ANALYTICS_TABLE",
+                "relativeNotifierEndpoint": "/api/system/tasks/ANALYTICS_TABLE/task123ABCD",
+            },
+        },
+    )
+
+
+@respx.mock
+async def test_run_analytics_tables_builds_params_and_parses_task_ref(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
+    """`run_analytics_tables` sends set flags as `true` + `lastYears`, and parses the job envelope."""
+    mock_system_info(server_version)
+    route = respx.post("https://dhis2.example/api/resourceTables/analytics").mock(
+        return_value=_analytics_job_envelope(),
+    )
+
+    client = Dhis2Client("https://dhis2.example", auth=BasicAuth(username="a", password="b"))
+    try:
+        await client.connect()
+        envelope = await client.maintenance.run_analytics_tables(
+            last_years=3,
+            skip_events=True,
+            skip_enrollment=True,
+        )
+    finally:
+        await client.close()
+
+    params = route.calls.last.request.url.params
+    assert params["lastYears"] == "3"
+    assert params["skipEvents"] == "true"
+    assert params["skipEnrollment"] == "true"
+    assert "skipAggregate" not in params  # left at its False default → not sent
+    assert "skipResourceTables" not in params
+    assert envelope.task_ref() == ("ANALYTICS_TABLE", "task123ABCD")
+    assert envelope.notifier_endpoint() == "/api/system/tasks/ANALYTICS_TABLE/task123ABCD"
+
+
+@respx.mock
+async def test_run_analytics_tables_sends_no_params_by_default(
+    server_version: str, mock_system_info: Callable[..., None]
+) -> None:
+    """With every flag at its default and no `last_years`, the POST carries an empty query string."""
+    mock_system_info(server_version)
+    route = respx.post("https://dhis2.example/api/resourceTables/analytics").mock(
+        return_value=_analytics_job_envelope(),
+    )
+
+    client = Dhis2Client("https://dhis2.example", auth=BasicAuth(username="a", password="b"))
+    try:
+        await client.connect()
+        await client.maintenance.run_analytics_tables()
+    finally:
+        await client.close()
+
+    assert dict(route.calls.last.request.url.params) == {}

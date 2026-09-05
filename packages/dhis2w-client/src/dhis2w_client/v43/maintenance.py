@@ -25,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_client.generated.v43.oas import DataIntegrityCheck, DataIntegrityIssue, Notification
 from dhis2w_client.generated.v43.oas._enums import JobType, NotificationDataType, NotificationLevel
+from dhis2w_client.v43.envelopes import WebMessageResponse
 
 if TYPE_CHECKING:
     from dhis2w_client.v43.client import Dhis2Client
@@ -148,6 +149,61 @@ class MaintenanceAccessor:
                     severity=result.severity,
                     issue=issue,
                 )
+
+    async def run_analytics_tables(
+        self,
+        *,
+        last_years: int | None = None,
+        skip_resource_tables: bool = False,
+        skip_aggregate: bool = False,
+        skip_events: bool = False,
+        skip_enrollment: bool = False,
+        skip_org_unit_ownership: bool = False,
+        skip_outliers: bool = False,
+        skip_tracked_entities: bool = False,
+        skip_validation_result: bool = False,
+    ) -> WebMessageResponse:
+        """Kick off an analytics-table build; return the job-kickoff envelope.
+
+        POSTs `/api/resourceTables/analytics`. DHIS2 schedules an
+        `ANALYTICS_TABLE` job and answers with a job-kickoff
+        `WebMessageResponse` — call `.task_ref()` on the result for
+        `(job_type, task_uid)` and `.notifier_endpoint()` for the
+        `relativeNotifierEndpoint` path. Feed the task ref to
+        `client.tasks.poll_once` to read notifications one engine tick at a
+        time, or `client.tasks.await_completion` to block until the build
+        finishes.
+
+        Each `skip_*` flag drops one build phase; `last_years` caps how many
+        years of data the tables cover (omit for DHIS2's default). A flag left
+        at its `False` default is not sent — DHIS2 already defaults it to
+        `False`.
+        """
+        params: dict[str, Any] = {}
+        if last_years is not None:
+            params["lastYears"] = last_years
+        if skip_resource_tables:
+            params["skipResourceTables"] = "true"
+        if skip_aggregate:
+            params["skipAggregate"] = "true"
+        if skip_events:
+            params["skipEvents"] = "true"
+        if skip_enrollment:
+            params["skipEnrollment"] = "true"
+        if skip_org_unit_ownership:
+            params["skipOrgUnitOwnership"] = "true"
+        if skip_outliers:
+            params["skipOutliers"] = "true"
+        if skip_tracked_entities:
+            params["skipTrackedEntities"] = "true"
+        if skip_validation_result:
+            params["skipValidationResult"] = "true"
+        return await self._client.post(
+            "/api/resourceTables/analytics",
+            body=None,
+            params=params or None,
+            model=WebMessageResponse,
+        )
 
     async def update_category_option_combos(self) -> None:
         """Trigger DHIS2 to (re)generate the CategoryOptionCombo matrix.
