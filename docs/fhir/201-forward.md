@@ -271,11 +271,21 @@ each response claimed.
 | `not-claimed` | the response reports itself `in-progress` |
 | `not-registered` | the run registered nothing - `--no-register-completeness`, or `[forward] register_completeness = false` |
 | `refused` | the values imported and DHIS2 refused the registration |
+| `pending` | the values imported and the registration is not known to have landed |
 
 **A refused registration does not un-import the values.** They are imported and
 they stay imported; only the claim failed, and the response still counts
 `accepted`. Forwarding the same tuple again is the retry - DHIS2 answers a
 registration it already holds with `updated`, not a conflict.
+
+**A claim that never landed is owed, and the next importing run pays it.** The
+receipt is filed the moment DHIS2 takes the values, with `pending` written into
+its own `forwarded/<id>.report.json`, and the registration writes its answer
+over that - so a drain killed between the two, or one whose registration timed
+out, leaves the claim written down. Every importing run opens by reading the
+forwarded sidecars for owed claims and posting those registrations on their
+own; not one value is sent again. It does this even when the queue is empty,
+which is exactly the state a finished drain leaves behind.
 
 A dry run posts nothing here, and says so in its own closing note:
 

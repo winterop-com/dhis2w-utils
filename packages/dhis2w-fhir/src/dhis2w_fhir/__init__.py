@@ -567,6 +567,7 @@ from dhis2w_fhir.service import (
     BuildAbortingNameError,
     ForwardCompletenessKind,
     ForwardCompletenessOutcome,
+    ForwardCompletenessRetry,
     ForwardEndpointAnswer,
     ForwardFilingIssue,
     ForwardImportIssue,
@@ -651,6 +652,7 @@ from dhis2w_fhir.spool import (
     move_to_received,
     move_to_rejected,
     move_to_withdrawn,
+    read_import_reports,
     read_receipt,
     read_received_responses,
     read_refusal_record,
@@ -658,6 +660,7 @@ from dhis2w_fhir.spool import (
     record_refusal,
     resolve_spool_root,
     sweep_orphan_temporary_files,
+    write_import_report,
 )
 from dhis2w_fhir.summary import (
     ALLERGIES_SECTION,
@@ -981,6 +984,7 @@ __all__ = [
     "FORWARD_TARGET_ORDER",
     "ForwardCompletenessKind",
     "ForwardCompletenessOutcome",
+    "ForwardCompletenessRetry",
     "ForwardConfig",
     "FORWARDED_RESPONSES_RELATIVE_PATH",
     "ForwardedCellIndex",
@@ -1186,6 +1190,7 @@ __all__ = [
     "QuestionnaireSourceIn",
     "QuestionnaireStemPlan",
     "QuestionSpec",
+    "read_import_reports",
     "read_project_scaffold_state",
     "read_published_guide",
     "read_receipt",
@@ -1359,5 +1364,6 @@ __all__ = [
     "WithdrawReport",
     "write_artifacts",
     "write_fhir_config",
+    "write_import_report",
     "zoned_date_time",
 ]

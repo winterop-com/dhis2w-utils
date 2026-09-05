@@ -100,6 +100,7 @@ __all__ = [
     "move_to_received",
     "move_to_rejected",
     "move_to_withdrawn",
+    "read_import_reports",
     "read_receipt",
     "read_received_responses",
     "read_refusal_record",
@@ -107,6 +108,7 @@ __all__ = [
     "record_refusal",
     "resolve_spool_root",
     "sweep_orphan_temporary_files",
+    "write_import_report",
 ]
 
 #: The spool root a project holds unless `[serve] spool_dir` names another, relative to the project
@@ -486,6 +488,42 @@ def read_refusal_record(directory: Path, response_id: str) -> ForwardRefusalReco
 def move_to_forwarded(spooled: SpooledResponse, report: BaseModel) -> Path:
     """Write one acceptance's import report beside where the receipt is going, then move the receipt there."""
     return _file_beside_report(spooled, report, SpoolState.FORWARDED)
+
+
+def write_import_report(layout: SpoolLayout, state: SpoolState, response_id: str, report: BaseModel) -> Path:
+    """Write the import report beside one already-filed receipt, replacing whatever is there.
+
+    What a drain uses to say something further about a receipt it has already moved - the answer to
+    a completeness registration posted after the values landed. The receipt itself is never
+    rewritten, and the write is atomic, so a reader either sees the previous report or this one.
+    """
+    directory = layout.directory_for(state)
+    directory.mkdir(parents=True, exist_ok=True)
+    destination = directory / f"{response_id}{IMPORT_REPORT_SUFFIX}"
+    _write_atomically(destination, report.model_dump_json(indent=2, exclude_none=True) + "\n")
+    return destination
+
+
+def read_import_reports(layout: SpoolLayout, state: SpoolState) -> tuple[tuple[str, str], ...]:
+    """Every import report of one state, as the receipt id it belongs to and the JSON text it holds.
+
+    The text rather than a model: the shape a report carries is the service's business, and this
+    module writes the file without reading what is in it. A file that will not read at all is left
+    out rather than raised, exactly as an unreadable sidecar is elsewhere - one file must not cost a
+    drain its answer about the rest.
+    """
+    directory = layout.directory_for(state)
+    if not directory.is_dir():
+        return ()
+    reports: list[tuple[str, str]] = []
+    for path in sorted(_scan(directory)):
+        if not path.name.endswith(IMPORT_REPORT_SUFFIX):
+            continue
+        try:
+            reports.append((path.name.removesuffix(IMPORT_REPORT_SUFFIX), path.read_text(encoding="utf-8")))
+        except OSError:
+            continue
+    return tuple(reports)
 
 
 def move_to_rejected(spooled: SpooledResponse, report: BaseModel) -> Path:

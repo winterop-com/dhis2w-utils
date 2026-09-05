@@ -3215,3 +3215,138 @@ async def test_a_completeness_answer_with_no_import_summary_leaves_the_claim_pen
     assert report.completeness_of(ForwardCompletenessKind.REFUSED) == ()
     # The values are in, and they stay in: a claim that did not land does not un-import them.
     assert (one_aggregate_project / FORWARDED_RESPONSES_RELATIVE_PATH / f"{document.id}.json").is_file()
+
+
+def _forwarded_report(root: Path, response_id: str) -> service.ForwardImportRecord:
+    """The sidecar beside one forwarded receipt, which is where a completeness claim lives once filed."""
+    path = root / FORWARDED_RESPONSES_RELATIVE_PATH / f"{response_id}{IMPORT_REPORT_SUFFIX}"
+    return service.ForwardImportRecord.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+@respx.mock
+async def test_a_completeness_registration_that_times_out_is_retried_by_the_next_drain(
+    one_aggregate_project: Path,
+) -> None:
+    """The values are in DHIS2 and the claim is written down, so the next run pays it without resending them."""
+    routes = _mock_instance()
+    routes["completeness"].mock(side_effect=httpx.TimeoutException("the registration timed out"))
+    document = _aggregate_document()
+    assert document.id is not None
+
+    first = await _forward(one_aggregate_project, import_responses=True)
+
+    assert [outcome.kind for outcome in first.completeness_outcomes] == [ForwardCompletenessKind.PENDING]
+    assert (one_aggregate_project / FORWARDED_RESPONSES_RELATIVE_PATH / f"{document.id}.json").is_file()
+    owed = _forwarded_report(one_aggregate_project, document.id).completeness
+    assert owed is not None
+    assert owed.kind is ForwardCompletenessKind.PENDING
+    assert owed.data_set == "BfMAe6Itzgt"
+    posted_values = routes["aggregate"].call_count
+
+    routes["completeness"].mock(return_value=_accepted_completeness())
+    second = await _forward(one_aggregate_project, import_responses=True)
+
+    # The queue is empty and the claim is paid anyway, which is the whole point of the pass.
+    assert second.spooled == 0
+    assert [retry.response_id for retry in second.completeness_retries] == [document.id]
+    assert second.completeness_retries[0].outcome.kind is ForwardCompletenessKind.REGISTERED
+    assert routes["aggregate"].call_count == posted_values
+    registered = _forwarded_report(one_aggregate_project, document.id).completeness
+    assert registered is not None
+    assert registered.kind is ForwardCompletenessKind.REGISTERED
+
+
+@respx.mock
+async def test_a_registered_claim_is_not_posted_again_by_a_later_drain(one_aggregate_project: Path) -> None:
+    """A claim that landed is not owed, so a second drain of an empty queue posts nothing at all."""
+    routes = _mock_instance()
+    await _forward(one_aggregate_project, import_responses=True)
+    assert routes["completeness"].call_count == 1
+
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    assert report.completeness_retries == ()
+    assert routes["completeness"].call_count == 1
+
+
+@respx.mock
+async def test_a_refused_registration_is_a_verdict_rather_than_a_claim_still_owed(
+    one_aggregate_project: Path,
+) -> None:
+    """DHIS2 answered the claim, so the answer stands until an operator acts on it."""
+    routes = _mock_instance(completeness_response=_refused_completeness())
+    document = _aggregate_document()
+    assert document.id is not None
+
+    first = await _forward(one_aggregate_project, import_responses=True)
+
+    assert [outcome.kind for outcome in first.completeness_outcomes] == [ForwardCompletenessKind.REFUSED]
+    recorded = _forwarded_report(one_aggregate_project, document.id).completeness
+    assert recorded is not None
+    assert recorded.kind is ForwardCompletenessKind.REFUSED
+
+    second = await _forward(one_aggregate_project, import_responses=True)
+
+    assert second.completeness_retries == ()
+    assert routes["completeness"].call_count == 1
+
+
+@respx.mock
+async def test_a_drain_killed_after_the_values_landed_leaves_the_claim_owed(
+    one_aggregate_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The claim is written into the sidecar as the receipt is filed, so an interruption cannot lose it."""
+    routes = _mock_instance()
+    document = _aggregate_document()
+    assert document.id is not None
+
+    async def _interrupt(*arguments: Any, **keyword_arguments: Any) -> None:
+        raise RuntimeError("the drain was killed after the values landed")
+
+    registering = service._register_completeness
+    monkeypatch.setattr(service, "_register_completeness", _interrupt)
+    with pytest.raises(RuntimeError):
+        await _forward(one_aggregate_project, import_responses=True)
+
+    assert routes["completeness"].call_count == 0
+    owed = _forwarded_report(one_aggregate_project, document.id).completeness
+    assert owed is not None
+    assert owed.kind is ForwardCompletenessKind.PENDING
+    posted_values = routes["aggregate"].call_count
+
+    monkeypatch.setattr(service, "_register_completeness", registering)
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    assert [retry.outcome.kind for retry in report.completeness_retries] == [ForwardCompletenessKind.REGISTERED]
+    assert routes["aggregate"].call_count == posted_values
+    assert routes["completeness"].call_count == 1
+
+
+@respx.mock
+async def test_a_dry_run_pays_no_owed_claim(one_aggregate_project: Path) -> None:
+    """A dry run writes nothing, and a registration is a write like any other."""
+    routes = _mock_instance()
+    routes["completeness"].mock(side_effect=httpx.TimeoutException("the registration timed out"))
+    await _forward(one_aggregate_project, import_responses=True)
+    routes["completeness"].mock(return_value=_accepted_completeness())
+    attempted = routes["completeness"].call_count
+
+    report = await _forward(one_aggregate_project)
+
+    assert report.completeness_retries == ()
+    assert routes["completeness"].call_count == attempted
+
+
+@respx.mock
+async def test_a_run_that_registers_nothing_pays_no_owed_claim(one_aggregate_project: Path) -> None:
+    """`--no-register-completeness` is a statement about the run, and it covers the owed claims too."""
+    routes = _mock_instance()
+    routes["completeness"].mock(side_effect=httpx.TimeoutException("the registration timed out"))
+    await _forward(one_aggregate_project, import_responses=True)
+    routes["completeness"].mock(return_value=_accepted_completeness())
+    attempted = routes["completeness"].call_count
+
+    report = await _forward(one_aggregate_project, import_responses=True, register_completeness=False)
+
+    assert report.completeness_retries == ()
+    assert routes["completeness"].call_count == attempted
