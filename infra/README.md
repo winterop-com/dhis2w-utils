@@ -93,7 +93,7 @@ make down        stop the stack (keeps volumes)
 make help        show this help
 ```
 
-`make run` is the right default — it reuses cached image layers so the build step is ~instant, but still wipes the postgres volume for a clean DB. Use `make run-force` only when you've edited `Dockerfile` and need `--no-cache`, since it adds several minutes to re-run `apt-get upgrade` from scratch.
+`make run` is the right default — it reuses cached image layers so the build step is ~instant, but still wipes the postgres volume for a clean DB. Use `make run-force` only when you've edited `Dockerfile` and need `--no-cache`, since it re-pulls the base image and re-installs the postgres extras from scratch.
 
 ## Password reset
 
@@ -143,7 +143,7 @@ The installer is idempotent: if `home/glowroot/glowroot.jar` already exists, it 
 ```
 compose.yml               # base stack: postgres, glowroot-installer, dhis2, analytics-trigger
 compose.pgadmin.yml       # pgadmin4 overlay (always included by Makefile targets)
-Dockerfile                # postgis/postgis:17-3.4 + wal2json + python3-bcrypt
+Dockerfile                # postgis/postgis:17-3.5 + wal2json + python3-bcrypt
 initdb.sh                 # one-shot init: loads dump, resets passwords, enables accounts
 v42/dump.sql.gz           # committed e2e dump for DHIS2 42 (Sierra Leone immunization seed)
 v43/dump.sql.gz           # placeholder empty dump for v43 — build a real one with `make build-e2e-dump DHIS2_VERSION=v43`
@@ -178,7 +178,7 @@ For a walk-through of the DHIS2 `analytics_*` tables (schema, cross-verification
 
 **pgAdmin complains the server is out of date.** `pull_policy: always` on `dpage/pgadmin4:latest` refreshes the image on every `make run`, but Docker Hub's `:latest` tag occasionally lags. Pin to a specific version in `compose.pgadmin.yml` if needed.
 
-**`make run-force` takes forever.** The `--no-cache` flag re-runs `apt-get upgrade` from scratch inside the postgres image build. Use `make run` unless you've actually edited the `Dockerfile`.
+**`make run-force` takes forever.** The `--no-cache` flag rebuilds the postgres image from scratch — re-pulling the base layers and re-installing `postgresql-17-wal2json` and `python3-bcrypt`. Use `make run` unless you've actually edited the `Dockerfile`.
 
 **Port 8080 / 4000 / 5050 already in use.** Something else is bound to one of those ports on the host. `lsof -i :8080` to find the culprit, or change the published port in the relevant compose file.
 
