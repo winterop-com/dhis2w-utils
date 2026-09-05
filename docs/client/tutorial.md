@@ -543,34 +543,71 @@ print(f"refresh done — {len(completion.notifications)} notifications")
 
 ## Tracker reads
 
-Reads return typed instance models from `dhis2w_client.generated.v42.tracker` (version-scoped — tracker shapes drift across DHIS2 majors). Writes go through the typed `TrackerBundle` from the same module.
+`client.tracker.tracked_entities`, `.enrollments`, and `.events` read the three `/api/tracker/*` resources with the standard query surface. Each returns the page envelope; rows live under `instances` (or the resource's own name on older minors). The generated models in `dhis2w_client.generated.v42.tracker` are version-scoped, because tracker shapes drift across DHIS2 majors.
 
 ```python
 from dhis2w_client.generated.v42.tracker import TrackerTrackedEntity
 
 async with open_client(profile_from_env()) as client:
-    raw = await client.get_raw(
-        "/api/tracker/trackedEntities",
-        params={"program": "<PROG_UID>", "pageSize": 10},
+    page = await client.tracker.tracked_entities(
+        program="<PROG_UID>",
+        org_unit="<OU_UID>",
+        ou_mode="DESCENDANTS",
+        page_size=10,
     )
-    for entity in raw.get("instances", []):
-        te = TrackerTrackedEntity.model_validate(entity)
+    for row in page.get("instances") or page.get("trackedEntities") or []:
+        te = TrackerTrackedEntity.model_validate(row)
         print(f"{te.trackedEntity}  type={te.trackedEntityType}  orgUnit={te.orgUnit}")
 ```
 
-`EventStatus` and `EnrollmentStatus` are `StrEnum`s; `EventStatus.COMPLETED == "COMPLETED"`.
+`status` filters by enrollment status on tracked entities and enrollments, by event status on events. `updated_after` and `occurred_after` take an ISO string, a `date`, or a `datetime`. `EventStatus` and `EnrollmentStatus` are `StrEnum`s; `EventStatus.COMPLETED == "COMPLETED"`.
+
+## Aggregate values: export and stream
+
+`client.data_values.export` reads a form's values back as a typed `DataValueSet`; `data_set` / `period` / `org_unit` each take one id or a sequence, and a `start_date` / `end_date` range stands in for a period list. `client.complete_data_set_registrations.export` reads which forms are reported complete with the same selectors.
+
+```python
+async with open_client(profile_from_env()) as client:
+    values = await client.data_values.export(
+        data_set="<DS_UID>", org_unit="<OU_UID>", start_date="2026-01-01", end_date="2026-06-30"
+    )
+    for value in values.dataValues or []:
+        print(f"{value.dataElement} {value.period} = {value.value}")
+
+    complete = await client.complete_data_set_registrations.export(
+        data_set="<DS_UID>", org_unit="<OU_UID>", children=True, start_date="2026-01-01", end_date="2026-06-30"
+    )
+    print(f"{len(complete.completeDataSetRegistrations)} forms reported complete")
+```
+
+`export` buffers the whole response. For a national year, stream it instead: `client.stream` writes any endpoint's body chunk by chunk to a `Path`, to anything with `.write(bytes)`, or to a callable, and returns the byte count.
+
+```python
+from pathlib import Path
+
+written = await client.stream(
+    "GET",
+    "/api/dataValueSets.json",
+    Path("./exports/2025.json"),
+    params={
+        "dataSet": ["<DS_UID>"],
+        "orgUnit": ["<OU_UID>"],
+        "children": "true",
+        "startDate": "2025-01-01",
+        "endDate": "2025-12-31",
+    },
+)
+```
 
 ## Task polling
 
 Every async DHIS2 op (analytics refresh, metadata import, data-integrity run, tracker async push) returns a `JobConfigurationWebMessageResponse` carrying `jobType` + task UID. Use `.task_ref()` to pull the polling tuple, then `client.tasks.await_completion(...)` to block until the job finishes:
 
 ```python
-from dhis2w_client import WebMessageResponse
 from dhis2w_client.v42.tasks import TaskTimeoutError
 
 async with open_client(profile_from_env()) as client:
-    raw = await client.post_raw("/api/resourceTables/analytics", params={"lastYears": 1})
-    envelope = WebMessageResponse.model_validate(raw)
+    envelope = await client.maintenance.run_analytics_tables(last_years=1)
     ref = envelope.task_ref()
     if ref is None:
         raise RuntimeError("response had no jobType/id; nothing to watch")
@@ -601,7 +638,17 @@ async for notification in client.tasks.iter_notifications(ref, poll_interval=1.0
     print(f"  {level:<5} {marker} {notification.message}")
 ```
 
-See `examples/client/task_await.py` for a runnable demo. The CLI `--watch` flag (`d2w maintenance refresh analytics --watch`, `d2w maintenance dataintegrity run --watch`) uses a Rich-progress wrapper on top of the same primitive.
+When the caller has its own clock, such as a workflow engine that polls once per tick, `poll_once` reads the feed once and returns instead of looping. Carry its `cursor` into the next call so rows are not reported twice:
+
+```python
+poll = await client.tasks.poll_once(ref)
+for notification in poll.new:
+    print(f"  [{notification.level}] {notification.message}")
+if not poll.completed:
+    poll = await client.tasks.poll_once(ref, cursor=poll.cursor)
+```
+
+See `examples/client/task_await.py` and `examples/client/analytics_tables_poll_once.py` for runnable demos. The CLI `--watch` flag (`d2w maintenance refresh analytics --watch`, `d2w maintenance dataintegrity run --watch`) uses a Rich-progress wrapper on top of the same primitive.
 
 ### Streaming data-integrity issues
 
@@ -746,6 +793,8 @@ async with open_client(profile_from_env()) as client:
 ```
 
 `get_raw` always returns `dict[str, Any]`. When DHIS2 returns a bare JSON array (e.g. `/api/system/id`), it's wrapped under `{"data": [...]}` so the return type stays consistent.
+
+`client.stream(method, path, sink, params=...)` is the sixth raw method: it never parses the body and never holds it, writing each chunk to the sink as it arrives. Reach for it when the response is a file, not a document.
 
 ## When to skip profiles (direct-client path)
 

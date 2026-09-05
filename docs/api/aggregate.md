@@ -99,6 +99,25 @@ async with open_client(profile_from_env()) as client:
 
 Registering a tuple DHIS2 already holds counts `updated` rather than conflicting, so re-running the same registration is safe.
 
+## Worked example — read completeness back
+
+`client.complete_data_set_registrations.export` is the read side of the same resource, shaped like `client.data_values.export`: one id or a sequence for `data_set` / `period` / `org_unit`, `children=True` for the subtree, and a `start_date` / `end_date` range in place of a period list. `created` and `last_updated` narrow to registrations filed or touched since a date.
+
+```python
+async with open_client(profile_from_env()) as client:
+    envelope = await client.complete_data_set_registrations.export(
+        data_set="BfMAe6Itzgt",
+        org_unit="ImspTQPwCqd",
+        children=True,
+        start_date="2026-01-01",
+        end_date="2026-06-30",
+    )
+    for registration in envelope.completeDataSetRegistrations:
+        print(
+            f"{registration.period} {registration.organisationUnit} completed {registration.date} by {registration.storedBy}"
+        )
+```
+
 ## When to use which write path
 
 `import_grouped_by_dataset(values)` is the safe cross-version default. It pre-fetches each `DataElement`'s `DataSet` membership and POSTs one `{"dataSet": …, "dataValues": [...]}` envelope per group — required on DHIS2 v43 for any DE that belongs to multiple DataSets (BUGS #35: v43 rejects mixed batches with `409 E8002`). v41 + v42 accept the same envelope shape, so the call is portable.
@@ -107,8 +126,12 @@ Registering a tuple DHIS2 already holds counts `updated` rather than conflicting
 
 ## Related examples
 
+- [`examples/client/complete_data_set_registrations_read.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/complete_data_set_registrations_read.py) — every registration filed for one data set below the root over a date range.
+
 - [`examples/client/push_data_value.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/push_data_value.py) — minimal single-value push.
 - [`examples/client/stream_data_values.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/stream_data_values.py) — streaming reads, four shapes (bytes, sync generator, Path/CSV, 1000-row file with timing).
 - [`examples/client/aggregate_bulk_grouped.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/aggregate_bulk_grouped.py) — the grouped bulk path.
 
 ::: dhis2w_client.v42.aggregate
+
+::: dhis2w_client.v42.complete_data_set_registrations

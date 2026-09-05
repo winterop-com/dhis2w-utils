@@ -16,7 +16,6 @@ Usage:
 from __future__ import annotations
 
 from _runner import run_example
-from dhis2w_client import WebMessageResponse
 
 # v42 is the canonical baseline: swap `.v42` for `.v41` / `.v43` to pin another major.
 from dhis2w_client.v42.tasks import TaskTimeoutError
@@ -29,8 +28,7 @@ async def main() -> None:
     async with open_client(profile_from_env()) as client:
         # 1. Kick off the job. DHIS2 returns a WebMessage whose `task_ref()` is
         # the `(job_type, uid)` tuple the awaiter takes.
-        raw = await client.post_raw("/api/resourceTables/analytics", params={"lastYears": 1})
-        envelope = WebMessageResponse.model_validate(raw)
+        envelope = await client.maintenance.run_analytics_tables(last_years=1)
         ref = envelope.task_ref()
         if ref is None:
             print("no task-ref in response — nothing to watch")

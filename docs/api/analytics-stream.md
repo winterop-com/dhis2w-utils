@@ -1,6 +1,6 @@
 # Analytics streaming
 
-`AnalyticsAccessor` on `Dhis2Client.analytics` — streaming GETs against the `/api/analytics*` endpoint family. Uses httpx's `stream()` + `aiter_bytes` to pipe the response body straight to disk without buffering the full body in memory. Counterpart to [Data values (streaming)](data-values.md) for the export direction.
+`AnalyticsAccessor` on `Dhis2Client.analytics` — the `/api/analytics*` endpoint family: `aggregate` for a parsed pivot, `event_query` / `enrollment_query` for the tracker line lists, and `stream` / `stream_to` for chunked downloads that pipe the response body straight to disk without buffering it. Counterpart to [Data values (import + export)](data-values.md) for the read side of aggregate data.
 
 ## When to reach for it
 
@@ -47,8 +47,26 @@ async with open_client(profile_from_env()) as client:
 
 `stream_to(..., output_format="rawData")` works the same way; the suffix on the URL changes.
 
+## Event and enrollment line lists
+
+`event_query(program, ...)` GETs `/api/analytics/events/query/<program>`, one row per event; `enrollment_query(program, ...)` GETs `/api/analytics/enrollments/query/<program>`, one row per enrollment. Both take the same `dimension` / `filter` tokens as the aggregate endpoint (`pe:LAST_12_MONTHS`, `ou:<uid>`, `<deUid>:GT:5`), a `start_date` / `end_date` bound, `page` / `page_size`, and return the parsed `Grid`. `event_query` also scopes by `stage`, `output_type` (`EVENT` / `ENROLLMENT` / `TRACKED_ENTITY_INSTANCE`) and `event_status`; both filter by `program_status`. `extra_params` carries the rest (`aggregationType`, `ouMode`, `skipMeta`, ...).
+
+```python
+async with open_client(profile_from_env()) as client:
+    events = await client.analytics.event_query(
+        "IpHINAT79UW",
+        dimension=["ou:ImspTQPwCqd", "pe:LAST_12_MONTHS"],
+        output_type="EVENT",
+        page_size=50,
+    )
+    headers = [header.name for header in events.headers or []]
+    for row in events.rows or []:
+        print(dict(zip(headers, row, strict=False)))
+```
+
 ## Related examples
 
+- [`examples/client/analytics_event_query.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/analytics_event_query.py) — one event query and one enrollment query against the seeded Child Programme.
 - [`examples/client/stream_analytics.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/stream_analytics.py) — JSON / CSV / rawData exports to disk with per-format timing.
 
 ::: dhis2w_client.v42.analytics_stream

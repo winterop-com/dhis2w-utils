@@ -138,7 +138,7 @@ nav:
           - Option sets: api/option-sets.md
           - Program rules: api/program-rules.md
       - Streaming:
-          - Data values (streaming): api/data-values.md
+          - Data values (import + export): api/data-values.md
           - Analytics streaming: api/analytics-stream.md
       - Utilities:
           - JSON Patch ops: api/json-patch.md
