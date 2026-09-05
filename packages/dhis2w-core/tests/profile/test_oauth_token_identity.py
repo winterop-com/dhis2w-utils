@@ -69,8 +69,8 @@ def test_different_base_urls_never_share_a_store_key(tree: str, monkeypatch: pyt
     module = _client_context(tree)
     first = module.build_auth(_oauth2_profile("https://one.example.org"), profile_name="default")
     second = module.build_auth(_oauth2_profile("https://two.example.org"), profile_name="default")
-    assert _store_key(first) != _store_key(second)
-    assert "https://one.example.org" in _store_key(first)
+    assert _store_key(first) == "profile:default:https://one.example.org:app-one"
+    assert _store_key(second) == "profile:default:https://two.example.org:app-one"
 
 
 @TREES
@@ -81,8 +81,8 @@ def test_different_client_ids_never_share_a_store_key(tree: str, monkeypatch: py
     base_url = "https://one.example.org"
     first = module.build_auth(_oauth2_profile(base_url, client_id="app-one"), profile_name="default")
     second = module.build_auth(_oauth2_profile(base_url, client_id="app-two"), profile_name="default")
-    assert _store_key(first) != _store_key(second)
-    assert "app-two" in _store_key(second)
+    assert _store_key(first) == "profile:default:https://one.example.org:app-one"
+    assert _store_key(second) == "profile:default:https://one.example.org:app-two"
 
 
 @TREES
