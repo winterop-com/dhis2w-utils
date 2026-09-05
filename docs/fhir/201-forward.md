@@ -126,7 +126,7 @@ Seven steps, each narrated on stderr:
 1. **Read the spool** - every `received/*.json` under the folder the project
    keeps its receipts in (`.serve/responses` unless
    [`[serve] spool_dir`](301-serving.md#spool_dir) says otherwise), in
-   file-name order.
+   arrival order.
 2. **Read the guide** - the same two trees `d2w fhir serve` loads. A project
    holding no compiled guide has one built off the instance instead, by the
    very builders `d2w fhir serve --live` answers reads from (see
@@ -155,7 +155,10 @@ capture creates the person a registration of the same drain enrols, and a
 registration creates the enrollment a stage event names - DHIS2 refuses an
 event whose enrollment it cannot find with `E1313`. The full order is
 person-only registrations, then registrations, then enrollments of people the
-instance already holds, then aggregate reports, then both event kinds. There
+instance already holds, then aggregate reports, then both event kinds. Within
+one kind the order is arrival - the instant the facade captured the receipt,
+with the receipt id deciding a tie - so the newest capture of an aggregate cell
+is the one DHIS2 ends up holding. There
 is no dependency graph beyond that ordering:
 a registration DHIS2 rejects leaves its stage events to fail `E1313` exactly
 as they would have, the receipts stay in the queue, and the next run is the
@@ -836,6 +839,20 @@ A whole worked run is at
 and the three `[forward]` postures a project takes towards data that already
 reached DHIS2 are read back in
 [`examples/fhir/client/read_forward_dials.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/fhir/client/read_forward_dials.py).
+
+## When the answer is no verdict at all
+
+A receipt leaves `received/` on the import endpoint's own report and on
+nothing else. A `401`, a `403`, a `404`, a `429`, or a success carrying some
+other document is whatever stands in front of the instance answering instead
+of it - an authentication gateway, a proxy, a rate limiter - and it says
+nothing about the payload. The drain stops there, naming the HTTP status; the
+receipt keeps its place in `received/` along with everything behind it, and
+forwarding again once the credential or the route is fixed is the retry.
+
+That holds for a status line too: a body reading `{"status": "ERROR"}` with no
+import report in it is not DHIS2 refusing a payload, so it is a stop rather
+than a move to `rejected/`.
 
 ## When the instance stops answering
 

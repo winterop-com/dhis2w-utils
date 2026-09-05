@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
-from dhis2w_client.errors import Dhis2ApiError
+from dhis2w_client.errors import AuthenticationError, Dhis2ApiError
 
 # The v41 generated OAS tree carries no import-summary, import-conflict, or import-count module, so
 # the import-report shapes come from v42 on every major - they are the wire shape all three answer with.
@@ -4741,6 +4741,9 @@ _POST_TICK_INTERVAL = 10
 #: rejection DHIS2 never made.
 _SERVER_ERROR_STATUS = 500
 
+#: The status the client raises an authentication failure on rather than handing the body back.
+_UNAUTHORIZED_STATUS = 401
+
 #: The two codes DHIS2 answers a tracker event whose enrollment it cannot find with: `E1313` for the
 #: enrollment nobody has, and the `E1079` program mismatch it asserts against that same absent
 #: enrollment (BUGS.md 68). A rejection carrying only these is the whole shape a dry run cannot check.
@@ -4836,6 +4839,42 @@ class ForwardCompletenessKind(StrEnum):
     #: The run was told not to register completeness, so a `completed` response claims and posts nothing.
     NOT_REGISTERED = "not-registered"
 
+    #: The values landed and the registration did not: the claim is owed, and the next drain posts it.
+    PENDING = "pending"
+
+
+class ForwardEndpointAnswer(BaseModel):
+    """One import endpoint's HTTP answer, as the projection that reads it is handed it.
+
+    The body is a raw JSON object because the two endpoints disagree about what wraps their report,
+    and each projection unwraps its own - so this is the parse boundary, and the dict goes no
+    further than the projection that reads it. The status rides beside it because a body alone
+    cannot say whether the endpoint answered at all: an authentication gateway's `403` and DHIS2's
+    own `409` both arrive as JSON objects.
+
+    `status_code` is None for an answer the client did not raise on, which is every 2xx. The client
+    parses a successful body without carrying its status back, and no drain acts on the difference
+    between a 200 and a 201 - a stop names the status only when there was a failing one to name.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    body: dict[str, Any]
+    status_code: int | None = None
+
+
+class ForwardImportVerdict(StrEnum):
+    """What one HTTP answer from an import endpoint says about the payload that was posted to it."""
+
+    #: The endpoint's own import report arrived and names no refusal: DHIS2 took the payload.
+    ACCEPTED = "accepted"
+
+    #: The endpoint's own import report arrived and refuses the payload, by status or by named rows.
+    REJECTED = "rejected"
+
+    #: Nothing that reads as the endpoint's import report arrived, so the answer is about the run.
+    NONE = "none"
+
 
 class ForwardImportIssue(BaseModel):
     """One row DHIS2 named as a reason it would not take the payload, from either report shape.
@@ -4923,6 +4962,29 @@ class ForwardImportOutcome(BaseModel):
 
     data_value_summary: ImportSummary | None = None
     tracker_report: TrackerImportReport | None = None
+
+    http_status: int | None = None
+    """The failing HTTP status the answer arrived under; None for a 2xx and for a locally made outcome."""
+
+    report_recognised: bool = False
+    """Whether the answer carried the import report of the endpoint it was posted to.
+
+    A verdict is a report, not a status line. An authentication gateway, a reverse proxy, and a
+    rate limiter all answer JSON of their own, and `{"message": "Forbidden"}` says nothing about
+    an import - so what makes an answer a verdict is the endpoint's own report shape being in it.
+    """
+
+    @property
+    def verdict(self) -> ForwardImportVerdict:
+        """Whether this answer accepted the payload, refused it, or reached no verdict about it at all."""
+        if not self.report_recognised:
+            return ForwardImportVerdict.NONE
+        return ForwardImportVerdict.REJECTED if self.is_rejected else ForwardImportVerdict.ACCEPTED
+
+    @property
+    def is_accepted(self) -> bool:
+        """Whether DHIS2 took the payload: its own import report arrived, and that report names no refusal."""
+        return self.verdict is ForwardImportVerdict.ACCEPTED
 
     @property
     def is_rejected(self) -> bool:
@@ -5729,6 +5791,13 @@ async def _post_translations(
     `forwarded/` or `rejected/` with the report beside it, and everything it had not reached
     untouched in `received/`. A dry run files nothing, because it wrote nothing.
 
+    **An answer that reaches no verdict stops the drain too.** A receipt only leaves `received/` on
+    the endpoint's own import report - the shape only `/api/dataValueSets` or `/api/tracker` answers
+    with. A `401`, a `403`, a `404`, a `429`, or a success carrying some other document is whatever
+    stands in front of the instance answering instead of it, and filing a receipt on one would drop
+    a submission out of the queue that DHIS2 never saw. So the drain stops naming the status, the
+    receipt keeps its place, and the next drain posts it again.
+
     **An instance that fails mid-drain stops the drain.** A 5xx or a connection that never completed
     is the instance being unwell, not a verdict on the payload that met it, and the two things that
     must not happen next are posting the remaining two hundred payloads into it and filing the
@@ -5771,7 +5840,7 @@ async def _post_translations(
         else:
             try:
                 imported = await _post_result(client, result, dry_run=dry_run)
-            except (Dhis2ApiError, httpx.HTTPError) as error:
+            except (Dhis2ApiError, AuthenticationError, httpx.HTTPError) as error:
                 return _PostedPayloads(
                     imports=imports,
                     filed=filed,
@@ -5780,8 +5849,17 @@ async def _post_translations(
                     filing_issues=tuple(issues),
                     stopped=_forward_stop(entry, error),
                 )
+            if imported.verdict is ForwardImportVerdict.NONE:
+                return _PostedPayloads(
+                    imports=imports,
+                    filed=filed,
+                    overwritten=overwritten,
+                    overwrite_refused=frozenset(refused),
+                    filing_issues=tuple(issues),
+                    stopped=_non_verdict_stop(entry, imported),
+                )
             imports[entry.response_id] = imported
-            if cells and not imported.is_rejected:
+            if cells and imported.is_accepted:
                 if already_sent:
                     overwritten[entry.response_id] = already_sent
                 overwrite_index.record(
@@ -5810,6 +5888,10 @@ def _file_now(
 ) -> None:
     """Move one receipt into the state DHIS2 just put it in, its import report written down first.
 
+    Only an answer that reached a verdict gets here: `forwarded/` for the payload DHIS2's own import
+    report says it took, `rejected/` for the one that report refuses. An answer carrying no import
+    report at all stops the drain instead, with the receipt left in `received/`.
+
     A receipt whose file has already gone is graded rather than raised: DHIS2 has answered about the
     payload, and losing the rest of the drain over a rename that lost a race would throw that answer
     away along with every receipt still queued behind it.
@@ -5822,7 +5904,7 @@ def _file_now(
     )
     try:
         filed[entry.response_id] = (
-            move_to_rejected(entry, record) if imported.is_rejected else move_to_forwarded(entry, record)
+            move_to_forwarded(entry, record) if imported.is_accepted else move_to_rejected(entry, record)
         )
     except FileNotFoundError as error:
         issues.append(
@@ -5941,8 +6023,31 @@ def _utc_instant() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def _forward_stop(entry: SpooledResponse, error: Dhis2ApiError | httpx.HTTPError) -> ForwardStop:
+def _non_verdict_stop(entry: SpooledResponse, imported: ForwardImportOutcome) -> ForwardStop:
+    """Name the answer that was about the run rather than about the payload, so the operator reads a status.
+
+    Whatever answered was not the import endpoint reaching a verdict, so the receipt is left in
+    `received/` exactly as a 5xx leaves it and every receipt behind it keeps its turn. The status is
+    the whole of the lead: a 401 or a 403 is a credential, a 404 is a path or a proxy, a 429 is a
+    rate limiter, and a success carrying no report is an endpoint answering something else entirely.
+    """
+    answered = f"answered {imported.http_status}" if imported.http_status is not None else "answered a success status"
+    stated = f": {imported.message}" if imported.message else ""
+    return ForwardStop(
+        response_id=entry.response_id,
+        status_code=imported.http_status,
+        reason=f"the instance {answered} with no import report, which is no verdict about the payload{stated}",
+    )
+
+
+def _forward_stop(entry: SpooledResponse, error: Dhis2ApiError | AuthenticationError | httpx.HTTPError) -> ForwardStop:
     """Name what stopped one drain, in the terms the operator has to act on."""
+    if isinstance(error, AuthenticationError):
+        return ForwardStop(
+            response_id=entry.response_id,
+            status_code=_UNAUTHORIZED_STATUS,
+            reason=f"the instance answered {_UNAUTHORIZED_STATUS} and took no payload: {error}",
+        )
     if isinstance(error, Dhis2ApiError):
         return ForwardStop(
             response_id=entry.response_id,
@@ -6017,16 +6122,30 @@ async def _post_completeness(client: Dhis2Client, claim: CompleteDataSetRegistra
     The answer is `/api/dataValueSets`' own envelope - a `WebMessage` wrapping an `ImportSummary` - so
     the aggregate projection reads it unchanged. A registration DHIS2 has already stored counts
     `updated` rather than conflicting, which is what makes forwarding the same tuple twice safe.
+
+    The three verdicts are the same three a value import gets. Only an answer carrying the endpoint's
+    own import summary registers the tuple; a summary that refuses it is a refusal; and anything else
+    - a gateway's `403`, a proxy's `404`, a rate limiter's `429`, a success carrying some other
+    document - registered nothing, so the claim stays pending and the next drain posts it again.
     """
     body = CompleteDataSetRegistrations(completeDataSetRegistrations=[claim]).model_dump(
         by_alias=True, exclude_none=True, mode="json"
     )
     answer = _aggregate_import_outcome(await _post_body(client, _COMPLETE_DATA_SET_REGISTRATIONS_PATH, body, {}))
+    if answer.verdict is ForwardImportVerdict.NONE:
+        return _completeness_outcome(ForwardCompletenessKind.PENDING, claim, message=_no_verdict_message(answer))
     if answer.is_rejected:
         return _completeness_outcome(
             ForwardCompletenessKind.REFUSED, claim, message=answer.message, issues=answer.issues
         )
     return _completeness_outcome(ForwardCompletenessKind.REGISTERED, claim)
+
+
+def _no_verdict_message(answer: ForwardImportOutcome) -> str:
+    """Why one answer registered nothing, when what answered was not the endpoint reaching a verdict."""
+    answered = f"answered {answer.http_status}" if answer.http_status is not None else "answered a success status"
+    stated = f": {answer.message}" if answer.message else ""
+    return f"the instance {answered} with no import summary, so the registration is not known to have landed{stated}"
 
 
 def _completeness_outcome(
@@ -6095,8 +6214,8 @@ async def _post_body(
     path: str,
     body: dict[str, Any],
     params: dict[str, str],
-) -> dict[str, Any]:
-    """POST one payload and answer with DHIS2's own JSON body, whether it accepted the payload or refused it.
+) -> ForwardEndpointAnswer:
+    """POST one payload and answer with DHIS2's own JSON body under the status it arrived with.
 
     A refused import is `409 Conflict` carrying the endpoint's report, so a rejection is an outcome to
     record rather than an error to raise. The body is passed on **raw** rather than parsed here, because
@@ -6111,19 +6230,24 @@ async def _post_body(
     a `WebMessage` of their own, `status` and all, and reading that as the endpoint's verdict would
     project `status=ERROR` into a rejection and file the receipt under a refusal DHIS2 never made. The
     status is what separates the two: 409 is the endpoint reaching a verdict, 500 is it failing to.
+
+    The status rides along with the body because a status below 500 does not make an answer a
+    verdict either: a 401, a 403, a 404 and a 429 all carry JSON of their own from whatever answered
+    instead of the endpoint, and the projection that reads the body says so in the status it carries.
     """
     try:
-        return await client.post_raw(path, body, params=params)
+        return ForwardEndpointAnswer(body=await client.post_raw(path, body, params=params))
     except Dhis2ApiError as error:
         if error.status_code >= _SERVER_ERROR_STATUS:
             raise
         if isinstance(error.body, dict):
-            return error.body
+            return ForwardEndpointAnswer(status_code=error.status_code, body=error.body)
         raise
 
 
-def _aggregate_import_outcome(body: dict[str, Any]) -> ForwardImportOutcome:
-    """Project an `/api/dataValueSets` answer: the import counts, and every conflict it named."""
+def _aggregate_import_outcome(answer: ForwardEndpointAnswer) -> ForwardImportOutcome:
+    """Project an `/api/dataValueSets` answer: the import counts, every conflict it named, and its status."""
+    body = answer.body
     envelope = _envelope(body)
     summary = _report_model(ImportSummary, _report_body(body, _DATA_VALUE_SET_REPORT_KEYS))
     counts = summary.importCount if summary is not None else None
@@ -6138,11 +6262,14 @@ def _aggregate_import_outcome(body: dict[str, Any]) -> ForwardImportOutcome:
         deleted=counts.deleted or 0 if counts is not None else 0,
         issues=tuple(_conflict_issue(conflict) for conflict in conflicts or []),
         data_value_summary=summary,
+        http_status=answer.status_code,
+        report_recognised=_carries_report(body, _DATA_VALUE_SET_REPORT_KEYS),
     )
 
 
-def _tracker_import_outcome(body: dict[str, Any]) -> ForwardImportOutcome:
-    """Project an `/api/tracker` answer: the stats, and every validation error it reported."""
+def _tracker_import_outcome(answer: ForwardEndpointAnswer) -> ForwardImportOutcome:
+    """Project an `/api/tracker` answer: the stats, every validation error it reported, and its status."""
+    body = answer.body
     envelope = _envelope(body)
     report = _report_model(TrackerImportReport, _report_body(body, _TRACKER_REPORT_KEYS))
     stats = report.stats if report is not None else None
@@ -6158,12 +6285,25 @@ def _tracker_import_outcome(body: dict[str, Any]) -> ForwardImportOutcome:
         deleted=stats.deleted or 0 if stats is not None else 0,
         issues=tuple(_tracker_issue(error) for error in errors or []),
         tracker_report=report,
+        http_status=answer.status_code,
+        report_recognised=_carries_report(body, _TRACKER_REPORT_KEYS),
     )
 
 
 def _envelope(body: dict[str, Any]) -> dict[str, Any]:
     """The `WebMessage` fields of an answer, which are the body's own when no envelope wrapped the report."""
     return body
+
+
+def _carries_report(body: dict[str, Any], keys: frozenset[str]) -> bool:
+    """Whether one answer carries the import report of the endpoint it came from, wrapped or bare.
+
+    The same reading `_report_body` takes, as the claim on its own: the fields only that endpoint's
+    report has are in the body, or in the `WebMessage.response` an envelope wrapped it in. A body
+    that has neither is some other party's answer, whatever HTTP status it arrived under.
+    """
+    nested = body.get("response")
+    return bool(keys & body.keys()) or (isinstance(nested, dict) and bool(keys & nested.keys()))
 
 
 def _report_body(body: dict[str, Any], keys: frozenset[str]) -> dict[str, Any] | None:

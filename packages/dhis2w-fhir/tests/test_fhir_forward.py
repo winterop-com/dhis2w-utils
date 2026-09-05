@@ -3070,3 +3070,148 @@ def test_the_queue_listing_reads_in_the_order_the_drain_posts_in(arrival_order_p
     drained = [response.response_id for response in read_received_responses(layout).responses]
 
     assert listed == drained == [_LATE_NAME_EARLY_ARRIVAL, _EARLY_NAME_LATE_ARRIVAL]
+
+
+#: The JSON an authentication gateway, a proxy, or a rate limiter answers with instead of DHIS2. None of
+#: them is the import endpoint, and none of the four bodies carries a line of an import report.
+_GATEWAY_ANSWERS = {
+    401: {"message": "Unauthorized"},
+    403: {"message": "Forbidden"},
+    404: {"message": "Not Found"},
+    429: {"message": "Too Many Requests"},
+}
+
+
+@pytest.fixture
+def one_aggregate_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A project whose spool holds one aggregate receipt, so one answer decides the whole run."""
+    _write_probe_profile(tmp_path, monkeypatch)
+    root = tmp_path / "project"
+    root.mkdir()
+    _write_project(root)
+    _write_receipt(root, _aggregate_document())
+    monkeypatch.chdir(root)
+    return root
+
+
+def _queued(root: Path, response_id: str) -> bool:
+    """Whether one receipt is still in the queue, which is where a drain that reached no verdict leaves it."""
+    return (root / RECEIVED_RESPONSES_RELATIVE_PATH / f"{response_id}.json").is_file()
+
+
+@pytest.mark.parametrize("status", sorted(_GATEWAY_ANSWERS))
+@respx.mock
+async def test_an_answer_carrying_no_import_report_stops_the_drain_naming_its_status(
+    one_aggregate_project: Path, status: int
+) -> None:
+    """Whatever answered was not the import endpoint, so nothing is known about the payload.
+
+    A 401 is the one the client raises on rather than handing the body back, and it stops the drain
+    the same way: the receipt keeps its place and the run names the status the operator has to fix.
+    """
+    routes = _mock_instance(aggregate_response=httpx.Response(status, json=_GATEWAY_ANSWERS[status]))
+    document = _aggregate_document()
+    assert document.id is not None
+
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    assert report.stopped is not None
+    assert report.stopped.status_code == status
+    assert str(status) in report.stopped.reason
+    assert report.stopped.response_id == document.id
+    assert routes["completeness"].call_count == 0
+    assert report.accepted == ()
+    assert report.rejected == ()
+    assert _queued(one_aggregate_project, document.id)
+
+
+@respx.mock
+async def test_a_success_carrying_no_import_report_stops_the_drain_as_surely(one_aggregate_project: Path) -> None:
+    """A 200 is not a verdict either: an endpoint that answered `{}` said nothing about the values."""
+    _mock_instance(aggregate_response=httpx.Response(200, json={}))
+    document = _aggregate_document()
+    assert document.id is not None
+
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    assert report.stopped is not None
+    assert "no import report" in report.stopped.reason
+    assert report.accepted == ()
+    assert _queued(one_aggregate_project, document.id)
+
+
+@respx.mock
+async def test_an_error_status_with_no_import_report_is_not_read_as_a_rejection(
+    one_aggregate_project: Path,
+) -> None:
+    """A gateway may write `status: ERROR` of its own, and a status line is not an import report.
+
+    Filing this under `rejected/` would say DHIS2 refused a payload it was never handed, and the
+    receipt would leave the queue for good over a credential that can be fixed in a minute.
+    """
+    _mock_instance(aggregate_response=httpx.Response(403, json={"status": "ERROR", "message": "Forbidden"}))
+    document = _aggregate_document()
+    assert document.id is not None
+
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    assert report.stopped is not None
+    assert report.stopped.status_code == 403
+    assert report.rejected == ()
+    assert not (one_aggregate_project / REJECTED_RESPONSES_RELATIVE_PATH / f"{document.id}.json").exists()
+    assert _queued(one_aggregate_project, document.id)
+
+
+@respx.mock
+async def test_a_harvested_409_is_a_verdict_and_files_the_receipt_under_rejected(
+    one_aggregate_project: Path, wire_version: str
+) -> None:
+    """The 409 the instances really answer carries the endpoint's own report, so it is a refusal to file."""
+    _mock_instance(wire_version=wire_version, aggregate_response=_harvested_aggregate_value_type_409(wire_version))
+    document = _aggregate_document()
+    assert document.id is not None
+
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    assert report.stopped is None
+    assert [outcome.response_id for outcome in report.rejected] == [document.id]
+    assert (one_aggregate_project / REJECTED_RESPONSES_RELATIVE_PATH / f"{document.id}.json").is_file()
+
+
+@respx.mock
+async def test_an_accepted_import_carries_the_report_the_verdict_was_read_off(
+    one_aggregate_project: Path,
+) -> None:
+    """The forwarded state is a claim about DHIS2's own summary, so the sidecar holds the summary."""
+    _mock_instance()
+    document = _aggregate_document()
+    assert document.id is not None
+
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    outcome = report.accepted[0].import_outcome
+    assert outcome is not None
+    assert outcome.is_accepted is True
+    assert outcome.report_recognised is True
+    assert outcome.http_status is None
+    assert (one_aggregate_project / FORWARDED_RESPONSES_RELATIVE_PATH / f"{document.id}.json").is_file()
+
+
+@respx.mock
+async def test_a_completeness_answer_with_no_import_summary_leaves_the_claim_pending(
+    one_aggregate_project: Path,
+) -> None:
+    """The values landed and the registration did not, which is a claim still owed rather than a refusal."""
+    _mock_instance(completeness_response=httpx.Response(403, json={"message": "Forbidden"}))
+    document = _aggregate_document()
+    assert document.id is not None
+
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    pending = report.completeness_of(ForwardCompletenessKind.PENDING)
+    assert len(pending) == 1
+    assert pending[0].data_set == "BfMAe6Itzgt"
+    assert "403" in (pending[0].message or "")
+    assert report.completeness_of(ForwardCompletenessKind.REFUSED) == ()
+    # The values are in, and they stay in: a claim that did not land does not un-import them.
+    assert (one_aggregate_project / FORWARDED_RESPONSES_RELATIVE_PATH / f"{document.id}.json").is_file()
