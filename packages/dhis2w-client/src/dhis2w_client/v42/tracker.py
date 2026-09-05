@@ -444,8 +444,11 @@ class TrackerAccessor:
         `org_unit`, `tracked_entity`, `enrollment`, and `filter` each accept a
         single id or a sequence, repeating as the matching query param.
         `status` filters by event status (`ACTIVE` / `COMPLETED` /
-        `SCHEDULE` / `SKIPPED` / `VISITED`) via `status`. `updated_after` and
-        `occurred_after` accept an ISO string, `date`, or `datetime`.
+        `SCHEDULE` / `SKIPPED` / `VISITED`) via `status`. `ou_mode` rides the
+        `orgUnitMode` key, the only one this endpoint reads on DHIS2 2.42 and
+        2.43, where the two sibling reads only read `ouMode` (BUGS.md #113).
+        `updated_after` and `occurred_after` accept an ISO string, `date`, or
+        `datetime`.
         `extra_params` covers the rest (`order`, `occurredBefore`,
         `scheduledAfter`, `assignedUser`, ...).
 
@@ -461,6 +464,7 @@ class TrackerAccessor:
             program_stage=program_stage,
             org_unit=org_unit,
             ou_mode=ou_mode,
+            ou_mode_param="orgUnitMode",
             tracked_entity=tracked_entity,
             enrollment=enrollment,
             status=status,
@@ -504,6 +508,7 @@ def _read_params(
     tracked_entity_type: str | None = None,
     org_unit: str | Sequence[str] | None = None,
     ou_mode: str | None = None,
+    ou_mode_param: str = "ouMode",
     tracked_entity: str | Sequence[str] | None = None,
     enrollment: str | Sequence[str] | None = None,
     status: str | None = None,
@@ -522,7 +527,10 @@ def _read_params(
     `filter`) repeat; scalars pass straight through; `None` is dropped so
     unset params never reach the wire. `status_param` names the wire key the
     `status` value rides — `programStatus` for tracked entities / enrollments,
-    `status` for events. Date args normalise to ISO via `_to_iso`.
+    `status` for events. `ou_mode_param` names the key the mode rides —
+    `ouMode` for tracked entities / enrollments, `orgUnitMode` for events,
+    because DHIS2 2.42 and 2.43 read a different key on each and ignore the
+    other (BUGS.md #113). Date args normalise to ISO via `_to_iso`.
     """
     params: dict[str, Any] = {}
     if program is not None:
@@ -533,7 +541,7 @@ def _read_params(
         params["trackedEntityType"] = tracked_entity_type
     _repeat(params, "orgUnit", org_unit)
     if ou_mode is not None:
-        params["ouMode"] = ou_mode
+        params[ou_mode_param] = ou_mode
     _repeat(params, "trackedEntity", tracked_entity)
     _repeat(params, "enrollment", enrollment)
     if status is not None:

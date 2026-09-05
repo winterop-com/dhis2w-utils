@@ -173,6 +173,7 @@ SKIP_BY_VERSION: dict[str, frozenset[str]] = {
             # the 2024 event data the fixture carries. Both run green on
             # v41 and v42, which is why they live in the common set.
             "client/analytics_events_enrollments.py",
+            "client/analytics_event_query.py",
             "mcp/analytics_events_enrollments.py",
             # Same BUGS.md #36 one step downstream: the aborted analytics job
             # leaves the tables empty, so every analytics query answers

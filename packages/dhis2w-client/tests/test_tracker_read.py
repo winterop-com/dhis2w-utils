@@ -56,6 +56,7 @@ async def test_tracked_entities_builds_repeated_params_and_returns_envelope(
     assert params["trackedEntityType"] == "tetUidAAA01"
     assert params.get_list("orgUnit") == ["ouUidAAA001", "ouUidBBB002"]
     assert params["ouMode"] == "DESCENDANTS"
+    assert "orgUnitMode" not in params
     assert params.get_list("trackedEntity") == ["teUid000001"]
     assert params["programStatus"] == "ACTIVE"
     assert params["fields"] == "trackedEntity,attributes[attribute,value]"
@@ -102,7 +103,7 @@ async def test_enrollments_maps_status_and_repeats_ids(
 async def test_events_maps_status_stage_and_occurred_after(
     server_version: str, mock_system_info: Callable[..., None]
 ) -> None:
-    """`events(...)` sends programStage/occurredAfter and maps status -> status (event status)."""
+    """`events(...)` sends programStage/occurredAfter, maps status -> status, and rides the mode on orgUnitMode."""
     mock_system_info(server_version)
     route = respx.get("https://dhis2.example/api/tracker/events").mock(
         return_value=httpx.Response(200, json=_page([{"event": "evUid000001"}])),
@@ -115,6 +116,7 @@ async def test_events_maps_status_stage_and_occurred_after(
             program="progUid0001",
             program_stage="psUidAAA001",
             org_unit="ouUidAAA001",
+            ou_mode="DESCENDANTS",
             enrollment="enrUid00001",
             status="COMPLETED",
             occurred_after="2024-01-01",
@@ -127,6 +129,8 @@ async def test_events_maps_status_stage_and_occurred_after(
     assert params["program"] == "progUid0001"
     assert params["programStage"] == "psUidAAA001"
     assert params["orgUnit"] == "ouUidAAA001"
+    assert params["orgUnitMode"] == "DESCENDANTS"
+    assert "ouMode" not in params
     assert params.get_list("enrollment") == ["enrUid00001"]
     assert params["status"] == "COMPLETED"
     assert "programStatus" not in params

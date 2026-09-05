@@ -17,10 +17,10 @@ Auto-generated from the `dhis2w-client` source via `mkdocstrings`. Every class, 
 - [OpenAPI-derived models](oas.md) — the 562+ classes emitted under `generated/v42/oas/` from `/api/openapi.json`
 - [System module](system.md) — `Me`, `SystemInfo`, `SystemModule`
 - [Tracker reads](tracker.md) — instance models, status enums
-- [Aggregate](aggregate.md) — `DataValue`, `DataValueSet`
-- [Data values (streaming)](data-values.md) — `DataValuesAccessor` on `Dhis2Client.data_values` (streaming `/api/dataValueSets` imports)
+- [Aggregate](aggregate.md) — `DataValue`, `DataValueSet`, completeness registrations + their read accessor
+- [Data values (import + export)](data-values.md) — `DataValuesAccessor` on `Dhis2Client.data_values` (streaming imports, typed export, `client.stream` to a sink)
 - [Analytics](analytics.md) — `Grid`, `GridHeader` (OAS-emitted) + `AnalyticsMetaData` (typed parser helper over `Grid.metaData`)
-- [Analytics streaming](analytics-stream.md) — `AnalyticsAccessor` on `Dhis2Client.analytics` (chunked `/api/analytics*` downloads)
+- [Analytics streaming](analytics-stream.md) — `AnalyticsAccessor` on `Dhis2Client.analytics` (pivot, event + enrollment line lists, chunked `/api/analytics*` downloads)
 - [Maintenance](maintenance.md) — `Notification`, `DataIntegrityCheck`, `DataIntegrityResult`, `DataIntegrityReport`
 - [Metadata accessor](metadata-accessor.md) — `MetadataAccessor` on `Dhis2Client.metadata` (bulk delete + multi-resource operations)
 - [Customize](customize.md) — `CustomizeAccessor`, `LoginCustomization`, `CustomizationResult`
@@ -44,7 +44,7 @@ Auto-generated from the `dhis2w-client` source via `mkdocstrings`. Every class, 
 - [Option sets](option-sets.md) — `OptionSetsAccessor` + `OptionSpec` + `UpsertReport` — controlled-vocabulary option lists with declarative sync
 - [Program rules](program-rules.md) — `ProgramRulesAccessor` — program-rule reads, variable resolution, expression validation, reverse-reference lookup
 - [JSON Patch ops](json-patch.md) — `JsonPatchOp` + `JsonPatchOpAdapter` — typed RFC 6902 ops for `PATCH /api/{resource}/{uid}`
-- [Tasks module](tasks.md) — `TaskModule` + `TaskCompletion` — poll DHIS2 background jobs (analytics, imports, predictors) to completion
+- [Tasks module](tasks.md) — `TaskModule` + `TaskCompletion` + `TaskPoll` — block on DHIS2 background jobs, or read their feed one poll at a time
 - [SQL views](sql-views.md) — `SqlViewsAccessor` + `SqlViewRunner` for DHIS2 `SqlView` execution workflows
 - [Periods](periods.md) — `PeriodType` StrEnum
 - [UIDs](uids.md) — client-side UID generator + validator

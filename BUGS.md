@@ -26,7 +26,7 @@ below.
 
 ## Index
 
-111 entries grouped by area. **Status tags** carry the result of the most
+113 entries grouped by area. **Status tags** carry the result of the most
 recent re-verification against `dhis2/core` docker images (2026-05-12 sweep,
 updated by the 2026-06-09 sweep): **[FIXED v43]** on v43 only (still present
 on older majors), **[PARTIAL]** where the wire accepts the new shape but
@@ -143,6 +143,8 @@ filing.
 - [#109](#109-filtertrackedentityattributeeqvalue-on-apitrackertrackedentities-matches-without-regard-to-case-so-eq-is-not-equality) — a tracked entity attribute `filter=...:eq:...` ignores case, so `eq` is not exact
 - [#110](#110-a-program-stage-can-exist-with-program-null) — a program stage can exist with `program: null`, so the flat stage count disagrees with the walk through programs
 - [#111](#111-metadata-name-fields-hold-pre-escaped-html-entities) — metadata `name` fields hold pre-escaped HTML entities (`&lt;`, `&gt;`) as stored text
+- [#112](#112-atomicmode-on-post-apidatavaluesets-has-no-effect-a-partly-invalid-import-commits-the-valid-rows-under-all-and-object-alike) — `atomicMode` on `POST /api/dataValueSets` has no effect: a partly invalid import commits the valid rows under `ALL` and `OBJECT` alike
+- [#113](#113-apitrackerevents-reads-the-organisation-unit-mode-from-orgunitmode-while-apitrackertrackedentities-and-apitrackerenrollments-read-it-from-oumode-and-each-ignores-the-other-key) — `/api/tracker/events` reads the organisation unit mode from `orgUnitMode` while the two sibling reads read `ouMode`, and each ignores the other key
 
 ### v43-specific
 
@@ -2827,6 +2829,89 @@ out of order` - `generate examples` fetches the metadata separately from
 combo return the option combos in the same order.
 
 **Verifier:** none yet.
+
+---
+
+### 112. `atomicMode` on `POST /api/dataValueSets` has no effect: a partly invalid import commits the valid rows under `ALL` and `OBJECT` alike
+
+DHIS2 documents `atomicMode=ALL` (the default) as rejecting the whole data value set
+import when any row is rejected, and `OBJECT` as committing the rows that pass. Observed,
+a two-row payload with one valid row and one row that fails value-type validation commits
+the valid row and ignores the other under both modes, on both majors. The switch changes
+nothing.
+
+**Observed on:** DHIS2 2.42.7-SNAPSHOT (`play.im.dhis2.org/dev-2-42`) and 2.43
+(`play.im.dhis2.org/dev-2-43`), 2026-09-05.
+
+**Repro** (Sierra Leone demo; `fClA2Erf6IO` is numeric; pick a `value` the instance does
+not already hold, because an unchanged value is reported as ignored too):
+
+```bash
+for MODE in ALL OBJECT; do
+  curl -s -u admin:district -H 'Content-Type: application/json' \
+    "https://play.im.dhis2.org/dev-2-42/api/dataValueSets?atomicMode=$MODE" \
+    -d '{"dataValues":[
+      {"dataElement":"fClA2Erf6IO","categoryOptionCombo":"Prlt0C1RF0s","period":"202603","orgUnit":"DiszpKrYNg8","value":"31"},
+      {"dataElement":"fClA2Erf6IO","categoryOptionCombo":"Prlt0C1RF0s","period":"202602","orgUnit":"DiszpKrYNg8","value":"x"}]}' \
+    | jq '{status, importCount: .response.importCount}'
+done
+```
+
+**Expected:** `ALL` answers `importCount.updated = 0` and leaves the stored value alone;
+`OBJECT` answers `updated = 1, ignored = 1`.
+
+**Actual:** both modes answer `{"status":"WARNING","importCount":{"imported":0,"updated":1,"ignored":1,"deleted":0}}`
+and `GET /api/dataValues?de=fClA2Erf6IO&pe=202603&ou=DiszpKrYNg8&co=Prlt0C1RF0s` reads
+back the new value. v42 wraps the summary in HTTP 409 (entry #6); v43 answers 200.
+
+**Workaround in this repo:** none possible on the client side. `DataValuesAccessor.stream`
+forwards `atomic_mode` unchanged so a build that honours it gets the documented behaviour;
+`docs/api/data-values.md` and `examples/client/data_values_import_atomic.py` state the
+observed behaviour and tell callers not to rely on `ALL` to keep a partly invalid import
+out.
+
+**Verifier:** `examples/client/data_values_import_atomic.py` prints both summaries.
+
+### 113. `/api/tracker/events` reads the organisation unit mode from `orgUnitMode` while `/api/tracker/trackedEntities` and `/api/tracker/enrollments` read it from `ouMode`, and each ignores the other key
+
+The three tracker reads take the same organisation unit scoping, but on 2.42 and 2.43 they
+do not agree on the query key that carries the mode. `events` honours `orgUnitMode` and
+silently ignores `ouMode`; `trackedEntities` and `enrollments` honour `ouMode` and silently
+ignore `orgUnitMode`. An ignored key is not an error: the read proceeds in the default mode,
+`SELECTED`, and for the national root that is an empty page. Sending both keys is not a way
+out: with both present, `trackedEntities` and `enrollments` answer the empty page as well.
+On 2.41 every read honours both keys.
+
+**Observed on:** DHIS2 2.42.7-SNAPSHOT (`play.im.dhis2.org/dev-2-42`) and 2.43
+(`play.im.dhis2.org/dev-2-43`), 2026-09-05. Not present on 2.41 (`dev-2-41`).
+
+**Repro** (Sierra Leone demo, Child Programme below the national root):
+
+```bash
+B=https://play.im.dhis2.org/dev-2-42/api/tracker
+Q='program=IpHINAT79UW&orgUnit=ImspTQPwCqd&pageSize=3'
+curl -s -u admin:district "$B/events?$Q&ouMode=DESCENDANTS"                 | jq '.events | length'            # 0
+curl -s -u admin:district "$B/events?$Q&orgUnitMode=DESCENDANTS"            | jq '.events | length'            # 3
+curl -s -u admin:district "$B/trackedEntities?$Q&ouMode=DESCENDANTS"        | jq '.trackedEntities | length'   # 3
+curl -s -u admin:district "$B/trackedEntities?$Q&orgUnitMode=DESCENDANTS"   | jq '.trackedEntities | length'   # 0
+curl -s -u admin:district "$B/enrollments?$Q&ouMode=DESCENDANTS"            | jq '.enrollments | length'       # 3
+curl -s -u admin:district "$B/enrollments?$Q&orgUnitMode=DESCENDANTS"       | jq '.enrollments | length'       # 0
+curl -s -u admin:district "$B/trackedEntities?$Q&ouMode=DESCENDANTS&orgUnitMode=DESCENDANTS" | jq '.trackedEntities | length'  # 0
+```
+
+**Expected:** one key, honoured by all three reads, and an unknown key refused with a 400
+rather than dropped (entry #98 records the same silent drop on `trackedEntities`).
+
+**Actual:** as annotated above.
+
+**Workaround in this repo:** `TrackerAccessor.events` sends the mode as `orgUnitMode`
+and `tracked_entities` / `enrollments` send it as `ouMode`, in
+`dhis2w_client/v4{1,2,3}/tracker.py` (`_read_params(ou_mode_param=...)`); the plugin
+service `list_events` in `dhis2w_core/v4{1,2,3}/plugins/tracker/service.py` does the same.
+2.41 honours both keys, so the per-endpoint choice is correct on every supported major.
+
+**Verifier:** `packages/dhis2w-client/tests/test_tracker_read.py` asserts the key per read;
+`examples/client/tracker_reads.py` reads the root subtree on all three.
 
 ---
 

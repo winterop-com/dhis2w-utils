@@ -249,9 +249,12 @@ async def list_events(
     Works with both event programs (no registration) and tracker programs. The endpoint
     spells its two entity filters inconsistently: `trackedEntity` is singular and
     `enrollments` is plural, and the other spelling of each is accepted and silently
-    dropped, so a wrong one returns the whole program (BUGS.md #91).
+    dropped, so a wrong one returns the whole program (BUGS.md #91). The
+    organisation unit mode rides `orgUnitMode`: on DHIS2 2.42 and 2.43 this
+    endpoint reads only that key, where the tracked entity and enrollment reads
+    only read `ouMode` (BUGS.md #113).
     """
-    params: dict[str, Any] = {"ouMode": ou_mode, "pageSize": page_size}
+    params: dict[str, Any] = {"orgUnitMode": ou_mode, "pageSize": page_size}
     for key, value in (
         ("program", program),
         ("programStage", program_stage),

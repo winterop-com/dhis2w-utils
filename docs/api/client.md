@@ -58,6 +58,7 @@ When an endpoint doesn't have a typed wrapper yet (or you want the literal wire 
 - `await client.delete_raw(path)` -> `dict[str, Any]`
 - `await client.get(path, model=MyBaseModel)` -> typed via your own pydantic model
 - `await client.get_response(path, params=..., extra_headers=...)` -> `httpx.Response` (no raise on 4xx/5xx)
+- `await client.stream(method, path, sink, params=...)` -> bytes written; the body goes chunk by chunk to a `Path`, a `.write(bytes)` object, or a chunk callable, never into memory
 
 Keep the use of raw helpers narrow — every typed accessor `client.X.Y()` is preferable for production code (the typed return is what makes the rest of the codebase work). The architecture page [Client library](../architecture/client.md) covers the lifecycle states (`unconnected -> connecting -> connected -> closed`) and how `connect()` binds the version-specific accessors.
 

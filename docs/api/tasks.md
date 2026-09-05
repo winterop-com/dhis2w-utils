@@ -11,17 +11,15 @@
 ## Worked example — kick off + block + branch on completion
 
 ```python
-from dhis2w_client import WebMessageResponse
 from dhis2w_client.v42.tasks import TaskTimeoutError
 from dhis2w_core.client_context import open_client
 from dhis2w_core.profile import profile_from_env
 
 async with open_client(profile_from_env()) as client:
-    # 1. Kick off an analytics resource-table refresh via the raw HTTP path.
-    #    DHIS2 returns a WebMessage envelope; `.task_ref()` extracts the
-    #    `(job_type, uid)` tuple await_completion takes.
-    raw = await client.post_raw("/api/resourceTables/analytics", params={"lastYears": 1})
-    envelope = WebMessageResponse.model_validate(raw)
+    # 1. Kick off an analytics-table build. DHIS2 returns a WebMessage
+    #    envelope; `.task_ref()` extracts the `(job_type, uid)` tuple
+    #    await_completion takes.
+    envelope = await client.maintenance.run_analytics_tables(last_years=1)
     ref = envelope.task_ref()
     if ref is None:
         print("no task-ref in response — nothing to watch")
@@ -68,10 +66,25 @@ async for notification in client.tasks.iter_notifications(ref, timeout=600):
         break
 ```
 
+## One poll per tick (external schedulers)
+
+`await_completion` and `iter_notifications` own the loop. A caller that already has a clock, such as a workflow engine polling once per tick or a UI refreshing on a timer, wants one read and a return. `poll_once` is that primitive, and the two blocking helpers are built on it:
+
+```python
+poll = await client.tasks.poll_once(ref)
+for notification in poll.new:
+    print(f"  [{notification.level}] {notification.message}")
+if not poll.completed:
+    later = await client.tasks.poll_once(ref, cursor=poll.cursor)
+```
+
+Each call GETs `/api/system/tasks/{job_type}/{uid}` once and returns a `TaskPoll`: `new` holds the notifications not covered by the cursor, oldest first and ending at DHIS2's terminal row when it has arrived, `completed` says whether that row has arrived, and `cursor` is what to pass next time so already-seen rows stay out. `relative_notifier_endpoint` is the path the poll read. The cursor is a frozenset of notification identifiers, so it survives being stored between ticks.
+
 `parse_task_ref(...)` converts either a `(job_type, uid)` tuple or a `"JOB_TYPE/uid"` string into the canonical tuple form — handy when wiring the awaiter to call sites that get the ref from different shapes.
 
-## Related example
+## Related examples
 
 - [`examples/client/task_await.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/task_await.py) — end-to-end analytics-refresh kick-off + block.
+- [`examples/client/analytics_tables_poll_once.py`](https://github.com/winterop-com/dhis2w-utils/blob/main/examples/client/analytics_tables_poll_once.py) — the same job followed with `poll_once` and a carried cursor.
 
 ::: dhis2w_client.v42.tasks

@@ -81,8 +81,12 @@ await client.resources.data_elements.delete(uid)
 | Domain | Methods |
 | --- | --- |
 | **System** | `me()`, `info()`, `calendar()`, `generate_uids()` |
-| **Tracker** | `tracked_entities()`, `enrollments()`, `events()`, `relationships()`, `register()`, `enroll()`, `create_event()` |
-| **Analytics** | `query()`, `events_query()`, `enrollments_query()`, `refresh()` |
+| **Tracker** | `register()`, `enroll()`, `add_event()`, `outstanding()`; reads `tracked_entities()`, `enrollments()`, `events()` with the standard `/api/tracker` query surface (program, organisation unit and mode, status, field selector, paging, updated-after) |
+| **Analytics** | `aggregate()` for a parsed pivot, `event_query()` / `enrollment_query()` for the tracker line lists, `stream()` / `stream_to()` for chunked downloads |
+| **Data values** | `stream()` imports JSON / XML / CSV / ADX without buffering, with `atomic_mode`; `export()` reads a form's values back as a typed `DataValueSet`; `import_grouped_by_dataset()` for the v43 mixed-data-set path |
+| **Completeness** | `complete_data_set_registrations.export()` reads which forms are reported complete, by data set, period or date range, organisation unit and subtree |
+| **Maintenance** | `get_integrity_report()`, `iter_integrity_issues()`, `update_category_option_combos()`, `run_analytics_tables()` |
+| **Tasks** | `await_completion()` and `iter_notifications()` block on a background job; `poll_once()` reads its feed once and returns a cursor for the next tick |
 | **Apps** | `list()`, `hub_list()`, `install()`, `uninstall()`, `update()` |
 | **Files** | `documents()`, `file_resources()`, `upload()`, `download()` |
 | **Messaging** | `conversations()`, `send()`, `reply()`, `mark_read()` |
@@ -92,7 +96,8 @@ await client.resources.data_elements.delete(uid)
 
 - `patch_bulk(resource_type, patches, concurrency=8)`: RFC 6902 JSON Patch across many UIDs, fanned out through a bounded worker pool
 - `apply_sharing_bulk(resource_type, uids, sharing, concurrency=8)`: one sharing block applied to many UIDs through the same pool
-- `stream_to(query, file)`: stream large analytics results to disk
+- `analytics.stream_to(path, ...)`: stream a large analytics result to disk
+- `client.stream(method, path, sink, params=...)`: stream any endpoint's body to a `Path`, a `.write(bytes)` object, or a chunk callable, so an export never sits in memory
 
 ### Utilities
 
