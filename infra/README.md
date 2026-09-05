@@ -1,6 +1,6 @@
 # dhis2-docker
 
-![DHIS2](https://img.shields.io/badge/DHIS2%20Core-42%20%7C%2043-2C6693?style=flat-square)
+![DHIS2](https://img.shields.io/badge/DHIS2%20Core-41%20%7C%2042%20%7C%2043-2C6693?style=flat-square)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791?style=flat-square&logo=postgresql&logoColor=white)
 ![Glowroot](https://img.shields.io/badge/Glowroot-0.14.6-5C4D7D?style=flat-square)
 ![pgAdmin](https://img.shields.io/badge/pgAdmin-4-326690?style=flat-square&logo=postgresql&logoColor=white)
@@ -14,10 +14,10 @@ Local DHIS2 development stack: **PostgreSQL + DHIS2 + Glowroot APM + pgAdmin**, 
 | Service | Image | Purpose |
 |---|---|---|
 | `postgresql` | custom (postgis + wal2json + python3-bcrypt) | DHIS2 database, pre-loaded from `$(DHIS2_VERSION)/dump.sql.gz` |
-| `glowroot-installer` | `alpine:3.20` | Runs once at stack-up to download the Glowroot APM agent into `home/glowroot/` |
-| `dhis2` | `dhis2/core:43` | DHIS2 web app with `-javaagent:/opt/dhis2/glowroot/glowroot.jar` attached |
+| `glowroot-installer` | `debian:12-slim` | Runs once at stack-up to download the Glowroot APM agent into `home/glowroot/` |
+| `dhis2` | `dhis2/core:$(DHIS2_IMAGE_TAG)` | DHIS2 web app with `-javaagent:/opt/dhis2/glowroot/glowroot.jar` attached; the tag is resolved from `versions.env` |
 | `pgadmin4` | `dpage/pgadmin4:latest` | Pre-configured browser-based DB client |
-| `analytics-trigger` | `curlimages/curl:latest` | One-shot: hits `/api/resourceTables/analytics` after DHIS2 becomes healthy, polls to completion |
+| `analytics-trigger` | `debian:12-slim` | One-shot: hits `/api/resourceTables/analytics` after DHIS2 becomes healthy, polls to completion |
 
 ## Prerequisites
 
@@ -27,19 +27,19 @@ Local DHIS2 development stack: **PostgreSQL + DHIS2 + Glowroot APM + pgAdmin**, 
 
 ## Quick start
 
+From the workspace root:
+
 ```bash
-make run
+make dhis2-run
 ```
 
 No `.env` file needed — every variable has a sensible default baked into `compose.yml`. Only create a `.env` if you want to override something (`cp .env.example .env`).
 
-That's it. `make run` will:
+`make dhis2-run` is the one-command path. It wipes the `pgdata` volume so postgres reinitializes from the dump, starts the stack detached, blocks until DHIS2 answers, mints PATs and an OAuth2 client into `home/credentials/.env.auth`, writes the workspace `local_basic` profile, waits for the analytics tables, then streams logs in the foreground. `Ctrl+C` tears the stack down.
 
-1. Wipe `home/logs/*`.
-2. `docker compose down -v` — nuke any previous state, including the `pgdata` volume so postgres reinitializes from scratch.
-3. `docker compose up` with both `compose.yml` and `compose.pgadmin.yml`, streaming logs in the foreground.
+Inside this directory the same ground is covered by `make up-seeded` (`up` + `wait` + `seed` + `profile`), which keeps whatever the volume already holds and leaves the stack detached. `make up-fresh` is the volume-wiping variant of `up`.
 
-First startup takes **5–10 minutes**: postgres imports the dump, DHIS2 runs schema migrations and app discovery, then `analytics-trigger` populates the analytics tables before exiting. Every `make run` does this from scratch — image layers are reused (fast rebuild), but the postgres volume is always wiped (`down -v`), so you get a clean dataset every time. Press `Ctrl+C` to stop.
+First startup is slow: postgres imports the dump, DHIS2 runs schema migrations and app discovery, then `analytics-trigger` populates the analytics tables before exiting.
 
 When it's done you'll have three services ready to browse:
 
@@ -55,7 +55,7 @@ When it's done you'll have three services ready to browse:
 
 Log in as `admin` / `district`. **Any existing username in the dump also works with the password `district`** — `initdb.sh` rewrites every row in `userinfo` on a fresh init (see [Password reset](#password-reset) below).
 
-If the page doesn't load immediately, DHIS2 is still booting. Tomcat takes ~30–90 seconds after postgres becomes healthy. Follow `docker compose logs -f dhis2` to watch it come up.
+If the page doesn't load immediately, DHIS2 is still booting. Tomcat needs a while after postgres becomes healthy. Follow `make logs` to watch it come up.
 
 ### Glowroot APM — http://localhost:4000
 
@@ -66,7 +66,7 @@ Just open the URL — no login screen. `glowroot/admin.json` pre-declares an ano
 - **JVM > Gauges** — heap, GC, threads
 - **JVM > MBean tree / Thread dump / Heap dump** — live introspection
 
-Glowroot stores its own data under `home/glowroot/data/` (H2 embedded). Because `home/glowroot/` is a host bind mount, `make run`'s `down -v` doesn't touch it, so your traces and configuration persist across restarts. For a blank-slate glowroot, `rm -rf home/glowroot/ && make run` — the `glowroot-installer` sidecar will re-download the agent.
+Glowroot stores its own data under `home/glowroot/data/` (H2 embedded). Because `home/glowroot/` is a host bind mount, the `down -v` in `make up-fresh` doesn't touch it, so your traces and configuration persist across restarts. For a blank-slate glowroot, `rm -rf home/glowroot/ && make up-fresh` — the `glowroot-installer` sidecar will re-download the agent. `make clean` removes it for you.
 
 > **Warning** — local dev only. The anonymous-admin shortcut means anyone who can reach port 4000 has full APM access. Never expose this port on a shared machine or network.
 
@@ -84,16 +84,29 @@ If you want to add more servers, either (a) do it in the UI and accept that they
 
 ## Make targets
 
+`make help` prints the live list. Every target honours `DHIS2_VERSION` (default `v43`), `DHIS2_URL`, `DHIS2_USER` and `DHIS2_PASS`.
+
 ```
-make run         clean start: wipe volumes + logs, then start the stack
-make run-force   wipe volumes + logs, rebuild images from scratch, and start
-make build       build images (no cache bust)
-make pull        pull latest images from Docker Hub
-make down        stop the stack (keeps volumes)
-make help        show this help
+make versions        list DHIS2 images available on Docker Hub
+make pull            pull the selected DHIS2 version
+make build           build the supporting images (postgres + glowroot-installer)
+make up              start the stack detached, keeping the volume
+make up-fresh        wipe volumes + logs, then start the stack detached
+make up-seeded       up + wait + seed + profile — DHIS2 with auth ready to use
+make wait            block until DHIS2 answers
+make seed            mint the PAT variations + OAuth2 client into the running stack
+make profile         write the workspace-scoped `local_basic` profile
+make pat             mint a single PAT via Playwright against the running stack
+make ps              show container state
+make status          container state + a DHIS2 reachability probe
+make logs            follow the DHIS2 + postgres logs
+make down            stop the stack, keeping volumes
+make clean           stop, remove volumes, wipe runtime data
+make build-e2e-dump  populate a fresh DHIS2 and dump it to $(DHIS2_VERSION)/dump.sql.gz
+make help            show this help
 ```
 
-`make run` is the right default — it reuses cached image layers so the build step is ~instant, but still wipes the postgres volume for a clean DB. Use `make run-force` only when you've edited `Dockerfile` and need `--no-cache`, since it adds several minutes to re-run `apt-get upgrade` from scratch.
+`make up` is the right default day to day — it reuses cached image layers and the existing database. Reach for `make up-fresh` when you want the dump reloaded from scratch, and for `make build` after editing the `Dockerfile`.
 
 ## Password reset
 
@@ -107,7 +120,7 @@ This means:
 
 - **Every DHIS2 user** — not just `admin` — can log in with their existing username and the password from `.env` (default `district`).
 - **Every disabled account is re-enabled** (`disabled = false`), which matters because real dumps often ship with historical users disabled.
-- **Change the password** by editing `DHIS2_PASSWORD` in `.env` and running `make run` again.
+- **Change the password** by editing `DHIS2_PASSWORD` in `.env` and running `make up-fresh` — the rewrite happens on a fresh postgres init, so an existing volume keeps the old password.
 
 Hashing happens inside the postgres container via `python3-bcrypt` (installed in the `Dockerfile`), so `DHIS2_PASSWORD` can be any plaintext string — no pre-computed hash needed.
 
@@ -125,7 +138,7 @@ The installer is idempotent: if `home/glowroot/glowroot.jar` already exists, it 
 
 ## Environment
 
-`.env` is **fully optional**. Every variable has a default baked into `compose.yml` via `${VAR:-default}` substitution, so `make run` works out of the box with no configuration. If you want to override any default, `cp .env.example .env` and uncomment the lines you care about — docker compose automatically reads `.env` from the project root for variable substitution.
+`.env` is **fully optional**. Every variable has a default baked into `compose.yml` via `${VAR:-default}` substitution, so the stack comes up out of the box with no configuration. If you want to override any default, `cp .env.example .env` and uncomment the lines you care about — docker compose automatically reads `.env` from the project root for variable substitution.
 
 | Variable | Default | What it does |
 |---|---|---|
@@ -143,7 +156,7 @@ The installer is idempotent: if `home/glowroot/glowroot.jar` already exists, it 
 ```
 compose.yml               # base stack: postgres, glowroot-installer, dhis2, analytics-trigger
 compose.pgadmin.yml       # pgadmin4 overlay (always included by Makefile targets)
-Dockerfile                # postgis/postgis:17-3.4 + wal2json + python3-bcrypt
+Dockerfile                # postgis/postgis:17-3.5 + wal2json + python3-bcrypt
 initdb.sh                 # one-shot init: loads dump, resets passwords, enables accounts
 v42/dump.sql.gz           # committed e2e dump for DHIS2 42 (Sierra Leone immunization seed)
 v43/dump.sql.gz           # placeholder empty dump for v43 — build a real one with `make build-e2e-dump DHIS2_VERSION=v43`
@@ -157,7 +170,7 @@ home/                     # bind-mounted into dhis2 container as /opt/dhis2
 ├── dhis.conf             # DHIS2 config (committed)
 ├── dhis-google-auth.json # gitignored
 ├── files/                # DHIS2 runtime files (gitignored)
-├── logs/                 # DHIS2 logs (gitignored, wiped by make run)
+├── logs/                 # DHIS2 logs (gitignored, wiped by make up-fresh)
 └── glowroot/             # downloaded by glowroot-installer (gitignored)
 
 Makefile
@@ -176,9 +189,9 @@ For a walk-through of the DHIS2 `analytics_*` tables (schema, cross-verification
 
 **analytics-trigger keeps printing `Still running...` and never completes.** Check `docker logs dhis2 | grep -i 'added root logger'` — if you see that line *after* analytics started, DHIS2 silently restarted and the task notifications buffer was lost. Same cause as above (memory). `analytics-trigger` hardcodes `admin` / `district`, so if you've deleted the `admin` user from the dump, you'll see `401 Unauthorized` instead.
 
-**pgAdmin complains the server is out of date.** `pull_policy: always` on `dpage/pgadmin4:latest` refreshes the image on every `make run`, but Docker Hub's `:latest` tag occasionally lags. Pin to a specific version in `compose.pgadmin.yml` if needed.
+**pgAdmin complains the server is out of date.** `pull_policy: always` on `dpage/pgadmin4:latest` refreshes the image on every stack-up, but Docker Hub's `:latest` tag occasionally lags. Pin to a specific version in `compose.pgadmin.yml` if needed.
 
-**`make run-force` takes forever.** The `--no-cache` flag re-runs `apt-get upgrade` from scratch inside the postgres image build. Use `make run` unless you've actually edited the `Dockerfile`.
+**The postgres image build takes a while.** `make build` re-pulls the base layers and re-installs `postgresql-17-wal2json` and `python3-bcrypt`. It only has to run after a `Dockerfile` edit or on a machine with no cached layers; `make up` reuses the built image.
 
 **Port 8080 / 4000 / 5050 already in use.** Something else is bound to one of those ports on the host. `lsof -i :8080` to find the culprit, or change the published port in the relevant compose file.
 
