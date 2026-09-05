@@ -77,6 +77,8 @@ from dhis2w_fhir.spool import (
     SpoolLockedError,
     SpoolReadError,
     SpoolState,
+    read_received_responses,
+    read_spooled_receipts,
 )
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -2990,3 +2992,81 @@ async def test_a_stated_posture_outranks_the_file_in_either_direction(forward_pr
 
     assert posted.overwrite_posture is OverwritePosture.ALLOW
     assert [outcome.response_id for outcome in posted.accepted] == ["recapture1"]
+
+
+#: A receipt id that sorts last by file name, carried by the submission that arrived first.
+_LATE_NAME_EARLY_ARRIVAL = "f" * 32
+
+#: A receipt id that sorts first by file name, carried by the submission that arrived second.
+_EARLY_NAME_LATE_ARRIVAL = "0" * 32
+
+
+@pytest.fixture
+def arrival_order_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A project whose two aggregate captures of one cell arrive in the opposite order to their names."""
+    _write_probe_profile(tmp_path, monkeypatch)
+    root = tmp_path / "project"
+    root.mkdir()
+    _write_project(root)
+    document = _aggregate_document()
+    _write_receipt(root, _recaptured(document, _LATE_NAME_EARLY_ARRIVAL), received_at="2026-08-08T10:00:00.000Z")
+    _write_receipt(root, _recaptured(document, _EARLY_NAME_LATE_ARRIVAL), received_at="2026-08-08T11:00:00.000Z")
+    monkeypatch.chdir(root)
+    return root
+
+
+@respx.mock
+async def test_two_captures_of_one_cell_post_in_arrival_order_however_they_are_named(
+    arrival_order_project: Path,
+) -> None:
+    """The instance ends up holding the newest submission, which is what `allow` claims it does."""
+    _mock_instance()
+
+    report = await _forward(arrival_order_project, import_responses=True, overwrites=OverwritePosture.ALLOW)
+
+    assert [outcome.response_id for outcome in report.accepted] == [
+        _LATE_NAME_EARLY_ARRIVAL,
+        _EARLY_NAME_LATE_ARRIVAL,
+    ]
+    # The second post is the newer capture, so it is the one that replaced a value already sent.
+    assert [overwrite.response_id for overwrite in report.overwrites] == [_EARLY_NAME_LATE_ARRIVAL]
+    assert {value.previous_response_id for value in report.overwrites[0].values} == {_LATE_NAME_EARLY_ARRIVAL}
+
+
+@respx.mock
+async def test_the_drain_and_the_forwarded_index_name_the_same_receipt_as_the_sender(
+    arrival_order_project: Path,
+) -> None:
+    """What the run posted last is what the index reads back as the holder of each cell."""
+    _mock_instance()
+
+    await _forward(arrival_order_project, import_responses=True, overwrites=OverwritePosture.ALLOW)
+
+    index = build_forwarded_cell_index(service.spool_layout(load_project(arrival_order_project)))
+    assert index.covered
+    assert {submission.response_id for submission in index.covered.values()} == {_EARLY_NAME_LATE_ARRIVAL}
+
+
+@respx.mock
+async def test_refuse_admits_the_earlier_capture_and_queues_the_later_one(
+    arrival_order_project: Path,
+) -> None:
+    """Admission under `refuse` is decided by arrival rather than by whichever file name sorted first."""
+    _mock_instance()
+
+    report = await _forward(arrival_order_project, import_responses=True, overwrites=OverwritePosture.REFUSE)
+
+    assert [outcome.response_id for outcome in report.accepted] == [_LATE_NAME_EARLY_ARRIVAL]
+    assert [outcome.response_id for outcome in report.overwrite_refused] == [_EARLY_NAME_LATE_ARRIVAL]
+    assert (arrival_order_project / FORWARDED_RESPONSES_RELATIVE_PATH / f"{_LATE_NAME_EARLY_ARRIVAL}.json").is_file()
+    assert (arrival_order_project / RECEIVED_RESPONSES_RELATIVE_PATH / f"{_EARLY_NAME_LATE_ARRIVAL}.json").is_file()
+
+
+def test_the_queue_listing_reads_in_the_order_the_drain_posts_in(arrival_order_project: Path) -> None:
+    """`d2w fhir spool` and a drain agree on what is next, so a listing predicts what a run will do."""
+    layout = service.spool_layout(load_project(arrival_order_project))
+
+    listed = [receipt.response_id for receipt in read_spooled_receipts(layout).in_state(SpoolState.RECEIVED)]
+    drained = [response.response_id for response in read_received_responses(layout).responses]
+
+    assert listed == drained == [_LATE_NAME_EARLY_ARRIVAL, _EARLY_NAME_LATE_ARRIVAL]

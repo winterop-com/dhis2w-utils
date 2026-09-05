@@ -364,12 +364,18 @@ class SpoolContents(BaseModel):
     quarantined: tuple[QuarantinedFile, ...] = ()
 
     def in_state(self, state: SpoolState) -> tuple[SpooledReceipt, ...]:
-        """Every receipt sitting in one state, in the order the directory was read."""
+        """Every receipt sitting in one state, in arrival order with the receipt id as the tiebreaker."""
         return tuple(receipt for receipt in self.receipts if receipt.state is state)
 
 
 def read_received_responses(layout: SpoolLayout) -> SpoolReading:
-    """Read every pending receipt of one project, in file-name order so a drain is reproducible.
+    """Read every pending receipt of one project, in arrival order with the receipt id as the tiebreaker.
+
+    A receipt id is a random hex string, so a directory listing orders on nothing a submission means.
+    `received_at` is what a drain has to act on: DHIS2 replaces an aggregate value in place, so the
+    instance ends up holding whichever submission was posted last, and posting the older one last
+    would leave it holding the older number. Two receipts stamped the same instant order on their
+    ids, which is arbitrary but the same on every run, so a drain stays reproducible.
 
     An absent spool directory is not an error - it is a project nothing has been captured into yet -
     and answers with no receipts at all. A file that will not read as a receipt is moved to
@@ -387,6 +393,7 @@ def read_received_responses(layout: SpoolLayout) -> SpoolReading:
             responses.append(_read_receipt(path, layout))
         except _MalformedReceiptError as error:
             quarantined.append(_quarantine(path, layout, str(error)))
+    responses.sort(key=lambda response: (response.received_at, response.response_id))
     return SpoolReading(responses=tuple(responses), quarantined=tuple(quarantined))
 
 
@@ -412,6 +419,10 @@ def read_spooled_receipts(layout: SpoolLayout) -> SpoolContents:
 
     What `d2w fhir spool` lists. It touches no DHIS2 and parses no payload: a receipt is named by its
     envelope, which is the whole of what a queue listing states.
+
+    Each state is listed in arrival order with the receipt id as the tiebreaker, which is the order
+    `read_received_responses` drains in - so what a listing shows as next in the queue is what the
+    next drain posts first.
     """
     receipts: list[SpooledReceipt] = []
     quarantined: list[QuarantinedFile] = []
@@ -428,6 +439,7 @@ def read_spooled_receipts(layout: SpoolLayout) -> SpoolContents:
             if state is SpoolState.RECEIVED:
                 receipt = receipt.model_copy(update={"refusal": read_refusal_record(directory, receipt.response_id)})
             receipts.append(receipt)
+    receipts.sort(key=lambda receipt: (receipt.received_at, receipt.response_id))
     return SpoolContents(receipts=tuple(receipts), quarantined=malformed_files(layout))
 
 
@@ -587,7 +599,11 @@ class _MalformedReceiptError(Exception):
 
 
 def _receipt_paths(directory: Path) -> list[Path]:
-    """Every receipt file of one state directory, in file-name order, with the sidecars left out."""
+    """Every receipt file of one state directory, with the sidecars left out.
+
+    File-name order is a stable reading of the directory and nothing more; a caller that acts on the
+    receipts orders them on `received_at` once they are parsed.
+    """
     return sorted(
         path
         for path in _scan(directory)

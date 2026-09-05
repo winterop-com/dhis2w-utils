@@ -5710,13 +5710,18 @@ async def _post_translations(
     One payload per POST is what makes the outcome attributable: DHIS2 answers a bundle with one
     report for the bundle, and a spool whose receipts move individually needs one answer each.
 
-    The order is `FORWARD_TARGET_ORDER` and then the spool's, which is what makes one drain
-    internally consistent: a person-only capture creates the person a registration captured seconds
-    later enrols, a registration creates the enrollment a stage event captured seconds later answers
-    against, and DHIS2 refuses an event naming an enrollment it cannot find with `E1313`. Posting
-    by kind is the whole of the coordination - there is no dependency graph, and a registration
-    DHIS2 rejects still leaves its stage events to fail `E1313`, which the next drain retries once
-    the cause is fixed.
+    The order is `FORWARD_TARGET_ORDER` first, which is what makes one drain internally consistent:
+    a person-only capture creates the person a registration captured seconds later enrols, a
+    registration creates the enrollment a stage event captured seconds later answers against, and
+    DHIS2 refuses an event naming an enrollment it cannot find with `E1313`. Posting by kind is the
+    whole of the coordination - there is no dependency graph, and a registration DHIS2 rejects still
+    leaves its stage events to fail `E1313`, which the next drain retries once the cause is fixed.
+
+    Inside one kind the order is arrival, `received_at` then the receipt id. DHIS2 replaces an
+    aggregate value in place, so the instance holds whatever was posted last, and posting the oldest
+    submission of a cell last would leave it holding the oldest number. Arrival order is also what
+    `dhis2w_fhir.overwrite` reads the forwarded index by, so the drain and the index name the same
+    receipt as the sender of each cell.
 
     **The receipt is filed the instant its verdict is known**, sidecar first and then the rename, so
     the disk agrees with DHIS2 at every point of the loop rather than only at the end of it. A drain
@@ -5747,7 +5752,7 @@ async def _post_translations(
     """
     translated = sorted(
         ((entry, result) for entry, result in zip(spooled, conversion.results, strict=True) if not result.is_refused),
-        key=lambda pair: _post_order(pair[1]),
+        key=lambda pair: (_post_order(pair[1]), pair[0].received_at, pair[0].response_id),
     )
     imports: dict[str, ForwardImportOutcome] = {}
     filed: dict[str, Path] = {}
