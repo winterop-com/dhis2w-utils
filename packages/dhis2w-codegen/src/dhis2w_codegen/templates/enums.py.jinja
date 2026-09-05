@@ -12,10 +12,10 @@ from dhis2w_client.{{ version_key }}.periods import PeriodType as PeriodType
 {% for enum in enums %}
 
 class {{ enum.class_name }}(StrEnum):
-    """{{ enum.klass }} (DHIS2 {{ version_key }})."""
+    """{{ enum.klass|docstring_body }} (DHIS2 {{ version_key }})."""
 
 {% for value in enum.values %}
-    {{ value.identifier }} = "{{ value.value }}"
+    {{ value.identifier }} = {{ value.literal }}
 {% endfor %}
 
 {% endfor %}

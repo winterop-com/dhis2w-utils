@@ -46,9 +46,9 @@ class {{ class_name }}(BaseModel):
 
 {% for field in fields %}
 {% if field.alias and field.docstring %}
-    {{ field.name }}: {{ field.type }} | None = Field(default=None, alias="{{ field.alias }}", description={{ field.docstring|tojson }})
+    {{ field.name }}: {{ field.type }} | None = Field(default=None, alias={{ field.alias|python_string_literal }}, description={{ field.docstring|tojson }})
 {% elif field.alias %}
-    {{ field.name }}: {{ field.type }} | None = Field(default=None, alias="{{ field.alias }}")
+    {{ field.name }}: {{ field.type }} | None = Field(default=None, alias={{ field.alias|python_string_literal }})
 {% elif field.docstring %}
     {{ field.name }}: {{ field.type }} | None = Field(default=None, description={{ field.docstring|tojson }})
 {% else %}

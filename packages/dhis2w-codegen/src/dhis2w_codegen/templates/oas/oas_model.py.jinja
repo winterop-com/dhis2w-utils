@@ -42,22 +42,22 @@ if TYPE_CHECKING:
 {% for cls in classes %}
 
 class {{ cls.class_name }}(_BaseModel):
-    """{{ cls.docstring }}"""
+    """{{ cls.docstring|docstring_body }}"""
 
     model_config = _ConfigDict(extra="allow", populate_by_name=True, defer_build=True)
 
 {% for field in cls.fields %}
 {% if field.literal_default %}
 {% if field.alias %}
-    {{ field.name }}: {{ field.type }} = _Field(default={{ field.literal_default }}, alias="{{ field.alias }}")
+    {{ field.name }}: {{ field.type }} = _Field(default={{ field.literal_default }}, alias={{ field.alias|python_string_literal }})
 {% else %}
     {{ field.name }}: {{ field.type }} = {{ field.literal_default }}
 {% endif %}
 {% elif field.required %}
 {% if field.alias and field.description %}
-    {{ field.name }}: {{ field.type }} = _Field(alias="{{ field.alias }}", description={{ field.description|tojson }})
+    {{ field.name }}: {{ field.type }} = _Field(alias={{ field.alias|python_string_literal }}, description={{ field.description|tojson }})
 {% elif field.alias %}
-    {{ field.name }}: {{ field.type }} = _Field(alias="{{ field.alias }}")
+    {{ field.name }}: {{ field.type }} = _Field(alias={{ field.alias|python_string_literal }})
 {% elif field.description %}
     {{ field.name }}: {{ field.type }} = _Field(description={{ field.description|tojson }})
 {% else %}
@@ -65,9 +65,9 @@ class {{ cls.class_name }}(_BaseModel):
 {% endif %}
 {% else %}
 {% if field.alias and field.description %}
-    {{ field.name }}: {{ field.type }} | None = _Field(default=None, alias="{{ field.alias }}", description={{ field.description|tojson }})
+    {{ field.name }}: {{ field.type }} | None = _Field(default=None, alias={{ field.alias|python_string_literal }}, description={{ field.description|tojson }})
 {% elif field.alias %}
-    {{ field.name }}: {{ field.type }} | None = _Field(default=None, alias="{{ field.alias }}")
+    {{ field.name }}: {{ field.type }} | None = _Field(default=None, alias={{ field.alias|python_string_literal }})
 {% elif field.description %}
     {{ field.name }}: {{ field.type }} | None = _Field(default=None, description={{ field.description|tojson }})
 {% else %}

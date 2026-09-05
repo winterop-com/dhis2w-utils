@@ -8,10 +8,10 @@ from enum import StrEnum
 {% for enum in enums %}
 
 class {{ enum.class_name }}(StrEnum):
-    """{{ enum.description or enum.class_name }}."""
+    """{{ (enum.description or enum.class_name)|docstring_body }}."""
 
 {% for value in enum.values %}
-    {{ value.identifier }} = "{{ value.value }}"
+    {{ value.identifier }} = {{ value.literal }}
 {% endfor %}
 
 {% endfor %}

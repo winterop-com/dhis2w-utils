@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
+from dhis2w_codegen._shared import build_template_environment
 from dhis2w_codegen.discover import Schema, SchemaProperty, SchemasManifest
-from dhis2w_codegen.emit import emit
+from dhis2w_codegen.emit import _Enum, _enum_value, emit
 
 
 def _manifest_with(schemas: list[Schema]) -> SchemasManifest:
@@ -95,3 +97,51 @@ def test_emitter_is_regen_stable(tmp_path: Path) -> None:
         first_text = (first / relative).read_text()
         second_text = (second / relative).read_text()
         assert first_text == second_text, f"emitter output drifted across runs in {relative}"
+
+
+HOSTILE_CONSTANTS = [
+    'say "hello"',
+    "back\\slash",
+    "line\nbreak",
+    "café — naïve",
+]
+
+
+def test_schema_enum_values_with_hostile_characters_round_trip() -> None:
+    """Quotes, backslashes, newlines and non-ASCII constants compile and read back verbatim."""
+    enum_model = _Enum(
+        class_name="Hostile",
+        klass="org.example.Hostile",
+        values=[_enum_value(constant) for constant in HOSTILE_CONSTANTS],
+    )
+    source = (
+        build_template_environment()
+        .get_template("enums.py.jinja")
+        .render(
+            version_key="v42",
+            enums=[enum_model],
+        )
+    )
+    namespace: dict[str, Any] = {}
+    exec(compile(source, "<enums>", "exec"), namespace)  # noqa: S102
+    assert [member.value for member in namespace["Hostile"]] == HOSTILE_CONSTANTS
+
+
+def test_schema_enum_klass_with_hostile_characters_compiles() -> None:
+    """A Java class name carrying a backslash stays inside the generated docstring."""
+    enum_model = _Enum(
+        class_name="Described",
+        klass="org.example.Odd\\Name",
+        values=[_enum_value("ONE")],
+    )
+    source = (
+        build_template_environment()
+        .get_template("enums.py.jinja")
+        .render(
+            version_key="v42",
+            enums=[enum_model],
+        )
+    )
+    namespace: dict[str, Any] = {}
+    exec(compile(source, "<enums>", "exec"), namespace)  # noqa: S102
+    assert namespace["Described"].ONE.value == "ONE"

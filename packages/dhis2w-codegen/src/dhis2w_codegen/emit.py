@@ -7,10 +7,9 @@ import keyword
 import re
 from pathlib import Path
 
-from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 from pydantic import BaseModel, ConfigDict
 
-from dhis2w_codegen._shared import format_output
+from dhis2w_codegen._shared import build_template_environment, format_output, python_string_literal
 from dhis2w_codegen.discover import Schema, SchemaProperty, SchemasManifest
 from dhis2w_codegen.mapping import python_type_for
 from dhis2w_codegen.names import to_class_name, to_module_name
@@ -62,6 +61,9 @@ class _EnumValue(BaseModel):
 
     identifier: str
     value: str
+    # Python source for the value, escaped via `repr` so quotes, backslashes,
+    # newlines and non-ASCII text in a wire value cannot break the emitted file.
+    literal: str
 
 
 class _Enum(BaseModel):
@@ -80,16 +82,7 @@ def emit(manifest: SchemasManifest, output_dir: Path) -> None:
     schemas_dir = output_dir / "schemas"
     schemas_dir.mkdir(exist_ok=True)
 
-    environment = Environment(
-        loader=PackageLoader("dhis2w_codegen", "templates"),
-        autoescape=select_autoescape(default=False),
-        undefined=StrictUndefined,
-        keep_trailing_newline=True,
-        # trim/lstrip so `{% if %}` control tags don't leave blank lines
-        # in the rendered output — essential for deterministic rebuilds.
-        trim_blocks=True,
-        lstrip_blocks=True,
-    )
+    environment = build_template_environment()
 
     manifest_path = output_dir / "schemas_manifest.json"
     manifest_path.write_text(
@@ -487,4 +480,4 @@ def _enum_value(raw: str) -> _EnumValue:
         identifier = f"_{identifier}"
     if keyword.iskeyword(identifier.lower()):
         identifier = f"{identifier}_"
-    return _EnumValue(identifier=identifier, value=raw)
+    return _EnumValue(identifier=identifier, value=raw, literal=python_string_literal(raw))
