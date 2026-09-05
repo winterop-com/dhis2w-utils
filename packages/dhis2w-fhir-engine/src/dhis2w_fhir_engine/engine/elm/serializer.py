@@ -22,7 +22,8 @@ from antlr4 import CommonTokenStream, InputStream  # type: ignore[import-untyped
 from ...generated.cql.cqlLexer import cqlLexer
 from ...generated.cql.cqlParser import cqlParser
 from ...generated.cql.cqlVisitor import cqlVisitor
-from ..cql.evaluator import require_end_of_input
+from ..exceptions import CQLError
+from ..parsing import require_end_of_input
 from ..types import FHIRDate, FHIRDateTime, FHIRTime
 from .exceptions import ELMValidationError
 from .loader import ELMLoader
@@ -202,7 +203,7 @@ class ELMSerializer(cqlVisitor):
         token_stream = CommonTokenStream(lexer)
         parser = cqlParser(token_stream)
         expression_context: cqlParser.ExpressionContext = parser.expression()
-        require_end_of_input(parser)
+        require_end_of_input(parser, CQLError)
         return expression_context
 
     def _visit_node(self, tree: Any) -> dict[str, Any]:

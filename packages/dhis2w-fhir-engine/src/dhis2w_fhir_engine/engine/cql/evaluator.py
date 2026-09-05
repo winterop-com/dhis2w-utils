@@ -7,14 +7,14 @@ CQL expressions and libraries against FHIR data.
 from pathlib import Path
 from typing import Any
 
-from antlr4 import CommonTokenStream, InputStream, Token  # type: ignore[import-untyped]
-from antlr4.error.ErrorListener import ErrorListener  # type: ignore[import-untyped]
+from antlr4 import CommonTokenStream, InputStream  # type: ignore[import-untyped]
 
 from ...binding import FhirVersionBinding, resolve_binding
 from ...generated.cql.cqlLexer import cqlLexer
 from ...generated.cql.cqlParser import cqlParser
 from ...ingest import ResourceInput
 from ..exceptions import CQLError
+from ..parsing import ThrowingErrorListener, require_end_of_input
 from .context import CQLContext, DataSource
 from .library import CQLLibrary, LibraryManager
 from .library_resolver import (
@@ -31,68 +31,10 @@ ELMSerializer = None
 ELMLibrary = None
 
 
-def require_end_of_input(parser: cqlParser) -> None:
-    """Refuse an expression the parser stopped short of the end of.
-
-    The `expression` rule is not anchored at EOF, so ANTLR happily parses `1 +` as `1` and leaves the
-    `+` unread. Reading the token the parser stopped on turns that silence into a syntax error with a
-    position, spelled the way the listener spells one so a caller reads both the same way.
-    """
-    token: Any = parser.getCurrentToken()
-    if token is None or token.type == Token.EOF:
-        return
-    raise CQLError(
-        f"Syntax error at line {token.line}:{token.column}: extraneous input '{token.text}' expecting end of expression"
-    )
-
-
-class CQLErrorListener(ErrorListener):
+class CQLErrorListener(ThrowingErrorListener):
     """ANTLR error listener that raises CQLError."""
 
-    def syntaxError(
-        self,
-        recognizer: Any,
-        offendingSymbol: Any,
-        line: int,
-        column: int,
-        msg: str,
-        e: Any,
-    ) -> None:
-        raise CQLError(f"Syntax error at line {line}:{column}: {msg}")
-
-    def reportAmbiguity(
-        self,
-        recognizer: Any,
-        dfa: Any,
-        startIndex: int,
-        stopIndex: int,
-        exact: bool,
-        ambigAlts: Any,
-        configs: Any,
-    ) -> None:
-        pass
-
-    def reportAttemptingFullContext(
-        self,
-        recognizer: Any,
-        dfa: Any,
-        startIndex: int,
-        stopIndex: int,
-        conflictingAlts: Any,
-        configs: Any,
-    ) -> None:
-        pass
-
-    def reportContextSensitivity(
-        self,
-        recognizer: Any,
-        dfa: Any,
-        startIndex: int,
-        stopIndex: int,
-        prediction: int,
-        configs: Any,
-    ) -> None:
-        pass
+    error_type = CQLError
 
 
 class CQLEvaluator:
@@ -574,6 +516,8 @@ class CQLEvaluator:
         try:
             input_stream = InputStream(source)
             lexer = cqlLexer(input_stream)
+            lexer.removeErrorListeners()
+            lexer.addErrorListener(CQLErrorListener())
             token_stream = CommonTokenStream(lexer)
             parser = cqlParser(token_stream)
 
@@ -596,6 +540,8 @@ class CQLEvaluator:
         try:
             input_stream = InputStream(expression)
             lexer = cqlLexer(input_stream)
+            lexer.removeErrorListeners()
+            lexer.addErrorListener(CQLErrorListener())
             token_stream = CommonTokenStream(lexer)
             parser = cqlParser(token_stream)
 
@@ -603,7 +549,7 @@ class CQLEvaluator:
             parser.addErrorListener(CQLErrorListener())
 
             tree: cqlParser.ExpressionContext = parser.expression()
-            require_end_of_input(parser)
+            require_end_of_input(parser, CQLError)
             self._expression_cache[expression] = tree
             return tree
 
