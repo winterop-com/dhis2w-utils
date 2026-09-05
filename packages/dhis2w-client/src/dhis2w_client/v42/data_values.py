@@ -33,11 +33,11 @@ Supported `content_type` values map to the DHIS2-accepted MIME types:
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterable, AsyncIterator, Iterable, Sequence
+from collections.abc import AsyncIterable, AsyncIterator, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from dhis2w_client.generated.v42.oas import DataValue
+from dhis2w_client.generated.v42.oas import DataValue, DataValueSet
 from dhis2w_client.v42.envelopes import WebMessageResponse
 
 if TYPE_CHECKING:
@@ -126,6 +126,62 @@ class DataValuesAccessor:
         )
         raw = response.json() if response.content else {}
         return WebMessageResponse.model_validate(raw)
+
+    async def export(
+        self,
+        *,
+        data_set: str | Sequence[str] | None = None,
+        period: str | Sequence[str] | None = None,
+        org_unit: str | Sequence[str] | None = None,
+        children: bool = False,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        last_updated: str | None = None,
+        last_updated_duration: str | None = None,
+        extra_params: Mapping[str, Any] | None = None,
+    ) -> DataValueSet:
+        """GET `/api/dataValueSets` and return the parsed `DataValueSet` envelope.
+
+        The read side of the import handled by `stream()`. `data_set`, `period`,
+        and `org_unit` each accept a single id or a sequence of ids, and repeat
+        as `dataSet=`/`period=`/`orgUnit=` query params the way DHIS2 expects.
+
+        - `children=True` -> `children=true`: include the org units below each
+          `org_unit` in the export.
+        - `start_date` / `end_date` (`YYYY-MM-DD`): export by date range instead
+          of by `period`.
+        - `last_updated` (`YYYY-MM-DD`) / `last_updated_duration` (e.g. `2h`,
+          `1d`): export only values touched since then.
+        - `extra_params` covers the rest of the surface (`idScheme`,
+          `dataElementIdScheme`, `includeDeleted`, `dataElementGroup`,
+          `orgUnitGroup`, ...). Pass a flat mapping or a list of 2-tuples.
+
+        Buffers the whole response into a typed `DataValueSet`. For a large
+        export, stream it straight to storage with
+        `client.stream("GET", "/api/dataValueSets.json", sink, params=...)`
+        instead of materialising every row in memory.
+
+        Raises `Dhis2ApiError` on 4xx / 5xx.
+        """
+        params: dict[str, Any] = {}
+        for key, value in (("dataSet", data_set), ("period", period), ("orgUnit", org_unit)):
+            if value is None:
+                continue
+            params[key] = [value] if isinstance(value, str) else list(value)
+        if children:
+            params["children"] = "true"
+        if start_date is not None:
+            params["startDate"] = start_date
+        if end_date is not None:
+            params["endDate"] = end_date
+        if last_updated is not None:
+            params["lastUpdated"] = last_updated
+        if last_updated_duration is not None:
+            params["lastUpdatedDuration"] = last_updated_duration
+        if extra_params:
+            params.update(extra_params)
+        raw = await self._client.get_raw("/api/dataValueSets", params=params)
+        return DataValueSet.model_validate(raw)
 
     async def import_grouped_by_dataset(
         self,

@@ -31,10 +31,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
-import httpx
-
+from dhis2w_client._streaming import stream_to_sink
 from dhis2w_client.v41.analytics import Grid
 
 if TYPE_CHECKING:
@@ -118,41 +117,14 @@ class AnalyticsAccessor:
         Raises `Dhis2ApiError` on 4xx / 5xx (the error body is buffered —
         errors are small and readable).
         """
-        headers = await self._client._auth.headers()  # noqa: SLF001 — accessor is tight with the client
-        http = self._client._http  # noqa: SLF001
-        if http is None:
-            raise RuntimeError("Dhis2Client is not connected; call connect() first")
-
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        bytes_written = 0
-        # httpx.stream accepts a wider union than our typed StreamSource — cast
-        # at the boundary rather than re-expressing DHIS2's repeated-key shape.
-        query_params = cast(httpx._types.QueryParamTypes, params)
-        async with http.stream("GET", endpoint, params=query_params, headers=headers) as response:
-            if response.status_code >= 400:
-                # 4xx / 5xx responses are small; buffer the body for the error.
-                await response.aread()
-                body: Any
-                try:
-                    body = response.json()
-                except ValueError:
-                    body = response.text
-                from dhis2w_client.errors import AuthenticationError, Dhis2ApiError, format_unauthorized_message
-
-                if response.status_code == 401:
-                    raise AuthenticationError(
-                        format_unauthorized_message("GET", endpoint, response.headers.get("WWW-Authenticate"))
-                    )
-                raise Dhis2ApiError(
-                    status_code=response.status_code,
-                    message=response.reason_phrase,
-                    body=body,
-                )
-            with destination.open("wb") as handle:
-                async for chunk in response.aiter_bytes(chunk_size=chunk_size):
-                    handle.write(chunk)
-                    bytes_written += len(chunk)
-        return bytes_written
+        return await stream_to_sink(
+            self._client,
+            "GET",
+            endpoint,
+            destination,
+            params=params,
+            chunk_size=chunk_size,
+        )
 
 
 __all__ = ["AnalyticsAccessor", "AnalyticsQuery"]
