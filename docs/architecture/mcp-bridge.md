@@ -95,8 +95,14 @@ this page is the *why* behind the bridge half.
   output; no data is sent anywhere.
 - **Read-only mode is fail-closed.** The allowlist of read command paths is introspected from the
   Typer tree and verified by a drift test, so it can't silently drift; ambiguous verbs default to
-  denied. It is a convenience guard — the authoritative control is still the DHIS2 authorities of the
-  profile's credentials.
+  denied. An option that writes a local file (`--output`, `--out`, `--output-dir`, `--directory`,
+  `--file`, `-o`) is refused in every form Click accepts, attached `-oPATH` included, and a live-tree
+  test walks each allowlisted command's path-typed options to prove none escapes. It is a
+  convenience guard — the authoritative control is still the DHIS2 authorities of the profile's
+  credentials.
+- **One profile per call.** The tool's `profile` parameter is the only source of the target
+  instance, so the profile the protected-host guard resolves is the profile the command runs
+  against. A root profile flag inside `args` is refused before anything spawns.
 
 ## How we know it works
 

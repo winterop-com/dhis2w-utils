@@ -47,7 +47,8 @@ CliResult = { exit_code: int, stdout: str, stderr: str }
 
 `--json` is injected automatically, so on success (`exit_code == 0`) `stdout` is JSON.
 `--help`/`--version` exit 0 with human text. Any non-zero exit is a failure with the message
-on `stderr` (never JSON). `profile` is injected as `-p <profile>`.
+on `stderr` (never JSON). `profile` is injected as `-p <profile>`, and it is the only source of
+the target profile: a `-p` / `--profile` inside `args` is refused (exit 126) rather than executed.
 
 ## Install
 
@@ -133,6 +134,23 @@ tree by the test suite, so it cannot silently drift, and ambiguous verbs default
 This is a convenience guard — the authoritative control is the DHIS2 authorities of the
 profile's credentials, so use a read-scoped PAT/user for a hard guarantee.
 
+A read command that writes a local file is a write: the output options — `--output`, `--out`,
+`--output-dir`, `--output-root`, `--directory`, `--file`, and the shared short form `-o` — are
+refused in every form Click accepts, separated (`-o PATH`), joined (`-o=PATH`), and attached
+(`-oPATH`). Long options match on the option name, so the unrelated `--output-id-scheme` stays a
+read. A command that mutates when given one of its own options is off the allowlist entirely
+rather than guarded per-option: `apps hub-url` (`--set` writes the `keyAppHubUrl` system setting)
+and `profile oidc-config` (writes a profile into a `profiles.toml`) are refused under read-only
+mode even though they print when run bare.
+
+## The profile comes from the tool parameter
+
+The `profile` parameter names the instance a call runs against, and nothing else does. A root
+profile flag inside `args` — `-p NAME`, `-pNAME`, `--profile NAME`, `--profile=NAME` — is refused
+(exit 126) before any subprocess is spawned, so the profile the protected-host guard resolves is
+always the profile the command executes against. A `-p` after the command path is that
+subcommand's own option (`--program`, `--predictor`) and runs untouched.
+
 ## Write protection against shared hosts
 
 Independently of read-only mode, the bridge **refuses mutating commands** when the active
@@ -153,5 +171,6 @@ authorities of the profile's credentials.
 | `DHIS2_CLI_BIN` | auto | Path to the `d2w` executable (auto-discovered next to the interpreter, then on `PATH`). |
 | `DHIS2_MCP_CLI_TIMEOUT` | `120` | Per-command timeout in seconds (exit 124 on timeout). |
 
-Bridge exit-code conventions: `124` timeout, `126` refused by read-only mode, `127` CLI not
-found; otherwise the CLI's own code (`0` success/JSON, `1` domain error, `2` usage error).
+Bridge exit-code conventions: `124` timeout, `126` refused by a guard (read-only mode, a
+protected host, or a profile flag inside `args`), `127` CLI not found; otherwise the CLI's own
+code (`0` success/JSON, `1` domain error, `2` usage error).

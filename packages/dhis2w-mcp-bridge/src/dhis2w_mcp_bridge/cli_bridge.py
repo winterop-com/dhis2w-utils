@@ -60,7 +60,6 @@ READ_ONLY_COMMANDS: Final[frozenset[tuple[str, ...]]] = frozenset(
         ("analytics", "query"),
         ("analytics", "tracked-entities", "query"),
         ("apps", "hub-list"),
-        ("apps", "hub-url"),
         ("apps", "list"),
         ("apps", "ls"),
         ("data", "aggregate", "get"),
@@ -160,7 +159,6 @@ READ_ONLY_COMMANDS: Final[frozenset[tuple[str, ...]]] = frozenset(
         ("metadata", "visualizations", "get"),
         ("profile", "list"),
         ("profile", "ls"),
-        ("profile", "oidc-config"),
         ("profile", "show"),
         ("profile", "verify"),
         ("route", "get"),
@@ -240,19 +238,39 @@ def _is_help_or_version(args: list[str]) -> bool:
     return _first_option(args) in _HELP_FLAGS
 
 
-_DISK_WRITE_FLAGS = frozenset({"--output", "-o"})
+#: Long option names that make a command write to the local filesystem. Matched against the
+#: option NAME (the part before `=`), so `--output=PATH` is caught while the unrelated
+#: read-only `--output-id-scheme=SCHEME` is not.
+_DISK_WRITE_FLAGS: Final[frozenset[str]] = frozenset(
+    {"--output", "--output-dir", "--output-root", "--out", "--directory", "--file"}
+)
+
+
+def _is_disk_write_token(token: str) -> bool:
+    """Return True when `token` is an output option in any form Click accepts.
+
+    `-o` is the short form of every output option in the command tree (`--output`, `--out`,
+    `--output-dir`), and Click accepts its value attached (`-oPATH`) as well as separated
+    (`-o PATH`) and joined (`-o=PATH`), so every single-dash token starting with `-o` counts.
+    Long forms match on the option name, which catches `--output=PATH` and leaves the read-only
+    `--output-id-scheme` alone.
+    """
+    if token.startswith("-o") and not token.startswith("--"):
+        return True
+    return token.split("=", 1)[0] in _DISK_WRITE_FLAGS
 
 
 def _writes_to_disk(args: list[str]) -> bool:
-    """Return True if argv writes to a local file (e.g. `metadata list --output` / `export -o`)."""
-    return any(token in _DISK_WRITE_FLAGS or token.startswith(("--output=", "-o=")) for token in args)
+    """Return True if argv writes to a local file (e.g. `metadata list --output` / `export -oPATH`)."""
+    return any(_is_disk_write_token(token) for token in args)
 
 
 def is_read_only(args: list[str]) -> bool:
     """Return True when `args` targets a known read-only command (or help/version/discovery).
 
-    A read command that writes a local file (`--output`/`-o`) is NOT read-only — under
-    DHIS2_MCP_READONLY a confused model could otherwise overwrite arbitrary host files.
+    A read command that writes a local file (`--output`/`-o` and the other output options) is
+    NOT read-only — under DHIS2_MCP_READONLY a confused model could otherwise overwrite
+    arbitrary host files.
     """
     if not args or _is_help_or_version(args):
         return True
@@ -262,8 +280,57 @@ def is_read_only(args: list[str]) -> bool:
     return any(path[: len(prefix)] == prefix for prefix in READ_ONLY_COMMANDS)
 
 
+#: Root profile flags. The tool's `profile` parameter is the only way to choose a profile, so
+#: these are refused inside `args` — see `_profile_in_args_refusal`.
+_PROFILE_FLAGS: Final[frozenset[str]] = frozenset({"--profile", "-p"})
+
+
+def _profile_flag_in_args(args: list[str]) -> str | None:
+    """Return the root profile flag carried by `args`, or None when there is none.
+
+    Click reads root options only up to the first positional token, so a profile flag reaches the
+    root callback only ahead of the command path — that leading option region is what this scans,
+    in every form Click accepts: `--profile NAME`, `--profile=NAME`, `-p NAME`, `-pNAME`. A `-p`
+    after the command path belongs to that subcommand (`--program`, `--predictor`) and is left
+    alone.
+    """
+    for token in args:
+        if token == "--" or not token.startswith("-"):
+            return None
+        if token in _PROFILE_FLAGS or token.startswith("--profile="):
+            return token
+        if token.startswith("-p") and not token.startswith("--"):
+            return token
+    return None
+
+
+def _profile_in_args_refusal(args: list[str]) -> CliResult | None:
+    """Return a refusal when `args` carries a root profile flag, else None.
+
+    The tool's `profile` parameter is the single source of the target profile: it is what the
+    protected-host guard resolves and what `_build_argv` injects. A profile flag inside `args`
+    lands after the injected one and wins at the Click parser, so the guarded host and the
+    executed host would be different instances. Refused before anything is built or spawned.
+    """
+    token = _profile_flag_in_args(args)
+    if token is None:
+        return None
+    return CliResult(
+        exit_code=EXIT_REFUSED,
+        stdout="",
+        stderr=(
+            f"refused: {token!r} in args. Profile is chosen by the profile parameter, not inside "
+            'args. Call the tool with profile="<name>" and drop the flag from args.'
+        ),
+    )
+
+
 def _build_argv(binary: str, args: list[str], profile: str | None) -> list[str]:
-    """Prepend `--json` (deduped) and optional `-p <profile>` as leading global flags."""
+    """Prepend `--json` (deduped) and optional `-p <profile>` as leading global flags.
+
+    `args` arrives free of root profile flags — `run_cli` refuses those before anything is built
+    or spawned — so the injected `-p <profile>` is the only profile Click sees.
+    """
     argv = [binary]
     if "--json" not in args and "-j" not in args:
         argv.append("--json")
@@ -372,10 +439,13 @@ async def run_cli(
     if args and " " in args[0]:
         with contextlib.suppress(ValueError):
             args = [*shlex.split(args[0]), *args[1:]]
+    profile_refusal = _profile_in_args_refusal(args)
+    if profile_refusal is not None:
+        return profile_refusal
     read = is_read_only(args)
     if read_only and not read:
         blocked = " ".join(args) or "<empty>"
-        reason = "writes a local file (--output/-o)" if _writes_to_disk(args) else "non-read commands"
+        reason = "writes a local file (an output option)" if _writes_to_disk(args) else "non-read commands"
         return CliResult(
             exit_code=EXIT_REFUSED,
             stdout="",
@@ -505,7 +575,8 @@ def register(mcp: Any) -> None:
 
         CONNECTING: pass `profile` to select a configured profile (e.g. profile="prod"), or rely on
         the server default. On "no DHIS2 profile is configured", do NOT invent credentials — ask the
-        user to run `d2w profile add` / `profile bootstrap`.
+        user to run `d2w profile add` / `profile bootstrap`. Never put `-p` / `--profile` in `args`:
+        a profile flag there is refused, because `profile` is the only source of the target profile.
 
         WRITES change live data — confirm intent first; refused under DHIS2_MCP_READONLY=1.
           - Author with: metadata <type-kebab> create --name X --short-name X ... — e.g.
