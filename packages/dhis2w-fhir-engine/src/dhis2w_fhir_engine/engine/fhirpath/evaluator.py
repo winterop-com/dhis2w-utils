@@ -3,13 +3,13 @@
 from typing import Any
 
 from antlr4 import CommonTokenStream, InputStream  # type: ignore[import-untyped]
-from antlr4.error.ErrorListener import ErrorListener  # type: ignore[import-untyped]
 
 from ...generated.fhirpath.fhirpathLexer import fhirpathLexer
 from ...generated.fhirpath.fhirpathParser import fhirpathParser
 from ...ingest import ResourceInput, as_evaluation_input
 from ..context import EvaluationContext
 from ..exceptions import FHIRPathError
+from ..parsing import ThrowingErrorListener, require_end_of_input
 from .visitor import FHIRPathEvaluatorVisitor
 
 
@@ -166,19 +166,22 @@ class FHIRPathEvaluator:
         try:
             input_stream = InputStream(expression)
             lexer = fhirpathLexer(input_stream)
+            lexer.removeErrorListeners()
+            lexer.addErrorListener(FHIRPathErrorListener())
             token_stream = CommonTokenStream(lexer)
             parser = fhirpathParser(token_stream)
 
-            # Add error listener
             parser.removeErrorListeners()
             parser.addErrorListener(FHIRPathErrorListener())
 
             tree: fhirpathParser.ExpressionContext = parser.expression()
+            require_end_of_input(parser, FHIRPathError)
 
-            # Cache successful parse
             self._cache[expression] = tree
             return tree
 
+        except FHIRPathError:
+            raise
         except Exception as e:
             raise FHIRPathError(f"Failed to parse expression: {expression}") from e
 
@@ -187,53 +190,10 @@ class FHIRPathEvaluator:
         self._cache.clear()
 
 
-class FHIRPathErrorListener(ErrorListener):
+class FHIRPathErrorListener(ThrowingErrorListener):
     """ANTLR error listener that raises FHIRPathError."""
 
-    def syntaxError(
-        self,
-        recognizer: Any,
-        offendingSymbol: Any,
-        line: int,
-        column: int,
-        msg: str,
-        e: Any,
-    ) -> None:
-        raise FHIRPathError(f"Syntax error at line {line}:{column}: {msg}")
-
-    def reportAmbiguity(
-        self,
-        recognizer: Any,
-        dfa: Any,
-        startIndex: int,
-        stopIndex: int,
-        exact: bool,
-        ambigAlts: Any,
-        configs: Any,
-    ) -> None:
-        pass
-
-    def reportAttemptingFullContext(
-        self,
-        recognizer: Any,
-        dfa: Any,
-        startIndex: int,
-        stopIndex: int,
-        conflictingAlts: Any,
-        configs: Any,
-    ) -> None:
-        pass
-
-    def reportContextSensitivity(
-        self,
-        recognizer: Any,
-        dfa: Any,
-        startIndex: int,
-        stopIndex: int,
-        prediction: int,
-        configs: Any,
-    ) -> None:
-        pass
+    error_type = FHIRPathError
 
 
 def evaluate(expression: str, resource: dict[str, Any] | list[Any] | None = None) -> list[Any]:

@@ -1346,8 +1346,8 @@ class TestTypeConversions:
         assert result[0].value == Decimal("42")
 
     def test_to_quantity_from_string(self, evaluator: Any) -> None:
-        # Per FHIRPath spec, UCUM units in strings need quotes
-        result = evaluator.evaluate("\"10 'kg'\".toQuantity()", None)
+        # Per FHIRPath spec, UCUM units in strings need quotes, and a string literal is single-quoted
+        result = evaluator.evaluate(r"'10 \'kg\''.toQuantity()", None)
         assert len(result) == 1
         assert result[0].value == Decimal("10")
         assert result[0].unit == "kg"
