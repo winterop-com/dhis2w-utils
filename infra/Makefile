@@ -15,7 +15,7 @@ endif
 COMPOSE        := DHIS2_VERSION=$(DHIS2_VERSION) DHIS2_IMAGE_TAG=$(DHIS2_IMAGE_TAG) docker compose -f compose.yml -f compose.pgadmin.yml
 
 help: ## show this help
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 versions: ## list DHIS2 images available on Docker Hub (pick one for `make up DHIS2_VERSION=...`)
 	@cd .. && uv run python infra/scripts/list_versions.py
