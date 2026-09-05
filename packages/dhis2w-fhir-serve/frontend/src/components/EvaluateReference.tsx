@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import { ProseText } from '@/components/ProseText'
 import { Badge } from '@/components/ui/badge'
@@ -45,9 +45,11 @@ export function EvaluateReference({
     // still gets to read what CQL answers without touching the language picker. Changing the
     // language moves an open reference tab to the new language's own, and leaves Examples alone.
     const [tab, setTab] = useState('examples')
-    useEffect(() => {
-        setTab((current) => (current === 'examples' ? current : language))
-    }, [language])
+    const [tabLanguage, setTabLanguage] = useState(language)
+    if (tabLanguage !== language) {
+        setTabLanguage(language)
+        if (tab !== 'examples') setTab(language)
+    }
     return (
         // THE TAB BAR IS OUTSIDE THE SCROLLER, and the shelves under it are what scrolls. The panel
         // is eighty rows tall on a real project, so a bar that scrolled with its content was off

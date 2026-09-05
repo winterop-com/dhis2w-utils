@@ -832,17 +832,14 @@ function ResourceFacts({
  * whatever the server said.
  */
 function useCodeSystemTitles(canonicals: string[]): ReadonlyMap<string, string> {
-    const [titles, setTitles] = useState<ReadonlyMap<string, string>>(new Map())
+    const [answered, setAnswered] = useState<AnsweredTitles | null>(null)
     // Serialised into the dependency rather than compared by identity, so a caller can pass the
     // array it derived on this render without re-reading every system on every render.
     const wantedKey = canonicals.join('|')
 
     useEffect(() => {
         const wanted = wantedKey === '' ? [] : wantedKey.split('|')
-        if (wanted.length === 0) {
-            setTitles(new Map())
-            return
-        }
+        if (wanted.length === 0) return
         let cancelled = false
         const reads = wanted.map(async (canonical): Promise<readonly [string, string] | null> => {
             const id = canonicalId(canonical)
@@ -856,15 +853,25 @@ function useCodeSystemTitles(canonicals: string[]): ReadonlyMap<string, string> 
         })
         void Promise.all(reads).then((pairs) => {
             if (cancelled) return
-            setTitles(new Map(pairs.filter((pair) => pair !== null)))
+            setAnswered({ wantedKey, titles: new Map(pairs.filter((pair) => pair !== null)) })
         })
         return () => {
             cancelled = true
         }
     }, [wantedKey])
 
-    return titles
+    if (answered === null || answered.wantedKey !== wantedKey) return NO_CODE_SYSTEM_TITLES
+    return answered.titles
 }
+
+/** What one set of reads answered, stamped with the systems it was read for. */
+interface AnsweredTitles {
+    wantedKey: string
+    titles: ReadonlyMap<string, string>
+}
+
+/** No system named yet - what a chip falls back to before a title has landed. */
+const NO_CODE_SYSTEM_TITLES: ReadonlyMap<string, string> = new Map()
 
 /**
  * A link to another terminology resource by its canonical url.

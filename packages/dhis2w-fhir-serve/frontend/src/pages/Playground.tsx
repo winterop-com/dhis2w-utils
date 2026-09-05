@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { ExternalLink, Loader2, Plus, Send, Terminal, X } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -114,17 +114,13 @@ export function Playground() {
     const [request, setRequest] = useState<PlaygroundRequest>(OPENING_REQUEST)
     const [answer, setAnswer] = useState<Answer | null>(null)
     const [sending, setSending] = useState(false)
-    const [history, setHistory] = useState<SentRequest[]>([])
+    // Read through the same guard the rail width is read through, so a browser that blocks storage
+    // opens on an empty list rather than on a page that will not draw.
+    const [history, setHistory] = useState<SentRequest[]>(() => readHistory())
     // The panel choice lives for this mount of the page, exactly as the Evaluate screen's does. It
     // opens open: the builder holds one read and the panel is where every other address comes from.
     const [presetsShown, setPresetsShown] = useState(true)
     const [presetsWidth, setPresetsWidth] = useState<number>(() => storedPresetsRailWidth())
-
-    // Read once, on the client, because storage is not there during a server-side render and a
-    // useState initialiser reading it would run before the guard has anything to guard.
-    useEffect(() => {
-        setHistory(readHistory())
-    }, [])
 
     const presets = useMemo(() => playgroundPresets(capability, samples), [capability, samples])
     const target = requestTarget(request)

@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ChevronDown, ChevronRight, MapPin, Search } from 'lucide-react'
-import { useDefaultLayout, usePanelRef } from 'react-resizable-panels'
+import { useDefaultLayout, usePanelCallbackRef } from 'react-resizable-panels'
 
 import { IdentifierBadges } from '@/components/IdentifierBadges'
 import { MaintenanceLink } from '@/components/MaintenanceLink'
@@ -163,7 +163,9 @@ export function OrgUnits() {
     const [railOpen, setRailOpen] = useState(true)
     // The rail pane's collapse is owned by the panel so that the chevron and dragging the handle
     // shut agree; `railOpen` mirrors it (via onResize below) and survives breakpoint crossings.
-    const railPanel = usePanelRef()
+    // The panel handle is held in state rather than in a ref, because the rail's own callbacks read
+    // it: a value a render reads is a value that has to be able to make one happen.
+    const [railPanel, setRailPanel] = usePanelCallbackRef()
     const panes = useDefaultLayout({
         id: PANES_LAYOUT_ID,
         panelIds: PANE_IDS,
@@ -175,14 +177,13 @@ export function OrgUnits() {
     // the three-pane breakpoint. Collapsing an already-collapsed panel is a no-op, so the mirror
     // updating from onResize never loops this.
     useLayoutEffect(() => {
-        if (threePane && !railOpen) railPanel.current?.collapse()
+        if (threePane && !railOpen) railPanel?.collapse()
     }, [threePane, railOpen, railPanel])
 
     const toggleRail = useCallback(() => {
-        const panel = railPanel.current
-        if (panel === null) return
-        if (panel.isCollapsed()) panel.expand()
-        else panel.collapse()
+        if (railPanel === null) return
+        if (railPanel.isCollapsed()) railPanel.expand()
+        else railPanel.collapse()
     }, [railPanel])
 
     const tree = useMemo(() => buildOrgUnitTree(registry.resources), [registry.resources])
@@ -256,7 +257,7 @@ export function OrgUnits() {
             // answer it even when it was collapsed - collapsing is a view choice, not a standing
             // instruction. The state covers the narrow layout; the panel call covers the pane.
             setRailOpen(true)
-            railPanel.current?.expand()
+            railPanel?.expand()
         },
         [parameters, setParameters, railPanel],
     )
@@ -275,7 +276,7 @@ export function OrgUnits() {
             next.delete(UNIT_PARAM)
             setParameters(next)
             setRailOpen(false)
-            railPanel.current?.collapse()
+            railPanel?.collapse()
         },
         [selected, select, parameters, setParameters, railPanel],
     )
@@ -417,10 +418,9 @@ export function OrgUnits() {
                         defaultSize="24%"
                         minSize="18%"
                         maxSize="40%"
-                        panelRef={railPanel}
+                        panelRef={setRailPanel}
                         onResize={() => {
-                            const panel = railPanel.current
-                            if (panel !== null) setRailOpen(!panel.isCollapsed())
+                            if (railPanel !== null) setRailOpen(!railPanel.isCollapsed())
                         }}
                         className="flex min-h-0 flex-col"
                     >
@@ -505,6 +505,12 @@ export function OrgUnits() {
     )
 }
 
+/** The selection a stale fold was last dropped for, so it is dropped once per selection. */
+interface ClearedOverrides {
+    selectedId: string | null
+    tree: OrgUnitTree
+}
+
 /** The tree itself: roots, and whatever the caller has opened below them. */
 function UnitTree({
     tree,
@@ -533,17 +539,20 @@ function UnitTree({
     // A new selection must be visible whatever was folded up before it: any closed-override on
     // the selected unit or its ancestors is stale the moment the selection lands, so it is
     // dropped rather than left to hide the row the page is about.
-    useEffect(() => {
-        if (selectedId === null) return
-        setOverrides((previous) => {
-            const chain = [selectedId, ...ancestorsOf(tree, selectedId).map((ancestor) => ancestor.id)]
-            const stale = chain.filter((unitId) => previous.get(unitId) === false)
-            if (stale.length === 0) return previous
-            const next = new Map(previous)
-            for (const unitId of stale) next.delete(unitId)
-            return next
-        })
-    }, [selectedId, tree])
+    const [clearedFor, setClearedFor] = useState<ClearedOverrides>({ selectedId, tree })
+    if (clearedFor.selectedId !== selectedId || clearedFor.tree !== tree) {
+        setClearedFor({ selectedId, tree })
+        if (selectedId !== null) {
+            setOverrides((previous) => {
+                const chain = [selectedId, ...ancestorsOf(tree, selectedId).map((ancestor) => ancestor.id)]
+                const stale = chain.filter((unitId) => previous.get(unitId) === false)
+                if (stale.length === 0) return previous
+                const next = new Map(previous)
+                for (const unitId of stale) next.delete(unitId)
+                return next
+            })
+        }
+    }
 
     const roots = filtered === null ? tree.roots : tree.roots.filter((node) => filtered.has(node.id))
 

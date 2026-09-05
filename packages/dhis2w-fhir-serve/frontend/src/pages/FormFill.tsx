@@ -202,6 +202,19 @@ export const FORM_ASKS_NOTHING_NOTICE = 'This form asks no questions, so there i
  * is captured, so what leaves here is a claim about exactly what a person typed; a period of the
  * wrong type is refused by the server, naming both types, which is better than a client guess.
  */
+/** The offer state one enrollment reload was applied for, so it is applied once per landing. */
+interface AppliedOffer {
+    options: EnrollmentOption[]
+    source: EnrollmentSource
+    loading: boolean
+}
+
+/** The dictionary one set of reads answered, stamped with the form it was read for. */
+interface ReadDictionary {
+    questionnaireId: string
+    dictionary: QuestionDictionary
+}
+
 export function FormFill() {
     const { questionnaireId = '' } = useParams()
     const navigate = useNavigate()
@@ -231,7 +244,14 @@ export function FormFill() {
     const [enrollmentDate, setEnrollmentDate] = useState<string | null>(null)
     const [incidentDate, setIncidentDate] = useState<string | null>(null)
     const [reportingPeriodIso, setReportingPeriodIso] = useState<string | null>(null)
-    const [dictionary, setDictionary] = useState<QuestionDictionary>(NO_DICTIONARY)
+    // The dictionary belongs to the form it was read for: two forms are coded in different systems,
+    // and a form rendered under the previous one's value types would tick a box the wire spells
+    // another way. So a dictionary read for another form reads as the absence it is.
+    const [readDictionary, setReadDictionary] = useState<ReadDictionary | null>(null)
+    const dictionary =
+        readDictionary !== null && readDictionary.questionnaireId === questionnaireId
+            ? readDictionary.dictionary
+            : NO_DICTIONARY
     // The seed the last fill drew, or the seed a person asked for. One box, two directions: a fill
     // writes the seed it got back so the draw can be reported and reproduced, but only a seed the
     // person typed is a request - otherwise every fill after the first would replay the same draw.
@@ -261,10 +281,18 @@ export function FormFill() {
     // for the spool source alone: the default rule is about receipts, and applying it while the
     // instance source is open would answer a submission with a pair nobody picked.
     const { loading: offerLoading, options: offerOptions } = enrollmentOffer
-    useEffect(() => {
-        if (offerLoading || enrollmentSource !== 'spool') return
-        setEnrollment((current) => reloadedEnrollment(current, offerOptions))
-    }, [offerLoading, offerOptions, enrollmentSource])
+    const [offerApplied, setOfferApplied] = useState<AppliedOffer | null>(null)
+    if (
+        offerApplied === null ||
+        offerApplied.options !== offerOptions ||
+        offerApplied.source !== enrollmentSource ||
+        offerApplied.loading !== offerLoading
+    ) {
+        setOfferApplied({ options: offerOptions, source: enrollmentSource, loading: offerLoading })
+        if (!offerLoading && enrollmentSource === 'spool') {
+            setEnrollment((current) => reloadedEnrollment(current, offerOptions))
+        }
+    }
 
     const spec = useMemo(
         () => flattenQuestionnaire(questionnaire ?? { resourceType: 'Questionnaire', status: 'unknown' }, dictionary),
@@ -281,10 +309,7 @@ export function FormFill() {
     const codeSystemKey = useMemo(() => questionCodeSystemIds(spec).join(' '), [spec])
     useEffect(() => {
         const ids = codeSystemKey === '' ? [] : codeSystemKey.split(' ')
-        if (ids.length === 0) {
-            setDictionary(NO_DICTIONARY)
-            return
-        }
+        if (ids.length === 0) return
         let cancelled = false
         // A dictionary this server does not publish is a form whose value types are unknown, which
         // is the state every boolean question renders as a plain BOOLEAN in - so a refused read is
@@ -293,12 +318,15 @@ export function FormFill() {
             ids.map((id) => readResource<CodeSystem>('CodeSystem', id).catch(() => null)),
         ).then((read) => {
             if (cancelled) return
-            setDictionary(dictionaryOfCodeSystems(read.filter((codeSystem) => codeSystem !== null)))
+            setReadDictionary({
+                questionnaireId,
+                dictionary: dictionaryOfCodeSystems(read.filter((codeSystem) => codeSystem !== null)),
+            })
         })
         return () => {
             cancelled = true
         }
-    }, [codeSystemKey])
+    }, [questionnaireId, codeSystemKey])
 
     const existingSubject: ExistingSubject | null =
         existingPerson === null ? null : { trackedEntity: existingPerson.trackedEntityUid }
@@ -336,8 +364,12 @@ export function FormFill() {
         setReportingPeriodIso(null)
     }, [])
 
-    useEffect(() => {
-        let cancelled = false
+    // A form arriving under a mounted page opens exactly as one opened from cold: nothing read,
+    // nothing chosen, every date back to the draft's. Cleared as the id arrives rather than after
+    // the paint that carried it, so no frame shows the previous form's choices under the new one.
+    const [openedForm, setOpenedForm] = useState(questionnaireId)
+    if (openedForm !== questionnaireId) {
+        setOpenedForm(questionnaireId)
         setLoading(true)
         setError(null)
         setErrorStatus(null)
@@ -352,6 +384,10 @@ export function FormFill() {
         setPersonSource('new')
         setExistingPerson(null)
         clearStatedDates()
+    }
+
+    useEffect(() => {
+        let cancelled = false
         readResource<Questionnaire>('Questionnaire', questionnaireId)
             .then((resource) => {
                 if (cancelled) return
@@ -381,15 +417,22 @@ export function FormFill() {
         return () => {
             cancelled = true
         }
-    }, [questionnaireId, clearStatedDates])
+    }, [questionnaireId])
 
     // Which organisation unit the form opens reporting from, decided once the draft and the offer
     // are both in hand. Both halves are needed: the draft carries the drawn unit, and the offer is
     // what says whether the unit this browser tab keeps is one this form may be reported from at
     // all. A unit already in the picker ends this - a person's choice is never overwritten.
-    useEffect(() => {
-        if (reportingUnit !== null || envelope === null || questionnaire === null) return
-        if (orgUnitScope.loading || orgUnitScope.byId.size === 0) return
+    const [openedFromDraft, setOpenedFromDraft] = useState<QuestionnaireResponse | null>(null)
+    if (
+        reportingUnit === null &&
+        envelope !== null &&
+        openedFromDraft !== envelope &&
+        questionnaire !== null &&
+        !orgUnitScope.loading &&
+        orgUnitScope.byId.size > 0
+    ) {
+        setOpenedFromDraft(envelope)
         const kept = keptReportingUnitId()
         const opened = openedReportingUnit(null, envelope, questionnaire, kept, orgUnitScope.byId)
         setReportingUnit(opened.unit)
@@ -397,7 +440,7 @@ export function FormFill() {
         // A unit this tab kept and this form admits is the last choice somebody made, arriving
         // again; anything else in the control is the draft's own draw.
         setReportingUnitChosen(kept !== null && !opened.keptUnitNotAdmitted)
-    }, [reportingUnit, envelope, questionnaire, orgUnitScope])
+    }
 
     const fillWithTestData = useCallback(() => {
         // The button only exists once the form is on screen, so a null questionnaire here

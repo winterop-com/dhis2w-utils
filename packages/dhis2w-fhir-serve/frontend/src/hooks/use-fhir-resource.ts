@@ -57,13 +57,9 @@ export function useFhirResource<T>(resourceType: string, resourceId: string): Fh
     })
 
     useEffect(() => {
+        if (resourceId === '') return () => undefined
         const wanted = readKey(resourceType, resourceId)
-        if (resourceId === '') {
-            setRead({ key: wanted, resource: null, loading: false, error: null, status: null })
-            return () => undefined
-        }
         let cancelled = false
-        setRead({ key: wanted, resource: null, loading: true, error: null, status: null })
         readResource<T>(resourceType, resourceId)
             .then((answer) => {
                 if (cancelled) return

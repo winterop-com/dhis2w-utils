@@ -34,34 +34,37 @@ export interface RegisterRefusalState {
  * does answer for the resource is asked for a count rather than for a page of somebody's database.
  */
 export function useRegisterRefusal(resource: string | null): RegisterRefusalState {
-    const [stated, setStated] = useState<string | null>(null)
-    const [loading, setLoading] = useState(resource !== null && resource !== '')
+    const asked = resource === null || resource === '' ? null : resource
+    const [answered, setAnswered] = useState<AnsweredRefusal>({ resource: null, stated: null })
 
     useEffect(() => {
-        if (resource === null || resource === '') {
-            setStated(null)
-            setLoading(false)
-            return
-        }
+        if (asked === null) return
         let cancelled = false
-        setLoading(true)
-        setStated(null)
-        apiFetch(`/${resource}?_count=0`, { cache: 'no-store' })
+        apiFetch(`/${asked}?_count=0`, { cache: 'no-store' })
             .then(async (response) => {
                 const body: unknown = response.ok ? null : await response.json().catch(() => null)
                 if (cancelled) return
-                setStated(response.ok ? null : outcomeMessage(body as OperationOutcome | null))
-                setLoading(false)
+                setAnswered({
+                    resource: asked,
+                    stated: response.ok ? null : outcomeMessage(body as OperationOutcome | null),
+                })
             })
             .catch(() => {
                 if (cancelled) return
-                setStated(null)
-                setLoading(false)
+                setAnswered({ resource: asked, stated: null })
             })
         return () => {
             cancelled = true
         }
-    }, [resource])
+    }, [asked])
 
-    return { loading, stated }
+    if (asked === null) return { loading: false, stated: null }
+    if (answered.resource !== asked) return { loading: true, stated: null }
+    return { loading: false, stated: answered.stated }
+}
+
+/** What one ask answered, stamped with the register it was asked about. */
+interface AnsweredRefusal {
+    resource: string | null
+    stated: string | null
 }

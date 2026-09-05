@@ -101,6 +101,27 @@ export function CodeLookupSheet({
     )
 }
 
+/** One question on the wire: the code, the direction, and which press of Look up asked it. */
+interface Lookup {
+    code: string
+    targetSystem: string
+    /** Which ask this is, so looking the same code up twice is two questions rather than one. */
+    nonce: number
+}
+
+/** What one question answered, stamped with the question it answered. */
+interface AnsweredLookup {
+    lookup: Lookup
+    result: TranslationResult | null
+    error: string | null
+}
+
+/** The question an ask carries, or none when it names no code. */
+function lookupFor(asked: AskedConcept, nonce: number): Lookup | null {
+    if (asked.code === '') return null
+    return { code: asked.code.trim(), targetSystem: asked.targetSystem ?? ANY_TARGET, nonce }
+}
+
 /** The question and its answer: the box, the direction, the wire line, and what came back. */
 function CodeLookup({
     system,
@@ -113,38 +134,55 @@ function CodeLookup({
 }) {
     const [entered, setEntered] = useState(asked.code)
     const [target, setTarget] = useState(asked.targetSystem ?? ANY_TARGET)
-    const [result, setResult] = useState<TranslationResult | null>(null)
-    const [error, setError] = useState<string | null>(null)
-    const [running, setRunning] = useState(false)
+    const [lookup, setLookup] = useState<Lookup | null>(lookupFor(asked, 0))
+    const [answered, setAnswered] = useState<AnsweredLookup | null>(null)
 
-    const run = useCallback(
-        (code: string, targetSystem: string) => {
-            if (code.trim() === '') return
-            setRunning(true)
-            setError(null)
-            translateCode(system, code.trim(), targetSystem === ANY_TARGET ? undefined : targetSystem)
-                .then((parameters) => setResult(translationResult(parameters)))
-                .catch((failure: unknown) => {
-                    setResult(null)
-                    setError(failure instanceof Error ? failure.message : String(failure))
-                })
-                .finally(() => setRunning(false))
-        },
-        [system],
-    )
+    const run = useCallback((code: string, targetSystem: string) => {
+        if (code.trim() === '') return
+        setLookup((previous) => ({ code: code.trim(), targetSystem, nonce: (previous?.nonce ?? 0) + 1 }))
+    }, [])
+
+    // THE ASK CARRIES ITS OWN DIRECTION. A row of a map's group is a question about that group -
+    // "what does this concept become over here" - and the ask names the group's target system, so
+    // the answer is the one the row is part of. A concept row of a code system names no target and
+    // asks every map: a row click that answered nothing because a leftover target system was still
+    // selected would look like a code with no mapping. The box is filled and the question sent as
+    // the ask arrives rather than after the paint that carried it, so no frame shows the previous
+    // code under a new answer.
+    const [askedShown, setAskedShown] = useState(asked)
+    if (askedShown !== asked) {
+        setAskedShown(asked)
+        if (asked.code !== '') {
+            setEntered(asked.code)
+            setTarget(asked.targetSystem ?? ANY_TARGET)
+            setLookup((previous) => lookupFor(asked, (previous?.nonce ?? 0) + 1))
+        }
+    }
 
     useEffect(() => {
-        // THE ASK CARRIES ITS OWN DIRECTION. A row of a map's group is a question about that
-        // group - "what does this concept become over here" - and the ask names the group's
-        // target system, so the answer is the one the row is part of. A concept row of a code
-        // system names no target and asks every map: a row click that answered nothing because a
-        // leftover target system was still selected would look like a code with no mapping.
-        if (asked.code === '') return
-        const wanted = asked.targetSystem ?? ANY_TARGET
-        setEntered(asked.code)
-        setTarget(wanted)
-        run(asked.code, wanted)
-    }, [asked, run])
+        if (lookup === null) return
+        let cancelled = false
+        translateCode(system, lookup.code, lookup.targetSystem === ANY_TARGET ? undefined : lookup.targetSystem)
+            .then((parameters) => {
+                if (cancelled) return
+                setAnswered({ lookup, result: translationResult(parameters), error: null })
+            })
+            .catch((failure: unknown) => {
+                if (cancelled) return
+                setAnswered({
+                    lookup,
+                    result: null,
+                    error: failure instanceof Error ? failure.message : String(failure),
+                })
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [system, lookup])
+
+    const running = lookup !== null && answered?.lookup !== lookup
+    const result = answered?.result ?? null
+    const error = running ? null : (answered?.error ?? null)
 
     return (
         <div className="space-y-4">

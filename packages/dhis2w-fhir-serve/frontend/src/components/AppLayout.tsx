@@ -196,11 +196,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
     // wrap and reflow inside a still-narrowing column, which reads as the text crawling in.
     // Collapsing runs the other way - words gone at once, then the rail narrows.
     const [labelsShown, setLabelsShown] = useState(!collapsed)
+    // Every toggle starts with the words gone, adjusted as the rail is toggled rather than after the
+    // paint that toggled it: a collapse that hid the labels a frame late showed them wrapping inside
+    // a column already narrowing.
+    const [labelsAdjustedForCollapsed, setLabelsShownWhileCollapsed] = useState(collapsed)
+    if (labelsAdjustedForCollapsed !== collapsed) {
+        setLabelsShownWhileCollapsed(collapsed)
+        setLabelsShown(false)
+    }
     useEffect(() => {
-        if (collapsed) {
-            setLabelsShown(false)
-            return
-        }
+        if (collapsed) return
         const settled = setTimeout(() => setLabelsShown(true), SIDEBAR_WIDTH_TRANSITION_MS)
         return () => clearTimeout(settled)
     }, [collapsed])

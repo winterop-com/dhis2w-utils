@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FeatureCollection } from 'geojson'
 import {
     AttributionControl,
@@ -209,6 +209,16 @@ const RECENTER_ICON = `url("data:image/svg+xml,${encodeURIComponent(
 /** Which projection the canvas is drawing, exposed on the container so a test can read it. */
 type MapProjection = 'mercator' | 'globe'
 
+/** Which palette is in force: the ground it draws on, and which reading of the tokens it is. */
+interface PaletteInForce {
+    dark: boolean
+    /** Which reading this is, so a theme swap that keeps the ground repaints the layers all the same. */
+    reading: number
+}
+
+/** What a browser with no WebGL is told, which is a fact about the browser rather than a failure. */
+const NO_WEBGL_MESSAGE = 'This browser has no WebGL support, which the map needs in order to draw.'
+
 /**
  * The universe, painted once at module load: deterministic strings, so there is nothing to memoise
  * per mount and the sky in every screenshot is the same sky.
@@ -248,32 +258,39 @@ export function OrgUnitMap({
     const container = useRef<HTMLDivElement>(null)
     const map = useRef<MapLibreMap | null>(null)
     // Held in refs as well as in props so the click handlers - registered once, on a map that
-    // outlives any single render - always read the current ones.
+    // outlives any single render - always read the current ones. Written after each render rather
+    // than during one, because a render must not touch a ref; every reader of these is a gesture or
+    // a later effect, both of which happen after the paint that recorded them.
     const select = useRef(onSelect)
-    select.current = onSelect
     const registry = useRef(tree)
-    registry.current = tree
     // The one popup this map shows at a time, owned here so a new click replaces the old card.
     const popup = useRef<Popup | null>(null)
     // The unit lit under that popup, so closing or replacing the card puts it out.
     const highlighted = useRef<string | null>(null)
     const hovered = useRef<string | null>(null)
 
-    const [engineFailure, setEngineFailure] = useState<string | null>(null)
+    // A browser without WebGL is a fact about the browser, known before anything is drawn - so the
+    // panel opens on the message rather than rendering a map frame and replacing it a paint later.
+    const [engineFailure, setEngineFailure] = useState<string | null>(() =>
+        webglAvailable() ? null : NO_WEBGL_MESSAGE,
+    )
     const [ready, setReady] = useState(false)
     // The shapes exist only once the layers are on a loaded map, and a click before that lands on
     // an empty scene. `data-map-ready` is what a browser test waits for instead of guessing.
     const [painted, setPainted] = useState(false)
-    const [dark, setDark] = useState(() => isDarkTheme())
-    // Bumped whenever anything on <html> that decides a token changes - the light/dark class, or the
-    // theme attribute beside it. The class alone is not enough: switching from Clinical to Terminal
-    // repaints every token this map reads while `dark` stays exactly as it was, so a repaint keyed
-    // on `dark` would leave the boundaries in the previous theme's colours until the ground flipped.
-    const [palettePainting, setPalettePainting] = useState(0)
+    // Read again whenever anything on <html> that decides a token changes - the light/dark class, or
+    // the theme attribute beside it. The class alone is not enough: switching from Clinical to
+    // Terminal repaints every token this map reads while the ground stays exactly as it was, so a
+    // repaint keyed on the ground alone would leave the boundaries in the previous theme's colours
+    // until the ground flipped. So the reading counts itself, and the paint reads the reading.
+    const [paletteInForce, setPaletteInForce] = useState<PaletteInForce>(() => ({
+        dark: isDarkTheme(),
+        reading: 0,
+    }))
+    const dark = paletteInForce.dark
     // The same fact as a ref, for the layer switch: it needs the current theme to build a muted
     // raster layer, but must not re-run when the theme alone changes.
     const darkNow = useRef(dark)
-    darkNow.current = dark
     // The camera's real zoom after every movement settles, exposed as a data attribute: "the fit
     // framed something bounded rather than the world" is a fact only the engine holds, and a test
     // that read pixel colours to infer it would be guessing.
@@ -299,7 +316,16 @@ export function OrgUnitMap({
     )
     // The current framing target, readable by the recenter control at click time.
     const focusNow = useRef(focus)
-    focusNow.current = focus
+
+    // Everything the map's own callbacks read out of the current render, put where they read it
+    // from. First of this component's effects, so every effect below it reads what this render
+    // holds rather than what the last one did.
+    useEffect(() => {
+        select.current = onSelect
+        registry.current = tree
+        darkNow.current = dark
+        focusNow.current = focus
+    })
     // The recenter control itself, held so a selection change can restate what it centres on.
     const recenter = useRef<RecenterControl | null>(null)
     // The attribution control, which exists only while a layer that needs crediting is up.
@@ -311,8 +337,7 @@ export function OrgUnitMap({
     // attribute that the CSS custom properties actually hang off, which is what the style reads.
     useEffect(() => {
         const observer = new MutationObserver(() => {
-            setDark(isDarkTheme())
-            setPalettePainting((painting) => painting + 1)
+            setPaletteInForce((previous) => ({ dark: isDarkTheme(), reading: previous.reading + 1 }))
         })
         observer.observe(document.documentElement, {
             attributes: true,
@@ -321,115 +346,124 @@ export function OrgUnitMap({
         return () => observer.disconnect()
     }, [])
 
-    useEffect(() => {
-        const element = container.current
-        if (element === null) return
-        if (!webglAvailable()) {
-            setEngineFailure('This browser has no WebGL support, which the map needs in order to draw.')
-            return
-        }
+    // THE MAP IS BUILT ON THE NODE ITSELF rather than in an effect over a ref: an engine that
+    // refuses to start says so as it is asked, and a callback ref is where React hands a component
+    // the element and takes it back. The cleanup it returns is the teardown, so a new offer tears
+    // one map down and builds the next exactly as an effect's re-run did.
+    const mountMap = useCallback(
+        (element: HTMLDivElement | null) => {
+            container.current = element
+            if (element === null) return
+            if (!webglAvailable()) return
 
-        const opening = initialBasemap(basemaps)
-        let instance: MapLibreMap
-        try {
-            instance = new MapLibreMap({
-                container: element,
-                style: baseStyle(readPalette(element, isDarkTheme()), opening, isDarkTheme()),
-                center: [0, 0],
-                zoom: 1,
-                // MapLibre's own attribution control is added and removed with the layer that needs
-                // it (see the effect below) rather than being asked for here: the credit belongs to
-                // whichever tiles are up, and a control left standing over None would render an
-                // empty credit box for a map crediting nobody.
-                attributionControl: false,
-                // Rotation and pitch stay off: district shapes are read north-up, and the globe
-                // view is a projection change through its own control, not a free camera.
-                pitchWithRotate: false,
-                dragRotate: false,
-            })
-        } catch (failure: unknown) {
-            setEngineFailure(failure instanceof Error ? failure.message : String(failure))
-            return
-        }
+            const opening = initialBasemap(basemaps)
+            let instance: MapLibreMap
+            try {
+                instance = new MapLibreMap({
+                    container: element,
+                    style: baseStyle(readPalette(element, isDarkTheme()), opening, isDarkTheme()),
+                    center: [0, 0],
+                    zoom: 1,
+                    // MapLibre's own attribution control is added and removed with the layer that needs
+                    // it (see the effect below) rather than being asked for here: the credit belongs to
+                    // whichever tiles are up, and a control left standing over None would render an
+                    // empty credit box for a map crediting nobody.
+                    attributionControl: false,
+                    // Rotation and pitch stay off: district shapes are read north-up, and the globe
+                    // view is a projection change through its own control, not a free camera.
+                    pitchWithRotate: false,
+                    dragRotate: false,
+                })
+            } catch (failure: unknown) {
+                setEngineFailure(failure instanceof Error ? failure.message : String(failure))
+                return
+            }
 
-        // The corner controls. For fullscreen, `container` is the wrapper around the canvas
-        // rather than the canvas div itself, so the legend rides into fullscreen too - a map
-        // whose colours mean nothing without the key must not shed the key at exactly the size
-        // it is easiest to read. Entering and leaving fullscreen is just a resize of the
-        // container, which the ResizeObserver below already follows; no extra wiring.
-        instance.addControl(
-            new FullscreenControl({ container: element.parentElement ?? undefined }),
-            'top-right',
-        )
-        // The globe toggle, in the same corner. Feature-detected rather than assumed, so an
-        // engine without projections simply has no button instead of a button that throws.
-        if (typeof instance.setProjection === 'function') {
+            // The corner controls. For fullscreen, `container` is the wrapper around the canvas
+            // rather than the canvas div itself, so the legend rides into fullscreen too - a map
+            // whose colours mean nothing without the key must not shed the key at exactly the size
+            // it is easiest to read. Entering and leaving fullscreen is just a resize of the
+            // container, which the ResizeObserver below already follows; no extra wiring.
             instance.addControl(
-                new GlobeToggleControl({
-                    sky: () => globeSky(readPalette(element, isDarkTheme())),
-                    onProjectionChange: (next) => {
-                        projectionNow.current = next
-                        setProjection(next)
-                    },
-                }),
+                new FullscreenControl({ container: element.parentElement ?? undefined }),
                 'top-right',
             )
-        }
-        // The layers control, offering every configured layer and None. Present even when nothing
-        // is configured: a control holding None alone is how the page says the choice exists and
-        // that this deployment offers no tiles, which is more honest than no control at all.
-        instance.addControl(new BasemapControl({ basemaps, initial: opening, onChoose: setBasemap }), 'top-right')
-        // The recenter control, last in the stack: back to the current framing target - the
-        // selection's extent, or the whole registry's - in whichever projection is up.
-        const recenterControl = new RecenterControl(() => {
-            const extent = focusNow.current
-            if (extent !== null) easeToExtent(instance, extent)
-        })
-        instance.addControl(recenterControl, 'top-right')
-        recenter.current = recenterControl
+            // The globe toggle, in the same corner. Feature-detected rather than assumed, so an
+            // engine without projections simply has no button instead of a button that throws.
+            if (typeof instance.setProjection === 'function') {
+                instance.addControl(
+                    new GlobeToggleControl({
+                        sky: () => globeSky(readPalette(element, isDarkTheme())),
+                        onProjectionChange: (next) => {
+                            projectionNow.current = next
+                            setProjection(next)
+                        },
+                    }),
+                    'top-right',
+                )
+            }
+            // The layers control, offering every configured layer and None. Present even when nothing
+            // is configured: a control holding None alone is how the page says the choice exists and
+            // that this deployment offers no tiles, which is more honest than no control at all.
+            instance.addControl(new BasemapControl({ basemaps, initial: opening, onChoose: setBasemap }), 'top-right')
+            // The recenter control, last in the stack: back to the current framing target - the
+            // selection's extent, or the whole registry's - in whichever projection is up.
+            const recenterControl = new RecenterControl(() => {
+                const extent = focusNow.current
+                if (extent !== null) easeToExtent(instance, extent)
+            })
+            instance.addControl(recenterControl, 'top-right')
+            recenter.current = recenterControl
 
-        map.current = instance
-        instance.on('error', (event) => {
-            // A tile that could not be fetched carries the tile it failed for, and it is not an
-            // engine failure: the painted ground shows through wherever tiles are missing, which
-            // is the boundary-only map. A tile host that is down degrades to that rather than
-            // replacing the whole panel with a message about somebody else's uptime.
-            if ('tile' in event) return
-            // A style or source error must not leave a blank rectangle with no explanation.
-            setEngineFailure(event.error.message)
-        })
-        // LEFT-CLICK ASKS, RIGHT-CLICK MOVES - registered on the map once, before any layer exists,
-        // because a layer switch rebuilds the shape layers and re-registering with them would
-        // stack a second handler on every gesture. MapLibre resolves a layer-scoped listener when
-        // the event fires, so a layer added later is covered by a listener registered now.
-        registerInteractions(instance, { select, registry, popup, highlighted, hovered })
-        instance.on('load', () => setReady(true))
-        instance.on('moveend', () => setZoom(instance.getZoom()))
+            map.current = instance
+            instance.on('error', (event) => {
+                // A tile that could not be fetched carries the tile it failed for, and it is not an
+                // engine failure: the painted ground shows through wherever tiles are missing, which
+                // is the boundary-only map. A tile host that is down degrades to that rather than
+                // replacing the whole panel with a message about somebody else's uptime.
+                if ('tile' in event) return
+                // A style or source error must not leave a blank rectangle with no explanation.
+                setEngineFailure(event.error.message)
+            })
+            // LEFT-CLICK ASKS, RIGHT-CLICK MOVES - registered on the map once, before any layer exists,
+            // because a layer switch rebuilds the shape layers and re-registering with them would
+            // stack a second handler on every gesture. MapLibre resolves a layer-scoped listener when
+            // the event fires, so a layer added later is covered by a listener registered now.
+            registerInteractions(instance, { select, registry, popup, highlighted, hovered })
+            instance.on('load', () => setReady(true))
+            instance.on('moveend', () => setZoom(instance.getZoom()))
 
-        const resize = new ResizeObserver(() => instance.resize())
-        resize.observe(element)
+            const resize = new ResizeObserver(() => instance.resize())
+            resize.observe(element)
 
-        return () => {
-            resize.disconnect()
-            setReady(false)
-            setPainted(false)
-            setZoom(null)
-            setProjection('mercator')
-            projectionNow.current = 'mercator'
-            popup.current?.remove()
-            popup.current = null
-            recenter.current = null
-            attribution.current = null
-            map.current = null
-            instance.remove()
-        }
+            return () => {
+                resize.disconnect()
+                setReady(false)
+                setPainted(false)
+                setZoom(null)
+                setProjection('mercator')
+                projectionNow.current = 'mercator'
+                popup.current?.remove()
+                popup.current = null
+                recenter.current = null
+                attribution.current = null
+                map.current = null
+                container.current = null
+                instance.remove()
+            }
+        },
         // Rebuilt when the OFFER changes, which in practice happens once - the settings are read
         // before this mounts, and a running server does not change its mind about them. Which
-        // layer of the offer is up is not in these deps: switching swaps a source, never a map.
-    }, [basemaps])
+        // layer of the offer is up is not here: switching swaps a source, never a map.
+        [basemaps],
+    )
 
     // A new offer is a new opening layer, since the reader's choice was made among the old one.
-    useEffect(() => setBasemap(initialBasemap(basemaps)), [basemaps])
+    const [offered, setOffered] = useState(basemaps)
+    if (offered !== basemaps) {
+        setOffered(basemaps)
+        setBasemap(initialBasemap(basemaps))
+    }
 
     // THE LAYER SWITCH, and the whole of what one costs: the raster source is removed and added
     // back pointed elsewhere, under the same id, below the boundaries. The camera does not move,
@@ -455,18 +489,18 @@ export function OrgUnitMap({
         syncAttributionControl(instance, attribution, basemap)
     }, [ready, basemap])
 
-    // The layers are (re)built whenever the palette changes - either axis of it, which is what
-    // `palettePainting` counts - because every paint value is a token and a token means something
+    // The layers are (re)built whenever the palette changes - either axis of it, which is what one
+    // reading of it carries - because every paint value is a token and a token means something
     // different under another theme or the other ground. Rebuilding rather than patching each paint
     // property keeps one description of the encoding instead of two.
     useEffect(() => {
         const instance = map.current
         const element = container.current
         if (instance === null || element === null || !ready) return
-        const palette = readPalette(element, dark)
+        const palette = readPalette(element, paletteInForce.dark)
         instance.setPaintProperty(GROUND_LAYER_ID, 'background-color', palette.surface)
         if (instance.getLayer(BASEMAP_LAYER_ID) !== undefined) {
-            const muting = RASTER_MUTING[dark ? 'dark' : 'light']
+            const muting = RASTER_MUTING[paletteInForce.dark ? 'dark' : 'light']
             for (const property of RASTER_PAINT_PROPERTIES) {
                 instance.setPaintProperty(BASEMAP_LAYER_ID, property, muting[property])
             }
@@ -476,8 +510,12 @@ export function OrgUnitMap({
             // A theme flip while the globe is up re-tokens the sky with everything else.
             instance.setSky(globeSky(palette))
         }
-        setPainted(true)
-    }, [ready, dark, palettePainting, basemap, shapes, markers])
+        // PAINTED IS A FACT ABOUT THE FRAME, not about this effect having run: the layers are
+        // described here and drawn on the next one, and a click in between lands on a scene that is
+        // not there yet. `data-map-ready` is what a browser test waits on, so it says the later thing.
+        const drawn = requestAnimationFrame(() => setPainted(true))
+        return () => cancelAnimationFrame(drawn)
+    }, [ready, paletteInForce, basemap, shapes, markers])
 
     useEffect(() => {
         const instance = map.current
@@ -489,6 +527,7 @@ export function OrgUnitMap({
 
     // What the recenter control centres on is a fact about the selection, restated when it moves.
     useEffect(() => {
+        if (!ready) return
         recenter.current?.setSubject(selectedUnitId !== null)
     }, [ready, selectedUnitId])
 
@@ -498,7 +537,7 @@ export function OrgUnitMap({
         // above is what keeps the canvas honest as that changes.
         <div className="relative flex min-h-[20rem] flex-1 flex-col">
             <div
-                ref={container}
+                ref={mountMap}
                 data-testid="org-unit-map"
                 data-map-ready={painted ? 'true' : 'false'}
                 data-map-zoom={zoom === null ? undefined : zoom.toFixed(2)}

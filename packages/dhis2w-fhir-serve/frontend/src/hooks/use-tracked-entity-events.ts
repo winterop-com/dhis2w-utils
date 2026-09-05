@@ -110,10 +110,7 @@ export function useTrackedEntityEvents(trackedEntityUid: string | null): Tracked
 
     useEffect(() => {
         const wanted = eventsReadFor(trackedEntityUid)
-        if (wanted === null) {
-            setAnswered(NO_EVENTS_ANSWERED)
-            return () => undefined
-        }
+        if (wanted === null) return () => undefined
         let cancelled = false
         readTrackedEntityEvents(wanted)
             .then((bundle) => {

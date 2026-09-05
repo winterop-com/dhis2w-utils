@@ -39,29 +39,23 @@ export interface SpoolState {
  * is the one a person presses while looking straight at the table.
  */
 export function useSpool(): SpoolState {
-    const [listing, setListing] = useState<SpoolListing>(EMPTY_SPOOL)
-    const [loaded, setLoaded] = useState(false)
-    const [inFlight, setInFlight] = useState(true)
-    const [error, setError] = useState<string | null>(null)
     const [nonce, setNonce] = useState(0)
+    const [answered, setAnswered] = useState<AnsweredSpool | null>(null)
 
     const reload = useCallback(() => setNonce((value) => value + 1), [])
 
     useEffect(() => {
+        const wanted = nonce
         let cancelled = false
-        setInFlight(true)
         readSpool()
             .then((next) => {
                 if (cancelled) return
-                setListing(next)
-                setError(null)
-                setLoaded(true)
-                setInFlight(false)
+                setAnswered({ nonce: wanted, listing: next, error: null })
             })
             .catch((failure: unknown) => {
                 if (cancelled) return
-                setError(failure instanceof Error ? failure.message : String(failure))
-                setInFlight(false)
+                const message = failure instanceof Error ? failure.message : String(failure)
+                setAnswered((held) => ({ nonce: wanted, listing: held?.listing ?? null, error: message }))
             })
         return () => {
             cancelled = true
@@ -74,5 +68,20 @@ export function useSpool(): SpoolState {
         return () => window.removeEventListener('focus', onFocus)
     }, [reload])
 
-    return { listing, loading: inFlight && !loaded, error, refreshing: inFlight && loaded, reload }
+    const inFlight = answered === null || answered.nonce !== nonce
+    const loaded = answered !== null && answered.listing !== null
+    return {
+        listing: answered?.listing ?? EMPTY_SPOOL,
+        loading: inFlight && !loaded,
+        error: answered?.error ?? null,
+        refreshing: inFlight && loaded,
+        reload,
+    }
+}
+
+/** What one read answered, stamped with the reload it answered - null listing until one has landed. */
+interface AnsweredSpool {
+    nonce: number
+    listing: SpoolListing | null
+    error: string | null
 }

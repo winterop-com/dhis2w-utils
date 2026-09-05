@@ -28,11 +28,16 @@ export interface AppShortcutHandlers {
  * keys are there whether or not this tab has signed in yet.
  *
  * The handlers are held in a ref so the listener is bound once: a caller passing fresh callbacks per
- * render would otherwise add and remove a window listener on every keystroke it caused.
+ * render would otherwise add and remove a window listener on every keystroke it caused. The ref is
+ * written after each render rather than during it, because a render must not touch a ref - and a key
+ * press is answered long after the paint that recorded the handlers for it.
  */
 export function useAppShortcuts(handlers: AppShortcutHandlers): void {
     const latest = useRef(handlers)
-    latest.current = handlers
+
+    useEffect(() => {
+        latest.current = handlers
+    })
 
     useEffect(() => {
         const apple = applePlatform(navigator.userAgent)

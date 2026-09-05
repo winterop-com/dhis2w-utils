@@ -35,52 +35,53 @@ export interface AttributeFilterOptionsState {
     error: string | null
 }
 
+/** Nothing offered - one array, so a read in flight hands every render the same empty set. */
+const NO_OPTIONS: AttributeFilterOption[] = []
+
 /** Every expansion this session has already paid for, keyed by ValueSet canonical. */
 const expansions = new Map<string, AttributeFilterOption[]>()
 
+/** What one read answered, stamped with the canonical it was read for. */
+interface AnsweredOptions {
+    canonical: string | null
+    options: AttributeFilterOption[] | null
+    error: string | null
+}
+
 /** The values one coded attribute is filtered by, read once per canonical and shared across the page. */
 export function useAttributeFilterOptions(canonical: string | null): AttributeFilterOptionsState {
-    const cached = canonical === null ? [] : (expansions.get(canonical) ?? null)
-    const [options, setOptions] = useState<AttributeFilterOption[]>(cached ?? [])
-    const [loading, setLoading] = useState(canonical !== null && cached === null)
-    const [error, setError] = useState<string | null>(null)
+    const [answered, setAnswered] = useState<AnsweredOptions>({ canonical, options: null, error: null })
 
     useEffect(() => {
-        if (canonical === null) {
-            setOptions([])
-            setLoading(false)
-            setError(null)
-            return
-        }
-        const known = expansions.get(canonical)
-        if (known !== undefined) {
-            setOptions(known)
-            setLoading(false)
-            setError(null)
-            return
-        }
+        if (canonical === null) return
+        if (expansions.has(canonical)) return
         let cancelled = false
-        setLoading(true)
-        setError(null)
         readOptions(canonical)
             .then((read) => {
                 expansions.set(canonical, read)
                 if (cancelled) return
-                setOptions(read)
-                setLoading(false)
+                setAnswered({ canonical, options: read, error: null })
             })
             .catch((failure: unknown) => {
                 if (cancelled) return
-                setOptions([])
-                setError(failure instanceof Error ? failure.message : String(failure))
-                setLoading(false)
+                setAnswered({
+                    canonical,
+                    options: NO_OPTIONS,
+                    error: failure instanceof Error ? failure.message : String(failure),
+                })
             })
         return () => {
             cancelled = true
         }
     }, [canonical])
 
-    return { options, loading, error }
+    if (canonical === null) return { options: NO_OPTIONS, loading: false, error: null }
+    const cached = expansions.get(canonical)
+    if (cached !== undefined) return { options: cached, loading: false, error: null }
+    if (answered.canonical !== canonical || answered.options === null) {
+        return { options: NO_OPTIONS, loading: true, error: null }
+    }
+    return { options: answered.options, loading: false, error: answered.error }
 }
 
 /** The reads one vocabulary is made of: the ValueSet, then every CodeSystem it composes. */
