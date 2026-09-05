@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from dhis2w_ql import InMemoryBinder, QueryEngine, parse
+from dhis2w_ql.engine.datasource import DataSource
+from dhis2w_ql.engine.plan import NativeQuery, SourceCapabilities
 from dhis2w_ql.errors import SemanticError
 
 _ROWS = [
@@ -268,3 +271,84 @@ async def test_function_call_chain_under_the_depth_limit_runs() -> None:
     lines.append(f"dataElements | where f{depth - 1}(value) > 0 | count")
     result = await _engine("\n".join(lines)).run_terminal()
     assert result.rows == [3]
+
+
+# --------------------------------------------------- native count fast path vs. plain execution
+
+_PAGED_TOTAL = 100
+_PAGED_ROWS = [{"id": f"x{index:03d}", "value": index} for index in range(_PAGED_TOTAL)]
+
+
+class _PagingCountingSource:
+    """A countable source that pushes paging down, mirroring the DHIS2 list binding."""
+
+    def __init__(self, rows: list[dict[str, Any]]) -> None:
+        """Hold the rows this source pages over."""
+        self._rows = rows
+
+    def capabilities(self) -> SourceCapabilities:
+        """Paging pushes down; filtering and ordering stay local."""
+        return SourceCapabilities(paging=True)
+
+    async def fetch(self, native: NativeQuery) -> list[dict[str, Any]]:
+        """Return the rows the native paging selects."""
+        rows = self._rows[(native.skip or 0) :]
+        return rows if native.limit is None else rows[: native.limit]
+
+    async def count(self, native: NativeQuery) -> int:
+        """Report the matching total, ignoring paging exactly as the DHIS2 pager total does."""
+        return len(self._rows)
+
+
+class _PlainSource:
+    """The same rows with no pushdown at all, so every stage runs locally."""
+
+    def __init__(self, rows: list[dict[str, Any]]) -> None:
+        """Hold the rows this source returns verbatim."""
+        self._rows = rows
+
+    def capabilities(self) -> SourceCapabilities:
+        """Nothing pushes down; the engine applies every stage locally."""
+        return SourceCapabilities()
+
+    async def fetch(self, native: NativeQuery) -> list[dict[str, Any]]:
+        """Return every row; the engine applies the stages."""
+        return list(self._rows)
+
+
+class _SingleSourceBinder:
+    """Binds the name `dataElements` to one source."""
+
+    def __init__(self, source: DataSource) -> None:
+        """Hold the source this binder resolves to."""
+        self._source = source
+
+    def bind(self, name: str) -> DataSource | None:
+        """Return the held source for `dataElements`, else None."""
+        return self._source if name == "dataElements" else None
+
+    def bind_call(self, name: str, args: dict[str, Any]) -> DataSource | None:
+        """This binder has no call sources."""
+        return None
+
+
+@pytest.mark.parametrize(
+    ("stages", "expected"),
+    [
+        ("| limit 0", 0),
+        ("| limit 5", 5),
+        ("| skip 20", 80),
+        ("| skip 200", 0),
+        ("| skip 20 | limit 5", 5),
+        ("| skip 98 | limit 5", 2),
+        ("| limit 5 | skip 2", 3),
+        ("", _PAGED_TOTAL),
+    ],
+)
+async def test_native_count_fast_path_agrees_with_plain_execution(stages: str, expected: int) -> None:
+    program = f"dataElements {stages} | count"
+    paging_source = _SingleSourceBinder(_PagingCountingSource(_PAGED_ROWS))
+    optimised = await QueryEngine(parse(program), paging_source).run_terminal()
+    plain = await QueryEngine(parse(program), _SingleSourceBinder(_PlainSource(_PAGED_ROWS))).run_terminal()
+    assert optimised.rows == [expected]
+    assert plain.rows == [expected]

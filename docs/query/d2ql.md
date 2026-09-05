@@ -300,6 +300,12 @@ The fast-path applies only when every stage before `count` pushed down; add a st
 (`transform`, a function predicate) and `count` falls back to counting the fetched rows. Either way
 `count` yields a scalar (e.g. `621`), not a one-row list.
 
+A pushed `skip` and `limit` narrow the total rather than being ignored: the pager total is how many
+rows match the filters, and the engine applies the paging to it, still without fetching a row. Against
+a total of 100, `dataElements | limit 5 | count` is `5`, `dataElements | skip 20 | count` is `80`, and
+`dataElements | skip 200 | count` is `0`. `skip` before `limit` pushes as one pair; `limit` before
+`skip` leaves the `skip` local, so that pipeline fetches its rows and counts them.
+
 One predicate is not just local but meaningless: `where field = null`. A missing or null field is the
 empty collection, so `= null` matches nothing and is never pushed. Use `where field.exists()` /
 `where field.empty()` to test presence and absence — see [d2path](d2path.md#presence-and-absence-there-is-no-null).

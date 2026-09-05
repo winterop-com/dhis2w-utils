@@ -29,7 +29,10 @@ class CountableSource(Protocol):
     """A source that can return a total row count natively (e.g. via a pager total) without fetching."""
 
     async def count(self, native: NativeQuery) -> int:
-        """Return how many rows the native query would yield, without fetching them."""
+        """Return how many rows match the native query's filters, without fetching them.
+
+        The count ignores `skip`/`limit`: the engine narrows the total by the pushed paging itself.
+        """
         ...
 
 
