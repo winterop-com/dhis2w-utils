@@ -32,6 +32,7 @@ from dhis2w_client.v41.category_option_combos import CategoryOptionCombosAccesso
 from dhis2w_client.v41.category_option_group_sets import CategoryOptionGroupSetsAccessor
 from dhis2w_client.v41.category_option_groups import CategoryOptionGroupsAccessor
 from dhis2w_client.v41.category_options import CategoryOptionsAccessor
+from dhis2w_client.v41.complete_data_set_registrations import CompleteDataSetRegistrationsAccessor
 from dhis2w_client.v41.customize import CustomizeAccessor
 from dhis2w_client.v41.dashboards import DashboardsAccessor
 from dhis2w_client.v41.data_element_group_sets import DataElementGroupSetsAccessor
@@ -205,6 +206,9 @@ class Dhis2Client:
         self.visualizations: VisualizationsAccessor = VisualizationsAccessor(self)
         self.dashboards: DashboardsAccessor = DashboardsAccessor(self)
         self.data_values: DataValuesAccessor = DataValuesAccessor(self)
+        self.complete_data_set_registrations: CompleteDataSetRegistrationsAccessor = (
+            CompleteDataSetRegistrationsAccessor(self)
+        )
         self.analytics: AnalyticsAccessor = AnalyticsAccessor(self)
         self.tracker: TrackerAccessor = TrackerAccessor(self)
         self.apps: AppsAccessor = AppsAccessor(self)

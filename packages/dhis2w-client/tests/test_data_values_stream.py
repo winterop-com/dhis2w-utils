@@ -160,6 +160,7 @@ async def test_stream_forwards_every_query_parameter(
             dry_run=True,
             preheat_cache=False,
             import_strategy="CREATE_AND_UPDATE",
+            atomic_mode="OBJECT",
             id_scheme="UID",
             data_element_id_scheme="CODE",
             org_unit_id_scheme="NAME",
@@ -173,6 +174,7 @@ async def test_stream_forwards_every_query_parameter(
     assert params["dryRun"] == "true"
     assert params["preheatCache"] == "false"
     assert params["importStrategy"] == "CREATE_AND_UPDATE"
+    assert params["atomicMode"] == "OBJECT"
     assert params["idScheme"] == "UID"
     assert params["dataElementIdScheme"] == "CODE"
     assert params["orgUnitIdScheme"] == "NAME"
@@ -201,6 +203,7 @@ async def test_stream_default_params_omit_optional_flags(
     assert "dryRun" not in params
     assert "preheatCache" not in params
     assert "importStrategy" not in params
+    assert "atomicMode" not in params
     assert "async" not in params
 
 
