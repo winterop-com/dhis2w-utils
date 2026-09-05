@@ -80,6 +80,46 @@ async def test_count_uses_pager_total_not_a_full_fetch() -> None:
     assert dict(route.calls.last.request.url.params).get("pageSize") == "1"
 
 
+def _mock_hundred_data_elements() -> respx.Route:
+    """Mock a `dataElements` collection of 100 rows, honouring `pageSize` and reporting a total of 100."""
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requested = request.url.params.get("pageSize")
+        page_size = min(int(requested), 100) if requested is not None else 100
+        return httpx.Response(
+            200,
+            json={
+                "pager": {"page": 1, "pageSize": page_size, "total": 100},
+                "dataElements": [{"id": f"x{index:03d}", "name": f"E{index:03d}"} for index in range(page_size)],
+            },
+        )
+
+    return respx.get(f"{_BASE}/api/dataElements").mock(side_effect=respond)
+
+
+@pytest.mark.parametrize(
+    ("stages", "expected"),
+    [
+        ("| limit 0", 0),
+        ("| limit 5", 5),
+        ("| skip 20", 80),
+        ("| skip 200", 0),
+        ("| skip 20 | limit 5", 5),
+        ("| limit 5 | skip 2", 3),
+    ],
+)
+@respx.mock
+async def test_count_applies_pushed_paging_to_the_pager_total(stages: str, expected: int) -> None:
+    # The pager total (100) is the matching-row count; the pushed `skip`/`limit` narrow it. The local
+    # reference prepends a non-pushable predicate so every stage runs over fetched rows instead.
+    _mock_connect()
+    _mock_hundred_data_elements()
+    pushed = await service.run_query(_PROFILE, f"dataElements {stages} | count")
+    local = await service.run_query(_PROFILE, f'dataElements | where name.upper() != "ZZZ" {stages} | count')
+    assert pushed.rows == [expected]
+    assert local.rows == [expected]
+
+
 @respx.mock
 async def test_count_after_local_predicate_counts_locally() -> None:
     # A local (non-pushable) predicate before `count` forces fetch + count, not the pager fast-path.

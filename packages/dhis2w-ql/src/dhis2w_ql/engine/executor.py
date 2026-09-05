@@ -193,6 +193,7 @@ class QueryEngine:
 
         Applies only when every stage before `count` pushes down (so the residual is exactly the count)
         and the source can count natively; otherwise returns None and the rows are fetched and counted.
+        `count` reports how many rows match the filters, so pushed `skip`/`limit` are applied to it here.
         """
         source = pipeline.source
         if not isinstance(source, NameSource):
@@ -203,7 +204,8 @@ class QueryEngine:
         plan = plan_pipeline(source.name, data_source.capabilities(), stages)
         if len(plan.residual) != 1 or not isinstance(plan.residual[0], CountStage):
             return None
-        return await data_source.count(plan.native)
+        matching = await data_source.count(plan.native)
+        return _apply_paging_to_total(matching, skip=plan.native.skip, limit=plan.native.limit)
 
     def _effective_stages(self, pipeline: Pipeline) -> list[Stage]:
         source = pipeline.source
@@ -327,6 +329,12 @@ class QueryEngine:
             return 0
 
         return sorted(rows, key=cmp_to_key(comparator))
+
+
+def _apply_paging_to_total(total: int, *, skip: int | None, limit: int | None) -> int:
+    """Narrow a source's matching-row total by the `skip`/`limit` the planner pushed into the query."""
+    remaining = max(0, total - (skip or 0))
+    return min(limit, remaining) if limit is not None else remaining
 
 
 def _is_scalar_define(define: Define) -> bool:
