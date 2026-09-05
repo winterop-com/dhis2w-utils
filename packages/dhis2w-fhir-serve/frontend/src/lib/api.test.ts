@@ -16,7 +16,7 @@ import {
     searchRegister,
     translateCode,
 } from '@/lib/api'
-import { authSnapshot, basicAuthorization, bearerAuthorization, signIn, signOut, storedAuthorization } from '@/lib/auth'
+import { authSnapshot, basicAuthorization, bearerAuthorization, signIn, signOut } from '@/lib/auth'
 
 /**
  * The wire layer, tested against a stubbed `fetch`.
@@ -165,7 +165,7 @@ describe('apiFetch', () => {
         await apiFetch('/QuestionnaireResponse', { method: 'POST' })
 
         expect(new Headers(calls[0].init.headers).get('Authorization')).toBe(basicAuthorization('clerk', 'secret'))
-        expect(storedAuthorization()).toBeNull()
+        expect(authSnapshot().authorization).toBeNull()
         expect(authSnapshot().refused).toBe(true)
     })
 
@@ -175,7 +175,66 @@ describe('apiFetch', () => {
 
         await apiFetch('/metadata')
 
-        expect(storedAuthorization()).toBe(basicAuthorization('clerk', 'secret'))
+        expect(authSnapshot().authorization).toBe(basicAuthorization('clerk', 'secret'))
+    })
+})
+
+describe('a tab that is refused its storage', () => {
+    /**
+     * Deny every read and write, the way a browser set to block site data does.
+     *
+     * The getter throws rather than answering null: that is what the block looks like from script,
+     * and a stub that answered null would pass against code reading storage on every request.
+     */
+    function denyStorage(): void {
+        const denied = {
+            getItem: () => {
+                throw new DOMException('access is denied for this document', 'SecurityError')
+            },
+            setItem: () => {
+                throw new DOMException('access is denied for this document', 'SecurityError')
+            },
+            removeItem: () => {
+                throw new DOMException('access is denied for this document', 'SecurityError')
+            },
+            clear: () => {
+                throw new DOMException('access is denied for this document', 'SecurityError')
+            },
+        }
+        vi.stubGlobal('sessionStorage', denied)
+    }
+
+    afterEach(() => {
+        vi.unstubAllGlobals()
+    })
+
+    it('signs, is refused, and signs out on what the module holds, with nothing read back from storage', async () => {
+        denyStorage()
+        const credential = basicAuthorization('clerk', 'secret')
+
+        signIn(credential, 'clerk')
+        expect(authSnapshot().authorization).toBe(credential)
+
+        const served = stubFetch(fhirResponse({}))
+        await apiFetch('/metadata')
+        expect(new Headers(served.calls[0].init.headers).get('Authorization')).toBe(credential)
+
+        const refused = stubFetch(fhirResponse({ resourceType: 'OperationOutcome' }, 401))
+        await apiFetch('/QuestionnaireResponse', { method: 'POST' })
+        expect(new Headers(refused.calls[0].init.headers).get('Authorization')).toBe(credential)
+        expect(authSnapshot().authorization).toBeNull()
+        expect(authSnapshot().refused).toBe(true)
+
+        const unsigned = stubFetch(fhirResponse({}))
+        await apiFetch('/metadata')
+        expect(new Headers(unsigned.calls[0].init.headers).has('Authorization')).toBe(false)
+
+        signIn(credential, 'clerk')
+        signOut()
+        const afterSignOut = stubFetch(fhirResponse({}))
+        await apiFetch('/metadata')
+        expect(new Headers(afterSignOut.calls[0].init.headers).has('Authorization')).toBe(false)
+        expect(authSnapshot().identity).toBeNull()
     })
 })
 
@@ -218,7 +277,7 @@ describe('checkCredential', () => {
 
         await checkCredential(basicAuthorization('someone', 'else'))
 
-        expect(storedAuthorization()).toBe(basicAuthorization('clerk', 'secret'))
+        expect(authSnapshot().authorization).toBe(basicAuthorization('clerk', 'secret'))
         expect(authSnapshot().refused).toBe(false)
     })
 

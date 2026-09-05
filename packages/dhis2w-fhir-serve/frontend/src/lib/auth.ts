@@ -19,9 +19,13 @@
  * not a scheme - so the server puts it in an extension on `security`, and `issuerFromSecurity` is
  * what reads it back. Never a key, never an audience: the issuer alone.
  *
- * WHERE THE CREDENTIAL LIVES. `sessionStorage`, under one key, as the whole `Authorization` value.
- * A tab, not a browser: closing the tab ends the session, and a second tab signs in on its own.
- * Nothing here is written to `localStorage`, which would outlive the person at the keyboard.
+ * WHERE THE CREDENTIAL LIVES. In this module, as the whole `Authorization` value, and that state is
+ * the one thing a request is signed with. `sessionStorage` holds a copy under one key so a reload
+ * finds the session again: it is read once, when this module loads, and written whenever the state
+ * changes. A tab, not a browser: closing the tab ends the session, and a second tab signs in on its
+ * own. Nothing here is written to `localStorage`, which would outlive the person at the keyboard.
+ * A tab that is refused the storage signs its requests exactly like any other, and loses only the
+ * reload.
  *
  * WHAT IS STORED IS THE HEADER. Under the DHIS2 posture that is `Basic <base64 of user:password>`,
  * which is the password in a form anything can decode - that is what HTTP Basic is, and it is why
@@ -122,9 +126,38 @@ export function issuerFromSecurity(security: CapabilitySecurity | null | undefin
     return null
 }
 
-/** One username and password as HTTP Basic sends them. */
+/** How many bytes are turned into characters at a time, so no call carries a whole credential as arguments. */
+const BASE64_CHUNK_SIZE = 0x8000
+
+/**
+ * Base64 of arbitrary bytes, built a chunk at a time.
+ *
+ * `btoa` takes characters, one byte each, so the bytes are spelled as characters before it sees
+ * them. That is done in chunks and one character at a time rather than by spreading the whole array
+ * into a call, which a long password would overrun.
+ */
+function base64FromBytes(bytes: Uint8Array): string {
+    let characters = ''
+    for (let start = 0; start < bytes.length; start += BASE64_CHUNK_SIZE) {
+        const end = Math.min(start + BASE64_CHUNK_SIZE, bytes.length)
+        let chunk = ''
+        for (let index = start; index < end; index += 1) chunk += String.fromCharCode(bytes[index])
+        characters += chunk
+    }
+    return btoa(characters)
+}
+
+/**
+ * One username and password as HTTP Basic sends them.
+ *
+ * The pair is encoded to UTF-8 before it is base64ed, which is the same byte sequence
+ * `dhis2w_client.v42.auth.basic.BasicAuth` builds its header from, so a name with an o-slash or a
+ * password in Chinese reaches DHIS2 as the same bytes from a browser as from the client library.
+ * Handing the string to `btoa` directly would send different bytes for the first and raise for the
+ * second.
+ */
 export function basicAuthorization(username: string, password: string): string {
-    return `Basic ${btoa(`${username}:${password}`)}`
+    return `Basic ${base64FromBytes(new TextEncoder().encode(`${username}:${password}`))}`
 }
 
 /** One deployment token as this server's `token` posture takes it. */
@@ -132,21 +165,36 @@ export function bearerAuthorization(token: string): string {
     return `Bearer ${token}`
 }
 
-/** What this tab is currently signing its requests with, or null when it holds nothing. */
-export function storedAuthorization(): string | null {
+/**
+ * One key out of the reload cache, or null where this tab was refused the storage.
+ *
+ * Read once each, at module load, to seed the state below. Nothing reads storage again: the
+ * credential a request is signed with is the module state, and a tab whose storage is denied signs
+ * its requests exactly like a tab whose storage works.
+ */
+function cachedValue(key: string): string | null {
     try {
-        return sessionStorage.getItem(CREDENTIAL_STORAGE_KEY)
+        return sessionStorage.getItem(key)
     } catch {
         return null
     }
 }
 
-/** Who this tab is signed in as, for the header to name - the DHIS2 username, or null. */
-export function storedIdentity(): string | null {
+/**
+ * Put the credential and the name this tab holds into the reload cache, where there is one to write to.
+ *
+ * Storage being denied is not a failed sign-in. The credential this tab signs with is the module
+ * state, and the cache is only what carries it across a reload - so a denied write costs the person
+ * a reload, and nothing else.
+ */
+function cacheCredential(authorization: string | null, identity: string | null): void {
     try {
-        return sessionStorage.getItem(IDENTITY_STORAGE_KEY)
+        if (authorization === null) sessionStorage.removeItem(CREDENTIAL_STORAGE_KEY)
+        else sessionStorage.setItem(CREDENTIAL_STORAGE_KEY, authorization)
+        if (identity === null) sessionStorage.removeItem(IDENTITY_STORAGE_KEY)
+        else sessionStorage.setItem(IDENTITY_STORAGE_KEY, identity)
     } catch {
-        return null
+        // The tab keeps signing with what the module holds; only surviving a reload is lost.
     }
 }
 
@@ -167,8 +215,8 @@ export interface AuthState {
 let state: AuthState = {
     posture: null,
     issuer: null,
-    authorization: storedAuthorization(),
-    identity: storedIdentity(),
+    authorization: cachedValue(CREDENTIAL_STORAGE_KEY),
+    identity: cachedValue(IDENTITY_STORAGE_KEY),
     refused: false,
 }
 const listeners = new Set<() => void>()
@@ -204,25 +252,13 @@ export function setAuthPosture(posture: AuthPosture, issuer: string | null = nul
  * deployment secret's owner.
  */
 export function signIn(authorization: string, identity: string | null): void {
-    try {
-        sessionStorage.setItem(CREDENTIAL_STORAGE_KEY, authorization)
-        if (identity === null) sessionStorage.removeItem(IDENTITY_STORAGE_KEY)
-        else sessionStorage.setItem(IDENTITY_STORAGE_KEY, identity)
-    } catch {
-        // A tab with storage denied still works for as long as it is open; the credential lives in
-        // the module either way, and the only thing lost is surviving a reload.
-    }
+    cacheCredential(authorization, identity)
     publish({ ...state, authorization, identity, refused: false })
 }
 
 /** Forget the credential this tab held, which is what signing out is. */
 export function signOut(): void {
-    try {
-        sessionStorage.removeItem(CREDENTIAL_STORAGE_KEY)
-        sessionStorage.removeItem(IDENTITY_STORAGE_KEY)
-    } catch {
-        // Nothing to clear that anything else can read.
-    }
+    cacheCredential(null, null)
     publish({ ...state, authorization: null, identity: null, refused: false })
 }
 
@@ -234,12 +270,7 @@ export function signOut(): void {
  * dropped with it: a credential the server has just refused is not one to keep signing with.
  */
 export function reportUnauthenticated(): void {
-    try {
-        sessionStorage.removeItem(CREDENTIAL_STORAGE_KEY)
-        sessionStorage.removeItem(IDENTITY_STORAGE_KEY)
-    } catch {
-        // As above.
-    }
+    cacheCredential(null, null)
     publish({ ...state, authorization: null, identity: null, refused: true })
 }
 
@@ -320,3 +351,13 @@ export const SIGN_IN_REFUSALS: Record<Exclude<AuthPosture, 'none'>, string> = {
  * told the wrong one of those retypes a password that was right all along.
  */
 export const SIGN_IN_UNREACHABLE = 'This server could not be reached, so nothing was checked.'
+
+/**
+ * What the panel says when what was typed could not be turned into a credential at all.
+ *
+ * A third thing that is neither a refusal nor an unreachable server: nothing was sent, because
+ * nothing could be built to send. Any text a person can type encodes, so this is what a browser
+ * without the encoder the header is built with reads as, and saying the password was wrong would
+ * send somebody after a password that is right.
+ */
+export const SIGN_IN_UNENCODABLE = 'This username or password contains characters that cannot be sent.'

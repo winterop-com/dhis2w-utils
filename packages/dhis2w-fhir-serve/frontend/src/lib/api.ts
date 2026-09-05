@@ -70,7 +70,7 @@ import {
     REGISTER_ATTRIBUTE_SEARCH_PARAMETER,
     type PatientEnrollments,
 } from '@/lib/patients'
-import { reportUnauthenticated, storedAuthorization, type AuthenticatedCaller } from '@/lib/auth'
+import { authSnapshot, reportUnauthenticated, type AuthenticatedCaller } from '@/lib/auth'
 import type { SpoolListing } from '@/lib/spool'
 import type { UiConfig } from '@/lib/uiconfig'
 
@@ -216,7 +216,10 @@ export function outcomeMessage(outcome: OperationOutcome | null): string | null 
  *
  * THE CREDENTIAL IS THIS TAB'S, when it holds one: `lib/auth` keeps the whole
  * `Authorization` value, which is `Basic ...` under the DHIS2 posture and
- * `Bearer ...` under the token posture. `configureApi({token})` stays for the
+ * `Bearer ...` under the token posture. It is read off the auth state rather
+ * than out of storage, so the credential a request is signed with is the one
+ * the app's own screens are drawn from, and a tab whose storage is denied signs
+ * its requests like any other. `configureApi({token})` stays for the
  * case it was always for - something in front of this server wanting a bearer
  * token - and the signed-in credential wins over it, because a person who signed
  * in is a more specific answer than a deployment default.
@@ -231,7 +234,7 @@ export async function apiFetch(path: string, init: RequestInit = {}, signing: Si
     if (!GUARDED_PATH_PATTERN.test(path)) throw new UnguardedPathError(path)
     const headers = new Headers(init.headers)
     if (!headers.has('Accept')) headers.set('Accept', FHIR_JSON_MEDIA_TYPE)
-    const credential = signing.authorization ?? storedAuthorization()
+    const credential = signing.authorization ?? authSnapshot().authorization
     if (credential) headers.set('Authorization', credential)
     else if (configuration.token) headers.set('Authorization', `Bearer ${configuration.token}`)
     const response = await fetch(`${configuration.baseUrl}${path}`, { ...init, headers })

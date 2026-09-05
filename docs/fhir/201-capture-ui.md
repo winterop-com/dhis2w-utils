@@ -88,8 +88,11 @@ pending forever instead of saying what happened. Callers still **send**
 and it differs for every caller alike rather than by guessing which ones are
 browsers.
 
-The credential is held in `sessionStorage`, for that browser tab only:
-closing the tab ends the session, and a second tab signs in on its own.
+The credential lives in the page, and every request is signed from there. A
+copy is kept in `sessionStorage`, for that browser tab only, so a reload finds
+the session again: closing the tab ends the session, and a second tab signs in
+on its own. A browser set to block site data refuses that copy, and the tab
+then signs its requests exactly as any other does and loses only the reload.
 
 In a checkout, `--ui` before the bundle exists refuses in one line rather
 than serving a blank page:

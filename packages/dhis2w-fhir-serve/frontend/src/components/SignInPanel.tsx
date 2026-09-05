@@ -13,6 +13,7 @@ import {
     SIGN_IN_LABEL,
     SIGN_IN_NOTES,
     SIGN_IN_REFUSALS,
+    SIGN_IN_UNENCODABLE,
     SIGN_IN_UNREACHABLE,
     type AuthPosture,
 } from '@/lib/auth'
@@ -68,7 +69,16 @@ export function SignInPanel({
         if (checking) return
         const typed = pastesAToken ? token.trim() : username.trim()
         if (typed === '') return
-        const authorization = pastesAToken ? bearerAuthorization(typed) : basicAuthorization(typed, password)
+        // Building the header is the one step here that can fail before anything is sent. Any text a
+        // person can type encodes, so this catch is what a browser missing the encoder reads as, and
+        // it says so rather than letting the panel sit on a rejected promise with nothing on screen.
+        let authorization: string
+        try {
+            authorization = pastesAToken ? bearerAuthorization(typed) : basicAuthorization(typed, password)
+        } catch {
+            setNotice(SIGN_IN_UNENCODABLE)
+            return
+        }
         setChecking(true)
         setNotice(null)
         const checked = await checkCredential(authorization)

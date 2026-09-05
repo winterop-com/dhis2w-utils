@@ -20,8 +20,6 @@ import {
     signInHeading,
     signInIsRequired,
     signOut,
-    storedAuthorization,
-    storedIdentity,
     subscribeToAuth,
     SIGN_IN_HEADINGS,
     SIGN_IN_NOTES,
@@ -120,8 +118,28 @@ describe('the issuer a JWT server names', () => {
 })
 
 describe('the credential this tab holds', () => {
-    it('sends a username and a password as HTTP Basic', () => {
-        expect(basicAuthorization('clerk', 'secret')).toBe(`Basic ${btoa('clerk:secret')}`)
+    // The literals are what `base64.b64encode("<user>:<password>".encode())` answers in Python, so
+    // this asserts the browser builds the byte-for-byte header
+    // `dhis2w_client.v42.auth.basic.BasicAuth` builds. A `btoa` round trip here would assert only
+    // that the module agrees with itself, which is what let the two drift apart.
+    it('sends an ASCII username and password as HTTP Basic, as the Python client does', () => {
+        expect(basicAuthorization('admin', 'district')).toBe('Basic YWRtaW46ZGlzdHJpY3Q=')
+    })
+
+    it('sends a Latin name outside ASCII as its UTF-8 bytes, not as one byte per character', () => {
+        expect(basicAuthorization('søren', 'hemmelig')).toBe('Basic c8O4cmVuOmhlbW1lbGln')
+    })
+
+    it('sends characters no single byte can hold, which handing the pair to btoa would refuse', () => {
+        expect(basicAuthorization('李', '秘密')).toBe('Basic 5p2OOuenmOWvhg==')
+    })
+
+    it('sends a password far longer than any argument list, because the bytes go in chunks', () => {
+        const long = 'ø'.repeat(100000)
+
+        const header = basicAuthorization('clerk', long)
+
+        expect(atob(header.slice('Basic '.length))).toBe(`clerk:${long}`.replace(/ø/g, '\u00c3\u00b8'))
     })
 
     it('sends a deployment token as a bearer token', () => {
@@ -132,8 +150,8 @@ describe('the credential this tab holds', () => {
         signIn(basicAuthorization('clerk', 'secret'), 'clerk')
 
         expect(sessionStorage.getItem(CREDENTIAL_STORAGE_KEY)).toBe(basicAuthorization('clerk', 'secret'))
-        expect(storedAuthorization()).toBe(basicAuthorization('clerk', 'secret'))
-        expect(storedIdentity()).toBe('clerk')
+        expect(authSnapshot().authorization).toBe(basicAuthorization('clerk', 'secret'))
+        expect(authSnapshot().identity).toBe('clerk')
     })
 
     it('names nobody under the token posture, because a deployment token is not a person', () => {
@@ -149,8 +167,8 @@ describe('the credential this tab holds', () => {
 
         expect(sessionStorage.getItem(CREDENTIAL_STORAGE_KEY)).toBeNull()
         expect(sessionStorage.getItem(IDENTITY_STORAGE_KEY)).toBeNull()
-        expect(storedAuthorization()).toBeNull()
-        expect(storedIdentity()).toBeNull()
+        expect(authSnapshot().authorization).toBeNull()
+        expect(authSnapshot().identity).toBeNull()
         expect(authSnapshot().authorization).toBeNull()
         expect(authSnapshot().identity).toBeNull()
     })
@@ -190,7 +208,7 @@ describe('the credential this tab holds', () => {
         signIn(basicAuthorization('clerk', 'wrong'), 'clerk')
         reportUnauthenticated()
 
-        expect(storedAuthorization()).toBeNull()
+        expect(authSnapshot().authorization).toBeNull()
         expect(authSnapshot().refused).toBe(true)
     })
 
@@ -283,7 +301,7 @@ describe('what a JWT server asks of a tab', () => {
     it('sends a pasted token as a bearer token, naming nobody until the server reads the claim', () => {
         signIn(bearerAuthorization('a.b.c'), null)
 
-        expect(storedAuthorization()).toBe('Bearer a.b.c')
+        expect(authSnapshot().authorization).toBe('Bearer a.b.c')
         expect(authSnapshot().identity).toBeNull()
     })
 })
