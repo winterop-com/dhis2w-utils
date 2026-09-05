@@ -22,8 +22,8 @@ async def test_read_tools_are_annotated_read_only() -> None:
 
     for read_name in ("metadata_data_element_get", "metadata_data_set_get", "metadata_list"):
         annotations = tools[read_name].annotations
-        assert annotations is not None and annotations.readOnlyHint is True
+        assert annotations is not None and annotations.read_only_hint is True
 
     for write_name in ("metadata_data_element_create", "metadata_data_set_delete", "messaging_set_status"):
         annotations = tools[write_name].annotations
-        assert annotations is not None and annotations.readOnlyHint is False
+        assert annotations is not None and annotations.read_only_hint is False

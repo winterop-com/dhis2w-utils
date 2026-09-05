@@ -140,7 +140,7 @@ class Registry:
                         bare=tool.name,
                         description=getattr(tool, "description", "") or "",
                         input_schema=getattr(tool, "inputSchema", {}) or {},
-                        read_only_hint=getattr(annotations, "readOnlyHint", None) if annotations else None,
+                        read_only_hint=getattr(annotations, "read_only_hint", None) if annotations else None,
                     )
             await self._ranker.prepare(list(self._entries.values()))
             self._built = True

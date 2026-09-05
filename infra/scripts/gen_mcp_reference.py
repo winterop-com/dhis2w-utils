@@ -57,7 +57,7 @@ def _type_label(schema: Any) -> str:
 
 def _render_tool(tool: Tool) -> str:
     """Render one tool as a markdown section — heading + description + parameter table."""
-    input_schema = tool.inputSchema or {}
+    input_schema = tool.input_schema or {}
     properties: dict[str, Any] = input_schema.get("properties") or {}
     required: set[str] = set(input_schema.get("required") or [])
 

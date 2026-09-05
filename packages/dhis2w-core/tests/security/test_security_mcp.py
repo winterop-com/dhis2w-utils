@@ -78,8 +78,8 @@ async def test_read_tools_have_basemodel_returns_and_docstrings(core_version: st
         tool = tools[name]
         assert tool.description and tool.description.strip(), f"{name} has an empty docstring"
         # A BaseModel return surfaces as a typed object output schema on the MCP wire.
-        assert tool.outputSchema is not None, f"{name} must declare a typed output schema"
-        assert tool.outputSchema.get("type") == "object", f"{name} must return a typed BaseModel (object schema)"
+        assert tool.output_schema is not None, f"{name} must declare a typed output schema"
+        assert tool.output_schema.get("type") == "object", f"{name} must return a typed BaseModel (object schema)"
 
 
 @respx.mock

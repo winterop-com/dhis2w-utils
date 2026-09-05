@@ -85,7 +85,7 @@ def is_read_tool(name: str) -> bool:
 def _tool_is_read(tool: Tool) -> bool:
     """Read-only by the tool's `readOnlyHint` annotation when set, else by its name's verbs."""
     annotations = getattr(tool, "annotations", None)
-    hint = getattr(annotations, "readOnlyHint", None) if annotations else None
+    hint = getattr(annotations, "read_only_hint", None) if annotations else None
     return bool(hint) if hint is not None else is_read_tool(tool.name)
 
 

@@ -123,10 +123,10 @@ async def test_search_tools_is_read_only_and_call_tool_is_not() -> None:
     tools = {tool.name: tool for tool in await mcp.list_tools(run_middleware=False)}
 
     search = tools["search_tools"].annotations
-    assert search is not None and search.readOnlyHint is True
+    assert search is not None and search.read_only_hint is True
 
     call = tools["call_tool"].annotations
-    assert call is None or call.readOnlyHint is None
+    assert call is None or call.read_only_hint is None
 
 
 def test_cosine_similarity() -> None:
