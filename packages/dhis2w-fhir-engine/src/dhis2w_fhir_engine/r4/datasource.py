@@ -244,6 +244,13 @@ class FHIRDataSource:
         # Check if date is in range
         return date_value in date_range
 
+    def canonical_reference(self, reference: str) -> str:
+        """Resolve a reference to the identity this data source files the resource under.
+
+        A data source holding no alias map answers with the reference it was given.
+        """
+        return reference
+
     def _patient_scoped(
         self,
         resources: list[dict[str, Any]],
@@ -274,8 +281,20 @@ class FHIRDataSource:
         patient_id = context.resource.get("id")
         if not patient_id:
             return resources
-        patient_reference = f"Patient/{patient_id}"
-        return [r for r in resources if self._get_patient_reference(r) == patient_reference]
+        patient_reference = self.canonical_reference(f"Patient/{patient_id}")
+        return [r for r in resources if self._references_patient(r, patient_reference)]
+
+    def _references_patient(self, resource: dict[str, Any], patient_reference: str) -> bool:
+        """Say whether a resource names the given patient, whichever spelling its reference uses.
+
+        A Bundle entry may be reached by `Patient/<id>`, by the entry's own `fullUrl`, or by the
+        absolute URL that fullUrl spells; those are one person, so both sides of the comparison go
+        through the alias map before they meet.
+        """
+        reference = self._get_patient_reference(resource)
+        if reference is None:
+            return False
+        return self.canonical_reference(reference) == patient_reference
 
     def _get_patient_reference(self, resource: dict[str, Any]) -> str | None:
         """Get the patient reference from a resource.
@@ -312,16 +331,20 @@ class InMemoryDataSource(FHIRDataSource):
         super().__init__(binding)
         # Resources indexed by type: {"Patient": [resource1, resource2], ...}
         self._resources: dict[str, list[dict[str, Any]]] = {}
-        # Resources indexed by id: {"Patient/123": resource, ...}
+        # Resources indexed by their canonical identity: {"Patient/123": resource, ...}
         self._by_id: dict[str, dict[str, Any]] = {}
+        # Every spelling a resource can be reached by, mapped to that canonical identity:
+        # {"urn:uuid:...": "Patient/123", "http://example.org/fhir/Patient/123": "Patient/123", ...}
+        self._canonical_by_alias: dict[str, str] = {}
         # Expanded valuesets: {"http://example.org/vs": [CQLCode, ...]}
         self._valuesets: dict[str, list[CQLCode]] = {}
 
-    def add_resource(self, resource: ResourceInput) -> None:
+    def add_resource(self, resource: ResourceInput, full_url: str | None = None) -> None:
         """Add a resource to the data source, given as a wire dict or a pydantic model.
 
         Args:
             resource: FHIR resource to add
+            full_url: The identity a Bundle entry gave the resource, if it came from one
         """
         ingested = as_resource_dict(resource)
         if ingested is None:
@@ -336,11 +359,15 @@ class InMemoryDataSource(FHIRDataSource):
 
         self._resources[resource_type].append(ingested)
 
-        # Index by ID
         resource_id = ingested.get("id")
-        if resource_id:
-            ref = f"{resource_type}/{resource_id}"
-            self._by_id[ref] = ingested
+        canonical = f"{resource_type}/{resource_id}" if resource_id else full_url
+        if canonical is None:
+            return
+
+        self._by_id[canonical] = ingested
+        self._canonical_by_alias[canonical] = canonical
+        if full_url:
+            self._canonical_by_alias[full_url] = canonical
 
     def add_resources(self, resources: Sequence[ResourceInput]) -> None:
         """Add several resources to the data source, each a wire dict or a pydantic model.
@@ -397,6 +424,7 @@ class InMemoryDataSource(FHIRDataSource):
         """Clear all resources from the data source."""
         self._resources.clear()
         self._by_id.clear()
+        self._canonical_by_alias.clear()
         self._valuesets.clear()
 
     def retrieve(
@@ -450,8 +478,17 @@ class InMemoryDataSource(FHIRDataSource):
 
         return resources
 
+    def canonical_reference(self, reference: str) -> str:
+        """Resolve a reference to the identity this data source files the resource under.
+
+        A resource that arrived in a Bundle entry answers to its `fullUrl` as well as to
+        `Type/id`, and every spelling - relative, absolute, `urn:uuid:` - is one key in the same
+        alias map. A reference the map has never seen stands for itself.
+        """
+        return self._canonical_by_alias.get(reference, reference)
+
     def resolve_reference(self, reference: str) -> dict[str, Any] | None:
-        """Resolve a FHIR reference.
+        """Resolve a FHIR reference, in whichever spelling it names the resource by.
 
         Args:
             reference: FHIR reference string
@@ -459,7 +496,7 @@ class InMemoryDataSource(FHIRDataSource):
         Returns:
             The referenced resource or None
         """
-        return self._by_id.get(reference)
+        return self._by_id.get(self.canonical_reference(reference))
 
 
 class BundleDataSource(FHIRDataSource):
@@ -500,7 +537,7 @@ class BundleDataSource(FHIRDataSource):
         for entry in entries:
             resource = entry.get("resource")
             if resource:
-                self._in_memory.add_resource(resource)
+                self._in_memory.add_resource(resource, full_url=entry.get("fullUrl"))
 
     def add_valueset(self, url: str, codes: list[CQLCode]) -> None:
         """Add an expanded valueset.
@@ -564,8 +601,12 @@ class BundleDataSource(FHIRDataSource):
             **kwargs,
         )
 
+    def canonical_reference(self, reference: str) -> str:
+        """Resolve a reference through the alias map the bundle's entry identities built."""
+        return self._in_memory.canonical_reference(reference)
+
     def resolve_reference(self, reference: str) -> dict[str, Any] | None:
-        """Resolve a FHIR reference.
+        """Resolve a FHIR reference, in whichever spelling it names the resource by.
 
         Args:
             reference: FHIR reference string
