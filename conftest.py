@@ -14,6 +14,7 @@ reset catches both.
 from __future__ import annotations
 
 import os
+import webbrowser
 
 import pytest
 
@@ -59,3 +60,37 @@ def _neutral_profile_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Clear the env layers of profile resolution so no test inherits an ambient DHIS2 instance."""
     for variable in _PROFILE_RESOLUTION_VARIABLES:
         monkeypatch.delenv(variable, raising=False)
+
+
+#: Every entry point `webbrowser` offers for handing a URL to the desktop. `capture_code`
+#: calls `webbrowser.open`, and the module's other two names reach the same browsers, so all
+#: three are stubbed together: leaving one live would let a future call site slip through.
+_BROWSER_LAUNCHERS = ("open", "open_new", "open_new_tab")
+
+
+@pytest.fixture(autouse=True)
+def _no_browser_launch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail any test that reaches the interactive OAuth2 login instead of opening a browser.
+
+    The OAuth2 authorization-code flow runs when no usable cached token is found, and its
+    first act is to open the developer's own browser at the instance's `/oauth2/authorize`
+    and then wait five minutes for a redirect that will never arrive. A test that means to
+    exercise a cached token but stores one the provider rejects hits exactly that path, so
+    the failure surfaces as the developer's browser opening on a fabricated URL and the
+    suite hanging - neither of which names the test that caused it.
+
+    Raising here turns that into an immediate failure naming the URL and, through the
+    traceback, the test. A test that legitimately drives a browser launch overrides the stub
+    with its own `monkeypatch.setattr(webbrowser, "open", ...)`, which lands after this
+    fixture and therefore wins.
+    """
+
+    def _refuse(url: str, *args: object, **kwargs: object) -> bool:
+        raise AssertionError(
+            f"a test reached the interactive OAuth2 login and tried to open a browser at {url!r}. "
+            "Pass `open_browser=False`, inject a `redirect_capturer`, or store a token carrying "
+            "this provider's `base_url` and `client_id` so the cached-token path is taken."
+        )
+
+    for launcher in _BROWSER_LAUNCHERS:
+        monkeypatch.setattr(webbrowser, launcher, _refuse)
