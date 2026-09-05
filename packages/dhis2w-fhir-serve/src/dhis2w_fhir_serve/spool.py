@@ -567,8 +567,14 @@ def new_response_id() -> str:
 
 
 def current_instant() -> str:
-    """The current UTC time as a FHIR `instant` (`Z`-suffixed, second precision)."""
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    """The current UTC time as a FHIR `instant` (`Z`-suffixed, millisecond precision).
+
+    Milliseconds because this stamp is what orders a drain: two submissions of the same cell inside
+    one second have to order on something a submission means, and a receipt id is a random hex
+    string that orders on nothing. Every stamp carries three fractional digits, so the plain string
+    comparison the spool and the forwarded-cell index both use reads as chronological order.
+    """
+    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 class _MalformedReceiptError(Exception):

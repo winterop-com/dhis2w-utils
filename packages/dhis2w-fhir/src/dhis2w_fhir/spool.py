@@ -100,6 +100,7 @@ __all__ = [
     "move_to_received",
     "move_to_rejected",
     "move_to_withdrawn",
+    "read_import_reports",
     "read_receipt",
     "read_received_responses",
     "read_refusal_record",
@@ -107,6 +108,7 @@ __all__ = [
     "record_refusal",
     "resolve_spool_root",
     "sweep_orphan_temporary_files",
+    "write_import_report",
 ]
 
 #: The spool root a project holds unless `[serve] spool_dir` names another, relative to the project
@@ -364,12 +366,18 @@ class SpoolContents(BaseModel):
     quarantined: tuple[QuarantinedFile, ...] = ()
 
     def in_state(self, state: SpoolState) -> tuple[SpooledReceipt, ...]:
-        """Every receipt sitting in one state, in the order the directory was read."""
+        """Every receipt sitting in one state, in arrival order with the receipt id as the tiebreaker."""
         return tuple(receipt for receipt in self.receipts if receipt.state is state)
 
 
 def read_received_responses(layout: SpoolLayout) -> SpoolReading:
-    """Read every pending receipt of one project, in file-name order so a drain is reproducible.
+    """Read every pending receipt of one project, in arrival order with the receipt id as the tiebreaker.
+
+    A receipt id is a random hex string, so a directory listing orders on nothing a submission means.
+    `received_at` is what a drain has to act on: DHIS2 replaces an aggregate value in place, so the
+    instance ends up holding whichever submission was posted last, and posting the older one last
+    would leave it holding the older number. Two receipts stamped the same instant order on their
+    ids, which is arbitrary but the same on every run, so a drain stays reproducible.
 
     An absent spool directory is not an error - it is a project nothing has been captured into yet -
     and answers with no receipts at all. A file that will not read as a receipt is moved to
@@ -387,6 +395,7 @@ def read_received_responses(layout: SpoolLayout) -> SpoolReading:
             responses.append(_read_receipt(path, layout))
         except _MalformedReceiptError as error:
             quarantined.append(_quarantine(path, layout, str(error)))
+    responses.sort(key=lambda response: (response.received_at, response.response_id))
     return SpoolReading(responses=tuple(responses), quarantined=tuple(quarantined))
 
 
@@ -412,6 +421,10 @@ def read_spooled_receipts(layout: SpoolLayout) -> SpoolContents:
 
     What `d2w fhir spool` lists. It touches no DHIS2 and parses no payload: a receipt is named by its
     envelope, which is the whole of what a queue listing states.
+
+    Each state is listed in arrival order with the receipt id as the tiebreaker, which is the order
+    `read_received_responses` drains in - so what a listing shows as next in the queue is what the
+    next drain posts first.
     """
     receipts: list[SpooledReceipt] = []
     quarantined: list[QuarantinedFile] = []
@@ -428,6 +441,7 @@ def read_spooled_receipts(layout: SpoolLayout) -> SpoolContents:
             if state is SpoolState.RECEIVED:
                 receipt = receipt.model_copy(update={"refusal": read_refusal_record(directory, receipt.response_id)})
             receipts.append(receipt)
+    receipts.sort(key=lambda receipt: (receipt.received_at, receipt.response_id))
     return SpoolContents(receipts=tuple(receipts), quarantined=malformed_files(layout))
 
 
@@ -474,6 +488,42 @@ def read_refusal_record(directory: Path, response_id: str) -> ForwardRefusalReco
 def move_to_forwarded(spooled: SpooledResponse, report: BaseModel) -> Path:
     """Write one acceptance's import report beside where the receipt is going, then move the receipt there."""
     return _file_beside_report(spooled, report, SpoolState.FORWARDED)
+
+
+def write_import_report(layout: SpoolLayout, state: SpoolState, response_id: str, report: BaseModel) -> Path:
+    """Write the import report beside one already-filed receipt, replacing whatever is there.
+
+    What a drain uses to say something further about a receipt it has already moved - the answer to
+    a completeness registration posted after the values landed. The receipt itself is never
+    rewritten, and the write is atomic, so a reader either sees the previous report or this one.
+    """
+    directory = layout.directory_for(state)
+    directory.mkdir(parents=True, exist_ok=True)
+    destination = directory / f"{response_id}{IMPORT_REPORT_SUFFIX}"
+    _write_atomically(destination, report.model_dump_json(indent=2, exclude_none=True) + "\n")
+    return destination
+
+
+def read_import_reports(layout: SpoolLayout, state: SpoolState) -> tuple[tuple[str, str], ...]:
+    """Every import report of one state, as the receipt id it belongs to and the JSON text it holds.
+
+    The text rather than a model: the shape a report carries is the service's business, and this
+    module writes the file without reading what is in it. A file that will not read at all is left
+    out rather than raised, exactly as an unreadable sidecar is elsewhere - one file must not cost a
+    drain its answer about the rest.
+    """
+    directory = layout.directory_for(state)
+    if not directory.is_dir():
+        return ()
+    reports: list[tuple[str, str]] = []
+    for path in sorted(_scan(directory)):
+        if not path.name.endswith(IMPORT_REPORT_SUFFIX):
+            continue
+        try:
+            reports.append((path.name.removesuffix(IMPORT_REPORT_SUFFIX), path.read_text(encoding="utf-8")))
+        except OSError:
+            continue
+    return tuple(reports)
 
 
 def move_to_rejected(spooled: SpooledResponse, report: BaseModel) -> Path:
@@ -587,7 +637,11 @@ class _MalformedReceiptError(Exception):
 
 
 def _receipt_paths(directory: Path) -> list[Path]:
-    """Every receipt file of one state directory, in file-name order, with the sidecars left out."""
+    """Every receipt file of one state directory, with the sidecars left out.
+
+    File-name order is a stable reading of the directory and nothing more; a caller that acts on the
+    receipts orders them on `received_at` once they are parsed.
+    """
     return sorted(
         path
         for path in _scan(directory)

@@ -448,7 +448,7 @@ def test_new_response_id_is_a_fhir_safe_id() -> None:
 
 
 def test_current_instant_is_a_fhir_instant() -> None:
-    """The receipt timestamp is UTC with a Z suffix and second precision."""
+    """The receipt timestamp is UTC with a Z suffix and millisecond precision, which is what orders a drain."""
     instant = current_instant()
 
-    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", instant)
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z", instant)

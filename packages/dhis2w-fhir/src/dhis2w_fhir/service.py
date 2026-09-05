@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
-from dhis2w_client.errors import Dhis2ApiError
+from dhis2w_client.errors import AuthenticationError, Dhis2ApiError
 
 # The v41 generated OAS tree carries no import-summary, import-conflict, or import-count module, so
 # the import-report shapes come from v42 on every major - they are the wire shape all three answer with.
@@ -203,12 +203,14 @@ from dhis2w_fhir.spool import (
     move_to_received,
     move_to_rejected,
     move_to_withdrawn,
+    read_import_reports,
     read_receipt,
     read_received_responses,
     read_refusal_record,
     read_spooled_receipts,
     record_refusal,
     sweep_orphan_temporary_files,
+    write_import_report,
 )
 from dhis2w_fhir.validation import build_aborting_code, build_aborting_name, build_code_validation
 from dhis2w_fhir.validation.schemas import (
@@ -4741,6 +4743,9 @@ _POST_TICK_INTERVAL = 10
 #: rejection DHIS2 never made.
 _SERVER_ERROR_STATUS = 500
 
+#: The status the client raises an authentication failure on rather than handing the body back.
+_UNAUTHORIZED_STATUS = 401
+
 #: The two codes DHIS2 answers a tracker event whose enrollment it cannot find with: `E1313` for the
 #: enrollment nobody has, and the `E1079` program mismatch it asserts against that same absent
 #: enrollment (BUGS.md 68). A rejection carrying only these is the whole shape a dry run cannot check.
@@ -4836,6 +4841,56 @@ class ForwardCompletenessKind(StrEnum):
     #: The run was told not to register completeness, so a `completed` response claims and posts nothing.
     NOT_REGISTERED = "not-registered"
 
+    #: The values landed and the registration did not: the claim is owed, and the next drain posts it.
+    PENDING = "pending"
+
+
+class ForwardEndpointAnswer(BaseModel):
+    """One import endpoint's HTTP answer, as the projection that reads it is handed it.
+
+    The body is a raw JSON object because the two endpoints disagree about what wraps their report,
+    and each projection unwraps its own - so this is the parse boundary, and the dict goes no
+    further than the projection that reads it. The status rides beside it because a body alone
+    cannot say whether the endpoint answered at all: an authentication gateway's `403` and DHIS2's
+    own `409` both arrive as JSON objects.
+
+    `status_code` is None for an answer the client did not raise on, which is every 2xx. The client
+    parses a successful body without carrying its status back, and no drain acts on the difference
+    between a 200 and a 201 - a stop names the status only when there was a failing one to name.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    body: dict[str, Any]
+    status_code: int | None = None
+
+
+class ForwardCompletenessRetry(BaseModel):
+    """One completeness claim an earlier drain left owed, and what this drain's registration answered.
+
+    A retry is about a receipt that is already in `forwarded/`, so it is no part of this run's
+    spool: the values it claims completeness for landed in an earlier drain, and only the
+    registration is outstanding.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    response_id: str
+    outcome: ForwardCompletenessOutcome
+
+
+class ForwardImportVerdict(StrEnum):
+    """What one HTTP answer from an import endpoint says about the payload that was posted to it."""
+
+    #: The endpoint's own import report arrived and names no refusal: DHIS2 took the payload.
+    ACCEPTED = "accepted"
+
+    #: The endpoint's own import report arrived and refuses the payload, by status or by named rows.
+    REJECTED = "rejected"
+
+    #: Nothing that reads as the endpoint's import report arrived, so the answer is about the run.
+    NONE = "none"
+
 
 class ForwardImportIssue(BaseModel):
     """One row DHIS2 named as a reason it would not take the payload, from either report shape.
@@ -4924,6 +4979,29 @@ class ForwardImportOutcome(BaseModel):
     data_value_summary: ImportSummary | None = None
     tracker_report: TrackerImportReport | None = None
 
+    http_status: int | None = None
+    """The failing HTTP status the answer arrived under; None for a 2xx and for a locally made outcome."""
+
+    report_recognised: bool = False
+    """Whether the answer carried the import report of the endpoint it was posted to.
+
+    A verdict is a report, not a status line. An authentication gateway, a reverse proxy, and a
+    rate limiter all answer JSON of their own, and `{"message": "Forbidden"}` says nothing about
+    an import - so what makes an answer a verdict is the endpoint's own report shape being in it.
+    """
+
+    @property
+    def verdict(self) -> ForwardImportVerdict:
+        """Whether this answer accepted the payload, refused it, or reached no verdict about it at all."""
+        if not self.report_recognised:
+            return ForwardImportVerdict.NONE
+        return ForwardImportVerdict.REJECTED if self.is_rejected else ForwardImportVerdict.ACCEPTED
+
+    @property
+    def is_accepted(self) -> bool:
+        """Whether DHIS2 took the payload: its own import report arrived, and that report names no refusal."""
+        return self.verdict is ForwardImportVerdict.ACCEPTED
+
     @property
     def is_rejected(self) -> bool:
         """Whether DHIS2 refused the payload: an error status, or any row it named against the payload."""
@@ -4958,6 +5036,15 @@ class ForwardImportRecord(ForwardImportOutcome):
 
     cells: tuple[AggregateCell, ...] = ()
     """Every aggregate value this payload named, by identity; empty for every tracker payload."""
+
+    completeness: ForwardCompletenessOutcome | None = None
+    """What became of this response's completeness claim, and None where it made none.
+
+    Written twice on the way through: `pending` as the receipt is filed, and then the answer once
+    the registration has been posted. The pending write is what makes the claim survive a drain that
+    dies between the two - the values are in DHIS2 and the registration is not, and this sidecar is
+    the only place that fact can live once the receipt has left the queue.
+    """
 
 
 class ForwardRejectionReason(BaseModel):
@@ -5120,6 +5207,13 @@ class ForwardReport(BaseModel):
     program_rule_names: ProgramRuleNames = Field(default_factory=ProgramRuleNames)
     """The rules the guide publishes, which is what lets a refusal name the rule rather than a UID."""
 
+    completeness_retries: tuple[ForwardCompletenessRetry, ...] = ()
+    """Every completeness claim an earlier drain left owed that this drain posted again.
+
+    Values already in DHIS2 whose report was never registered complete. The claim rides in the
+    forwarded receipt's own sidecar, so a drain finds it there rather than by re-posting values.
+    """
+
     forwarded_without_values: int = 0
     """Receipts DHIS2 accepted whose sidecar records no values, so this run cannot say what they sent.
 
@@ -5221,6 +5315,15 @@ class ForwardReport(BaseModel):
             return ""
         counted = Counter(outcome.kind for outcome in outcomes)
         return ", ".join(f"{counted[kind]:,} {kind}" for kind in ForwardCompletenessKind if counted[kind])
+
+    @property
+    def completeness_retry_line(self) -> str:
+        """The claims earlier drains left owed in one line, or nothing at all when this run met none."""
+        if not self.completeness_retries:
+            return ""
+        counted = Counter(retry.outcome.kind for retry in self.completeness_retries)
+        stated = ", ".join(f"{counted[kind]:,} {kind}" for kind in ForwardCompletenessKind if counted[kind])
+        return f"{len(self.completeness_retries):,} claim(s) owed by an earlier drain: {stated}"
 
     @property
     def overwrites(self) -> tuple[ForwardOverwrite, ...]:
@@ -5383,6 +5486,16 @@ async def forward_responses(
     un-import the values - they stay imported, and the response is still `accepted` - so the refusal
     is carried on the outcome and stated in the report rather than folded into the import answer.
 
+    A CLAIM THAT NEVER LANDED IS OWED, AND A LATER DRAIN PAYS IT. The receipt is filed the moment
+    DHIS2 takes the values, with its own sidecar recording the completeness claim as `pending`, and
+    the registration writes the answer over that. A drain that is killed between the two, or whose
+    registration times out, therefore leaves the claim written down in `forwarded/<id>.report.json`
+    rather than nowhere. An importing run scans the forwarded sidecars for those claims and posts
+    them again, on their own - the values are already in the instance and not one of them is sent a
+    second time - and it does so even when the queue is empty, because an empty queue is exactly the
+    state a drain that finished its posting leaves behind. Registering a tuple DHIS2 already holds
+    is an update rather than a conflict, so a claim that turns out to have landed costs nothing.
+
     AN AGGREGATE VALUE A FORWARDED RECEIPT ALREADY SENT IS NAMED IN THE REPORT. DHIS2 replaces such a
     value in place and counts the write exactly as it counts a first entry, so no import summary can
     separate the two - and this run therefore says which is which, off the spool's own record of what
@@ -5476,6 +5589,7 @@ async def _drain_spool(
 
     naming = ConversionNaming.from_config(project.config.generate, project.config.ig.canonical)
     dry_run = not import_responses
+    owed = _owed_completeness_claims(layout) if register_completeness and not dry_run else ()
     if not spooled:
         # Nothing to translate ends the run here, before a client is opened. The reads past this
         # point exist to translate receipts - the guide off the instance when this project holds no
@@ -5483,6 +5597,12 @@ async def _drain_spool(
         # instance that is thousands of resources fetched to answer a report that says zero. The
         # spool is read first and the compiled guide off disk, so a receipt this run cannot read
         # still raises, and a project with no build still hears about it.
+        retries: tuple[ForwardCompletenessRetry, ...] = ()
+        if owed:
+            progress.step("completeness", "registering the reports an earlier drain left owed")
+            async with _instance_connection(profile, client) as connection:
+                retries = await _retry_owed_completeness(connection, layout, owed, progress)
+            progress.complete(_completeness_retry_completion(retries))
         report = ForwardReport(
             project_root=project.project_root,
             dry_run=dry_run,
@@ -5493,6 +5613,7 @@ async def _drain_spool(
             withdrawal_posture=withdrawals,
             unreadable_artifacts=() if compiled is None else compiled.unreadable_resources,
             quarantined=reading.quarantined,
+            completeness_retries=retries,
         )
         progress.complete(report.counts_line)
         return report
@@ -5532,6 +5653,7 @@ async def _drain_spool(
             moving=import_responses,
             overwrite_index=overwrite_index,
             overwrites=overwrites,
+            registering=register_completeness,
             progress=progress,
         )
         stopped_note = f", stopped: {posted.stopped.reason}" if posted.stopped is not None else ""
@@ -5544,8 +5666,10 @@ async def _drain_spool(
         )
 
         progress.step("completeness", "registering the completed reports")
+        completeness_retries = await _retry_owed_completeness(client, layout, owed, progress)
         completeness = await _register_completeness(
             client,
+            layout,
             spooled,
             conversion,
             posted.imports,
@@ -5554,7 +5678,10 @@ async def _drain_spool(
             overwrite_refused=posted.overwrite_refused,
             progress=progress,
         )
-        progress.complete(_completeness_completion(completeness, dry_run=dry_run, registering=register_completeness))
+        retry_note = _completeness_retry_note(completeness_retries)
+        progress.complete(
+            _completeness_completion(completeness, dry_run=dry_run, registering=register_completeness) + retry_note
+        )
 
     progress.step("spool", "stating what each response became")
     minted_enrollments = _minted_enrollment_uids(conversion) if dry_run else frozenset[str]()
@@ -5585,6 +5712,7 @@ async def _drain_spool(
         quarantined=reading.quarantined,
         filing_issues=(*terminal.issues, *posted.filing_issues),
         program_rule_names=program_rule_names(artifacts, naming),
+        completeness_retries=completeness_retries,
         forwarded_without_values=overwrite_index.receipts_without_values,
     )
     progress.complete(report.counts_line)
@@ -5703,6 +5831,7 @@ async def _post_translations(
     moving: bool,
     overwrite_index: ForwardedCellIndex,
     overwrites: OverwritePosture,
+    registering: bool,
     progress: _StepAnnouncer,
 ) -> _PostedPayloads:
     """Post every translated payload one at a time, filing each receipt as soon as DHIS2 answers about it.
@@ -5710,19 +5839,31 @@ async def _post_translations(
     One payload per POST is what makes the outcome attributable: DHIS2 answers a bundle with one
     report for the bundle, and a spool whose receipts move individually needs one answer each.
 
-    The order is `FORWARD_TARGET_ORDER` and then the spool's, which is what makes one drain
-    internally consistent: a person-only capture creates the person a registration captured seconds
-    later enrols, a registration creates the enrollment a stage event captured seconds later answers
-    against, and DHIS2 refuses an event naming an enrollment it cannot find with `E1313`. Posting
-    by kind is the whole of the coordination - there is no dependency graph, and a registration
-    DHIS2 rejects still leaves its stage events to fail `E1313`, which the next drain retries once
-    the cause is fixed.
+    The order is `FORWARD_TARGET_ORDER` first, which is what makes one drain internally consistent:
+    a person-only capture creates the person a registration captured seconds later enrols, a
+    registration creates the enrollment a stage event captured seconds later answers against, and
+    DHIS2 refuses an event naming an enrollment it cannot find with `E1313`. Posting by kind is the
+    whole of the coordination - there is no dependency graph, and a registration DHIS2 rejects still
+    leaves its stage events to fail `E1313`, which the next drain retries once the cause is fixed.
+
+    Inside one kind the order is arrival, `received_at` then the receipt id. DHIS2 replaces an
+    aggregate value in place, so the instance holds whatever was posted last, and posting the oldest
+    submission of a cell last would leave it holding the oldest number. Arrival order is also what
+    `dhis2w_fhir.overwrite` reads the forwarded index by, so the drain and the index name the same
+    receipt as the sender of each cell.
 
     **The receipt is filed the instant its verdict is known**, sidecar first and then the rename, so
     the disk agrees with DHIS2 at every point of the loop rather than only at the end of it. A drain
     that is killed, loses its terminal, or meets an unwell instance leaves everything it posted in
     `forwarded/` or `rejected/` with the report beside it, and everything it had not reached
     untouched in `received/`. A dry run files nothing, because it wrote nothing.
+
+    **An answer that reaches no verdict stops the drain too.** A receipt only leaves `received/` on
+    the endpoint's own import report - the shape only `/api/dataValueSets` or `/api/tracker` answers
+    with. A `401`, a `403`, a `404`, a `429`, or a success carrying some other document is whatever
+    stands in front of the instance answering instead of it, and filing a receipt on one would drop
+    a submission out of the queue that DHIS2 never saw. So the drain stops naming the status, the
+    receipt keeps its place, and the next drain posts it again.
 
     **An instance that fails mid-drain stops the drain.** A 5xx or a connection that never completed
     is the instance being unwell, not a verdict on the payload that met it, and the two things that
@@ -5747,7 +5888,7 @@ async def _post_translations(
     """
     translated = sorted(
         ((entry, result) for entry, result in zip(spooled, conversion.results, strict=True) if not result.is_refused),
-        key=lambda pair: _post_order(pair[1]),
+        key=lambda pair: (_post_order(pair[1]), pair[0].received_at, pair[0].response_id),
     )
     imports: dict[str, ForwardImportOutcome] = {}
     filed: dict[str, Path] = {}
@@ -5766,7 +5907,7 @@ async def _post_translations(
         else:
             try:
                 imported = await _post_result(client, result, dry_run=dry_run)
-            except (Dhis2ApiError, httpx.HTTPError) as error:
+            except (Dhis2ApiError, AuthenticationError, httpx.HTTPError) as error:
                 return _PostedPayloads(
                     imports=imports,
                     filed=filed,
@@ -5775,15 +5916,32 @@ async def _post_translations(
                     filing_issues=tuple(issues),
                     stopped=_forward_stop(entry, error),
                 )
+            if imported.verdict is ForwardImportVerdict.NONE:
+                return _PostedPayloads(
+                    imports=imports,
+                    filed=filed,
+                    overwritten=overwritten,
+                    overwrite_refused=frozenset(refused),
+                    filing_issues=tuple(issues),
+                    stopped=_non_verdict_stop(entry, imported),
+                )
             imports[entry.response_id] = imported
-            if cells and not imported.is_rejected:
+            if cells and imported.is_accepted:
                 if already_sent:
                     overwritten[entry.response_id] = already_sent
                 overwrite_index.record(
                     cells, ForwardedSubmission(response_id=entry.response_id, received_at=entry.received_at)
                 )
             if moving:
-                _file_now(entry, imported, result.target_kind, cells, filed, issues)
+                _file_now(
+                    entry,
+                    imported,
+                    result.target_kind,
+                    cells,
+                    filed,
+                    issues,
+                    completeness=_owed_claim_outcome(result, imported, registering=registering),
+                )
         if posted % _POST_TICK_INTERVAL == 0 or posted == len(translated):
             progress.tick(_post_caption(posted, len(translated), dry_run=dry_run))
     return _PostedPayloads(
@@ -5795,6 +5953,22 @@ async def _post_translations(
     )
 
 
+def _owed_claim_outcome(
+    result: ConversionResult, imported: ForwardImportOutcome, *, registering: bool
+) -> ForwardCompletenessOutcome | None:
+    """The completeness a receipt is filed owing, which is what makes the claim survive the drain.
+
+    A claim is owed the moment DHIS2 takes the values and until the registration is posted, so the
+    sidecar records it as `pending` at filing time and the registration step overwrites it with the
+    answer. A run that registers nothing owes nothing, and neither does a response that claimed none
+    or a payload DHIS2 refused.
+    """
+    claim = result.completeness
+    if claim is None or not registering or not imported.is_accepted:
+        return None
+    return _completeness_outcome(ForwardCompletenessKind.PENDING, claim)
+
+
 def _file_now(
     entry: SpooledResponse,
     imported: ForwardImportOutcome,
@@ -5802,8 +5976,14 @@ def _file_now(
     cells: tuple[AggregateCell, ...],
     filed: dict[str, Path],
     issues: list[ForwardFilingIssue],
+    *,
+    completeness: ForwardCompletenessOutcome | None = None,
 ) -> None:
     """Move one receipt into the state DHIS2 just put it in, its import report written down first.
+
+    Only an answer that reached a verdict gets here: `forwarded/` for the payload DHIS2's own import
+    report says it took, `rejected/` for the one that report refuses. An answer carrying no import
+    report at all stops the drain instead, with the receipt left in `received/`.
 
     A receipt whose file has already gone is graded rather than raised: DHIS2 has answered about the
     payload, and losing the rest of the drain over a rename that lost a race would throw that answer
@@ -5813,11 +5993,15 @@ def _file_now(
     what lets the next drain say that a value it is about to send is one this receipt already sent.
     """
     record = ForwardImportRecord(
-        **dict(imported), target_kind=target_kind, received_at=entry.received_at or None, cells=cells
+        **dict(imported),
+        target_kind=target_kind,
+        received_at=entry.received_at or None,
+        cells=cells,
+        completeness=completeness,
     )
     try:
         filed[entry.response_id] = (
-            move_to_rejected(entry, record) if imported.is_rejected else move_to_forwarded(entry, record)
+            move_to_forwarded(entry, record) if imported.is_accepted else move_to_rejected(entry, record)
         )
     except FileNotFoundError as error:
         issues.append(
@@ -5936,8 +6120,31 @@ def _utc_instant() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def _forward_stop(entry: SpooledResponse, error: Dhis2ApiError | httpx.HTTPError) -> ForwardStop:
+def _non_verdict_stop(entry: SpooledResponse, imported: ForwardImportOutcome) -> ForwardStop:
+    """Name the answer that was about the run rather than about the payload, so the operator reads a status.
+
+    Whatever answered was not the import endpoint reaching a verdict, so the receipt is left in
+    `received/` exactly as a 5xx leaves it and every receipt behind it keeps its turn. The status is
+    the whole of the lead: a 401 or a 403 is a credential, a 404 is a path or a proxy, a 429 is a
+    rate limiter, and a success carrying no report is an endpoint answering something else entirely.
+    """
+    answered = f"answered {imported.http_status}" if imported.http_status is not None else "answered a success status"
+    stated = f": {imported.message}" if imported.message else ""
+    return ForwardStop(
+        response_id=entry.response_id,
+        status_code=imported.http_status,
+        reason=f"the instance {answered} with no import report, which is no verdict about the payload{stated}",
+    )
+
+
+def _forward_stop(entry: SpooledResponse, error: Dhis2ApiError | AuthenticationError | httpx.HTTPError) -> ForwardStop:
     """Name what stopped one drain, in the terms the operator has to act on."""
+    if isinstance(error, AuthenticationError):
+        return ForwardStop(
+            response_id=entry.response_id,
+            status_code=_UNAUTHORIZED_STATUS,
+            reason=f"the instance answered {_UNAUTHORIZED_STATUS} and took no payload: {error}",
+        )
     if isinstance(error, Dhis2ApiError):
         return ForwardStop(
             response_id=entry.response_id,
@@ -5947,8 +6154,86 @@ def _forward_stop(entry: SpooledResponse, error: Dhis2ApiError | httpx.HTTPError
     return ForwardStop(response_id=entry.response_id, reason=f"the instance could not be reached: {error}")
 
 
+class _OwedCompletenessClaim(BaseModel):
+    """One forwarded receipt whose values landed and whose completeness registration did not."""
+
+    model_config = ConfigDict(frozen=True)
+
+    response_id: str
+    claim: CompleteDataSetRegistration
+
+
+def _forwarded_import_record(layout: SpoolLayout, response_id: str) -> ForwardImportRecord | None:
+    """One forwarded receipt's sidecar, or None when there is none to read or it will not parse."""
+    for filed_id, text in read_import_reports(layout, SpoolState.FORWARDED):
+        if filed_id != response_id:
+            continue
+        try:
+            return ForwardImportRecord.model_validate_json(text)
+        except (ValidationError, ValueError):
+            return None
+    return None
+
+
+def _owed_completeness_claims(layout: SpoolLayout) -> tuple[_OwedCompletenessClaim, ...]:
+    """Every completeness claim `forwarded/` records as still owed, in the order the directory reads.
+
+    One pass over the sidecars, which is the same pass `build_forwarded_cell_index` takes and the
+    price of a claim that survives the drain that made it. A sidecar that will not read is left out
+    rather than raised: one unreadable file must not cost the other claims their retry.
+    """
+    owed: list[_OwedCompletenessClaim] = []
+    for response_id, text in read_import_reports(layout, SpoolState.FORWARDED):
+        try:
+            record = ForwardImportRecord.model_validate_json(text)
+        except (ValidationError, ValueError):
+            continue
+        outcome = record.completeness
+        if outcome is None or outcome.kind is not ForwardCompletenessKind.PENDING:
+            continue
+        if not outcome.data_set or not outcome.period or not outcome.organisation_unit:
+            continue
+        owed.append(
+            _OwedCompletenessClaim(
+                response_id=response_id,
+                claim=CompleteDataSetRegistration(
+                    dataSet=outcome.data_set,
+                    period=outcome.period,
+                    organisationUnit=outcome.organisation_unit,
+                    attributeOptionCombo=outcome.attribute_option_combo,
+                    date=outcome.date,
+                    completed=True,
+                ),
+            )
+        )
+    return tuple(owed)
+
+
+async def _retry_owed_completeness(
+    client: Dhis2Client,
+    layout: SpoolLayout,
+    owed: Sequence[_OwedCompletenessClaim],
+    progress: _StepAnnouncer,
+) -> tuple[ForwardCompletenessRetry, ...]:
+    """Post every registration an earlier drain left owed, without posting a single value again.
+
+    The values are in DHIS2 already - what is missing is the second write that says the report is
+    complete - so the claim is rebuilt from the tuple its own sidecar recorded and posted on its
+    own. Registering a tuple DHIS2 already holds is an update rather than a conflict, so a claim
+    that turns out to have landed after all costs nothing.
+    """
+    retries: list[ForwardCompletenessRetry] = []
+    for posted, owing in enumerate(owed, start=1):
+        progress.tick(f"registering reports an earlier drain left owed ({posted:,})")
+        outcome = await _completeness_answer(client, owing.claim)
+        _record_completeness_in_sidecar(layout, owing.response_id, outcome)
+        retries.append(ForwardCompletenessRetry(response_id=owing.response_id, outcome=outcome))
+    return tuple(retries)
+
+
 async def _register_completeness(
     client: Dhis2Client,
+    layout: SpoolLayout,
     spooled: Sequence[SpooledResponse],
     conversion: ConversionReport,
     imports: dict[str, ForwardImportOutcome],
@@ -5972,7 +6257,15 @@ async def _register_completeness(
 
     A refusal is recorded and does not change what the response became. The values are imported and
     stay imported; unwinding them over a failed second write would turn one refused claim into a lost
-    report. The next run is the retry: registering a tuple twice is an update, not a conflict.
+    report. Registering a tuple twice is an update rather than a conflict, so a claim that did not
+    land can simply be posted again.
+
+    A registration that never reaches the instance at all - a timeout, a dropped connection, an
+    answer carrying no import summary - is caught per claim and recorded as `pending` rather than
+    left to escape the run. The values are in DHIS2 either way, and an exception here would take the
+    whole drain's report down over a second write it has already made durable: every filed receipt's
+    sidecar records the claim as `pending` from the moment it is filed, and the answer is written
+    over it here, so `_owed_completeness_claims` finds whatever this run did not finish.
 
     A response the run refused as an overwrite claims nothing at all, on a dry run as much as on an
     import: it was never sent, so there is no report for a completeness claim to be about.
@@ -5998,12 +6291,44 @@ async def _register_completeness(
             outcomes[entry.response_id] = _completeness_outcome(ForwardCompletenessKind.WOULD_REGISTER, claim)
             continue
         imported = imports.get(entry.response_id)
-        if imported is None or imported.is_rejected:
+        if imported is None or not imported.is_accepted:
             continue
         posted += 1
         progress.tick(f"registering completed reports ({posted:,})")
-        outcomes[entry.response_id] = await _post_completeness(client, claim)
+        outcome = await _completeness_answer(client, claim)
+        outcomes[entry.response_id] = outcome
+        _record_completeness_in_sidecar(layout, entry.response_id, outcome)
     return outcomes
+
+
+async def _completeness_answer(client: Dhis2Client, claim: CompleteDataSetRegistration) -> ForwardCompletenessOutcome:
+    """Post one registration and answer with what became of the claim, an unreachable instance included.
+
+    A registration is a second write about values that are already in DHIS2, so nothing it meets is
+    worth losing the run over. What the instance never answered is a claim still owed, which is what
+    `pending` says and what the next drain acts on.
+    """
+    try:
+        return await _post_completeness(client, claim)
+    except (Dhis2ApiError, AuthenticationError, httpx.HTTPError) as error:
+        return _completeness_outcome(
+            ForwardCompletenessKind.PENDING,
+            claim,
+            message=f"the registration did not reach the instance ({error}), so the report is not registered",
+        )
+
+
+def _record_completeness_in_sidecar(layout: SpoolLayout, response_id: str, outcome: ForwardCompletenessOutcome) -> None:
+    """Write what became of one claim into the forwarded receipt's own import report.
+
+    The sidecar is the only durable place the claim can live once the receipt has left the queue,
+    and a receipt whose file has moved on is graded rather than raised: DHIS2 has answered, and
+    losing the run over a sidecar nobody can find would throw that answer away.
+    """
+    record = _forwarded_import_record(layout, response_id)
+    if record is None:
+        return
+    write_import_report(layout, SpoolState.FORWARDED, response_id, record.model_copy(update={"completeness": outcome}))
 
 
 async def _post_completeness(client: Dhis2Client, claim: CompleteDataSetRegistration) -> ForwardCompletenessOutcome:
@@ -6012,16 +6337,30 @@ async def _post_completeness(client: Dhis2Client, claim: CompleteDataSetRegistra
     The answer is `/api/dataValueSets`' own envelope - a `WebMessage` wrapping an `ImportSummary` - so
     the aggregate projection reads it unchanged. A registration DHIS2 has already stored counts
     `updated` rather than conflicting, which is what makes forwarding the same tuple twice safe.
+
+    The three verdicts are the same three a value import gets. Only an answer carrying the endpoint's
+    own import summary registers the tuple; a summary that refuses it is a refusal; and anything else
+    - a gateway's `403`, a proxy's `404`, a rate limiter's `429`, a success carrying some other
+    document - registered nothing, so the claim stays pending and the next drain posts it again.
     """
     body = CompleteDataSetRegistrations(completeDataSetRegistrations=[claim]).model_dump(
         by_alias=True, exclude_none=True, mode="json"
     )
     answer = _aggregate_import_outcome(await _post_body(client, _COMPLETE_DATA_SET_REGISTRATIONS_PATH, body, {}))
+    if answer.verdict is ForwardImportVerdict.NONE:
+        return _completeness_outcome(ForwardCompletenessKind.PENDING, claim, message=_no_verdict_message(answer))
     if answer.is_rejected:
         return _completeness_outcome(
             ForwardCompletenessKind.REFUSED, claim, message=answer.message, issues=answer.issues
         )
     return _completeness_outcome(ForwardCompletenessKind.REGISTERED, claim)
+
+
+def _no_verdict_message(answer: ForwardImportOutcome) -> str:
+    """Why one answer registered nothing, when what answered was not the endpoint reaching a verdict."""
+    answered = f"answered {answer.http_status}" if answer.http_status is not None else "answered a success status"
+    stated = f": {answer.message}" if answer.message else ""
+    return f"the instance {answered} with no import summary, so the registration is not known to have landed{stated}"
 
 
 def _completeness_outcome(
@@ -6062,6 +6401,18 @@ def _completeness_completion(
     )
 
 
+def _completeness_retry_completion(retries: Sequence[ForwardCompletenessRetry]) -> str:
+    """What a run with nothing to drain announces about the claims it found owed and posted again."""
+    counted = Counter(retry.outcome.kind for retry in retries)
+    registered = counted[ForwardCompletenessKind.REGISTERED]
+    return f"{registered:,} of {len(retries):,} owed report(s) registered complete"
+
+
+def _completeness_retry_note(retries: Sequence[ForwardCompletenessRetry]) -> str:
+    """What a drain adds to its completeness line about the claims an earlier drain left owed."""
+    return f", {_completeness_retry_completion(retries)}" if retries else ""
+
+
 def _post_order(result: ConversionResult) -> int:
     """Where one translated payload sits in the posting order its target kind gives it."""
     if result.target_kind is None or result.target_kind not in FORWARD_TARGET_ORDER:
@@ -6090,8 +6441,8 @@ async def _post_body(
     path: str,
     body: dict[str, Any],
     params: dict[str, str],
-) -> dict[str, Any]:
-    """POST one payload and answer with DHIS2's own JSON body, whether it accepted the payload or refused it.
+) -> ForwardEndpointAnswer:
+    """POST one payload and answer with DHIS2's own JSON body under the status it arrived with.
 
     A refused import is `409 Conflict` carrying the endpoint's report, so a rejection is an outcome to
     record rather than an error to raise. The body is passed on **raw** rather than parsed here, because
@@ -6106,19 +6457,24 @@ async def _post_body(
     a `WebMessage` of their own, `status` and all, and reading that as the endpoint's verdict would
     project `status=ERROR` into a rejection and file the receipt under a refusal DHIS2 never made. The
     status is what separates the two: 409 is the endpoint reaching a verdict, 500 is it failing to.
+
+    The status rides along with the body because a status below 500 does not make an answer a
+    verdict either: a 401, a 403, a 404 and a 429 all carry JSON of their own from whatever answered
+    instead of the endpoint, and the projection that reads the body says so in the status it carries.
     """
     try:
-        return await client.post_raw(path, body, params=params)
+        return ForwardEndpointAnswer(body=await client.post_raw(path, body, params=params))
     except Dhis2ApiError as error:
         if error.status_code >= _SERVER_ERROR_STATUS:
             raise
         if isinstance(error.body, dict):
-            return error.body
+            return ForwardEndpointAnswer(status_code=error.status_code, body=error.body)
         raise
 
 
-def _aggregate_import_outcome(body: dict[str, Any]) -> ForwardImportOutcome:
-    """Project an `/api/dataValueSets` answer: the import counts, and every conflict it named."""
+def _aggregate_import_outcome(answer: ForwardEndpointAnswer) -> ForwardImportOutcome:
+    """Project an `/api/dataValueSets` answer: the import counts, every conflict it named, and its status."""
+    body = answer.body
     envelope = _envelope(body)
     summary = _report_model(ImportSummary, _report_body(body, _DATA_VALUE_SET_REPORT_KEYS))
     counts = summary.importCount if summary is not None else None
@@ -6133,11 +6489,14 @@ def _aggregate_import_outcome(body: dict[str, Any]) -> ForwardImportOutcome:
         deleted=counts.deleted or 0 if counts is not None else 0,
         issues=tuple(_conflict_issue(conflict) for conflict in conflicts or []),
         data_value_summary=summary,
+        http_status=answer.status_code,
+        report_recognised=_carries_report(body, _DATA_VALUE_SET_REPORT_KEYS),
     )
 
 
-def _tracker_import_outcome(body: dict[str, Any]) -> ForwardImportOutcome:
-    """Project an `/api/tracker` answer: the stats, and every validation error it reported."""
+def _tracker_import_outcome(answer: ForwardEndpointAnswer) -> ForwardImportOutcome:
+    """Project an `/api/tracker` answer: the stats, every validation error it reported, and its status."""
+    body = answer.body
     envelope = _envelope(body)
     report = _report_model(TrackerImportReport, _report_body(body, _TRACKER_REPORT_KEYS))
     stats = report.stats if report is not None else None
@@ -6153,12 +6512,25 @@ def _tracker_import_outcome(body: dict[str, Any]) -> ForwardImportOutcome:
         deleted=stats.deleted or 0 if stats is not None else 0,
         issues=tuple(_tracker_issue(error) for error in errors or []),
         tracker_report=report,
+        http_status=answer.status_code,
+        report_recognised=_carries_report(body, _TRACKER_REPORT_KEYS),
     )
 
 
 def _envelope(body: dict[str, Any]) -> dict[str, Any]:
     """The `WebMessage` fields of an answer, which are the body's own when no envelope wrapped the report."""
     return body
+
+
+def _carries_report(body: dict[str, Any], keys: frozenset[str]) -> bool:
+    """Whether one answer carries the import report of the endpoint it came from, wrapped or bare.
+
+    The same reading `_report_body` takes, as the claim on its own: the fields only that endpoint's
+    report has are in the body, or in the `WebMessage.response` an envelope wrapped it in. A body
+    that has neither is some other party's answer, whatever HTTP status it arrived under.
+    """
+    nested = body.get("response")
+    return bool(keys & body.keys()) or (isinstance(nested, dict) and bool(keys & nested.keys()))
 
 
 def _report_body(body: dict[str, Any], keys: frozenset[str]) -> dict[str, Any] | None:

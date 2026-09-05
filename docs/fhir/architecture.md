@@ -692,7 +692,11 @@ under the endpoint's own validate-only mode, so DHIS2's own rules grade the
 whole spool without a write; `--import` commits. A drain that meets a server
 error stops and preserves the rest rather than continuing, every import writes
 its sidecar, and completeness is registered only for values that actually
-landed. A conversion-refused response stays in `received/`, because the fix for
+landed - a registration that did not land is written into the forwarded
+receipt's sidecar as owed, and the next importing run posts it again without
+resending a value. A receipt moves out of `received/` only on the endpoint's
+own import report: an answer that is no verdict, whatever its HTTP status,
+stops the drain with the receipt still queued. A conversion-refused response stays in `received/`, because the fix for
 it is local and the next run is the retry.
 
 **Phase A and phase B.** The above is phase A: the reference implementation, in

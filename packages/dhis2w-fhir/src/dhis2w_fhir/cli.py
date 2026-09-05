@@ -1900,6 +1900,7 @@ _COMPLETENESS_STYLES = {
     "not-claimed": "dim",
     "not-registered": "dim",
     "refused": "red",
+    "pending": "yellow",
 }
 
 
@@ -2288,6 +2289,18 @@ def _render_completeness_hints(report: ForwardReport) -> None:
             "again registers it; a tuple registered twice is an update, not a conflict.",
             style="yellow",
         )
+    pending = report.completeness_of(ForwardCompletenessKind.PENDING)
+    if pending:
+        _hint(
+            "note",
+            f"{len(pending)} report(s) imported and the completeness registration is not known to have "
+            "landed. The values are imported and stay imported, and the claim is written into the "
+            "forwarded receipt's own report - the next importing run posts it again on its own.",
+            style="yellow",
+        )
+    retries = report.completeness_retries
+    if retries:
+        _hint("note", f"This run also posted {report.completeness_retry_line}.")
     reason = report.completeness_dry_run_reason
     if reason:
         _hint("note", reason)

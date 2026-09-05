@@ -77,6 +77,8 @@ from dhis2w_fhir.spool import (
     SpoolLockedError,
     SpoolReadError,
     SpoolState,
+    read_received_responses,
+    read_spooled_receipts,
 )
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -2990,3 +2992,361 @@ async def test_a_stated_posture_outranks_the_file_in_either_direction(forward_pr
 
     assert posted.overwrite_posture is OverwritePosture.ALLOW
     assert [outcome.response_id for outcome in posted.accepted] == ["recapture1"]
+
+
+#: A receipt id that sorts last by file name, carried by the submission that arrived first.
+_LATE_NAME_EARLY_ARRIVAL = "f" * 32
+
+#: A receipt id that sorts first by file name, carried by the submission that arrived second.
+_EARLY_NAME_LATE_ARRIVAL = "0" * 32
+
+
+@pytest.fixture
+def arrival_order_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A project whose two aggregate captures of one cell arrive in the opposite order to their names."""
+    _write_probe_profile(tmp_path, monkeypatch)
+    root = tmp_path / "project"
+    root.mkdir()
+    _write_project(root)
+    document = _aggregate_document()
+    _write_receipt(root, _recaptured(document, _LATE_NAME_EARLY_ARRIVAL), received_at="2026-08-08T10:00:00.000Z")
+    _write_receipt(root, _recaptured(document, _EARLY_NAME_LATE_ARRIVAL), received_at="2026-08-08T11:00:00.000Z")
+    monkeypatch.chdir(root)
+    return root
+
+
+@respx.mock
+async def test_two_captures_of_one_cell_post_in_arrival_order_however_they_are_named(
+    arrival_order_project: Path,
+) -> None:
+    """The instance ends up holding the newest submission, which is what `allow` claims it does."""
+    _mock_instance()
+
+    report = await _forward(arrival_order_project, import_responses=True, overwrites=OverwritePosture.ALLOW)
+
+    assert [outcome.response_id for outcome in report.accepted] == [
+        _LATE_NAME_EARLY_ARRIVAL,
+        _EARLY_NAME_LATE_ARRIVAL,
+    ]
+    # The second post is the newer capture, so it is the one that replaced a value already sent.
+    assert [overwrite.response_id for overwrite in report.overwrites] == [_EARLY_NAME_LATE_ARRIVAL]
+    assert {value.previous_response_id for value in report.overwrites[0].values} == {_LATE_NAME_EARLY_ARRIVAL}
+
+
+@respx.mock
+async def test_the_drain_and_the_forwarded_index_name_the_same_receipt_as_the_sender(
+    arrival_order_project: Path,
+) -> None:
+    """What the run posted last is what the index reads back as the holder of each cell."""
+    _mock_instance()
+
+    await _forward(arrival_order_project, import_responses=True, overwrites=OverwritePosture.ALLOW)
+
+    index = build_forwarded_cell_index(service.spool_layout(load_project(arrival_order_project)))
+    assert index.covered
+    assert {submission.response_id for submission in index.covered.values()} == {_EARLY_NAME_LATE_ARRIVAL}
+
+
+@respx.mock
+async def test_refuse_admits_the_earlier_capture_and_queues_the_later_one(
+    arrival_order_project: Path,
+) -> None:
+    """Admission under `refuse` is decided by arrival rather than by whichever file name sorted first."""
+    _mock_instance()
+
+    report = await _forward(arrival_order_project, import_responses=True, overwrites=OverwritePosture.REFUSE)
+
+    assert [outcome.response_id for outcome in report.accepted] == [_LATE_NAME_EARLY_ARRIVAL]
+    assert [outcome.response_id for outcome in report.overwrite_refused] == [_EARLY_NAME_LATE_ARRIVAL]
+    assert (arrival_order_project / FORWARDED_RESPONSES_RELATIVE_PATH / f"{_LATE_NAME_EARLY_ARRIVAL}.json").is_file()
+    assert (arrival_order_project / RECEIVED_RESPONSES_RELATIVE_PATH / f"{_EARLY_NAME_LATE_ARRIVAL}.json").is_file()
+
+
+def test_the_queue_listing_reads_in_the_order_the_drain_posts_in(arrival_order_project: Path) -> None:
+    """`d2w fhir spool` and a drain agree on what is next, so a listing predicts what a run will do."""
+    layout = service.spool_layout(load_project(arrival_order_project))
+
+    listed = [receipt.response_id for receipt in read_spooled_receipts(layout).in_state(SpoolState.RECEIVED)]
+    drained = [response.response_id for response in read_received_responses(layout).responses]
+
+    assert listed == drained == [_LATE_NAME_EARLY_ARRIVAL, _EARLY_NAME_LATE_ARRIVAL]
+
+
+#: The JSON an authentication gateway, a proxy, or a rate limiter answers with instead of DHIS2. None of
+#: them is the import endpoint, and none of the four bodies carries a line of an import report.
+_GATEWAY_ANSWERS = {
+    401: {"message": "Unauthorized"},
+    403: {"message": "Forbidden"},
+    404: {"message": "Not Found"},
+    429: {"message": "Too Many Requests"},
+}
+
+
+@pytest.fixture
+def one_aggregate_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A project whose spool holds one aggregate receipt, so one answer decides the whole run."""
+    _write_probe_profile(tmp_path, monkeypatch)
+    root = tmp_path / "project"
+    root.mkdir()
+    _write_project(root)
+    _write_receipt(root, _aggregate_document())
+    monkeypatch.chdir(root)
+    return root
+
+
+def _queued(root: Path, response_id: str) -> bool:
+    """Whether one receipt is still in the queue, which is where a drain that reached no verdict leaves it."""
+    return (root / RECEIVED_RESPONSES_RELATIVE_PATH / f"{response_id}.json").is_file()
+
+
+@pytest.mark.parametrize("status", sorted(_GATEWAY_ANSWERS))
+@respx.mock
+async def test_an_answer_carrying_no_import_report_stops_the_drain_naming_its_status(
+    one_aggregate_project: Path, status: int
+) -> None:
+    """Whatever answered was not the import endpoint, so nothing is known about the payload.
+
+    A 401 is the one the client raises on rather than handing the body back, and it stops the drain
+    the same way: the receipt keeps its place and the run names the status the operator has to fix.
+    """
+    routes = _mock_instance(aggregate_response=httpx.Response(status, json=_GATEWAY_ANSWERS[status]))
+    document = _aggregate_document()
+    assert document.id is not None
+
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    assert report.stopped is not None
+    assert report.stopped.status_code == status
+    assert str(status) in report.stopped.reason
+    assert report.stopped.response_id == document.id
+    assert routes["completeness"].call_count == 0
+    assert report.accepted == ()
+    assert report.rejected == ()
+    assert _queued(one_aggregate_project, document.id)
+
+
+@respx.mock
+async def test_a_success_carrying_no_import_report_stops_the_drain_as_surely(one_aggregate_project: Path) -> None:
+    """A 200 is not a verdict either: an endpoint that answered `{}` said nothing about the values."""
+    _mock_instance(aggregate_response=httpx.Response(200, json={}))
+    document = _aggregate_document()
+    assert document.id is not None
+
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    assert report.stopped is not None
+    assert "no import report" in report.stopped.reason
+    assert report.accepted == ()
+    assert _queued(one_aggregate_project, document.id)
+
+
+@respx.mock
+async def test_an_error_status_with_no_import_report_is_not_read_as_a_rejection(
+    one_aggregate_project: Path,
+) -> None:
+    """A gateway may write `status: ERROR` of its own, and a status line is not an import report.
+
+    Filing this under `rejected/` would say DHIS2 refused a payload it was never handed, and the
+    receipt would leave the queue for good over a credential that can be fixed in a minute.
+    """
+    _mock_instance(aggregate_response=httpx.Response(403, json={"status": "ERROR", "message": "Forbidden"}))
+    document = _aggregate_document()
+    assert document.id is not None
+
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    assert report.stopped is not None
+    assert report.stopped.status_code == 403
+    assert report.rejected == ()
+    assert not (one_aggregate_project / REJECTED_RESPONSES_RELATIVE_PATH / f"{document.id}.json").exists()
+    assert _queued(one_aggregate_project, document.id)
+
+
+@respx.mock
+async def test_a_harvested_409_is_a_verdict_and_files_the_receipt_under_rejected(
+    one_aggregate_project: Path, wire_version: str
+) -> None:
+    """The 409 the instances really answer carries the endpoint's own report, so it is a refusal to file."""
+    _mock_instance(wire_version=wire_version, aggregate_response=_harvested_aggregate_value_type_409(wire_version))
+    document = _aggregate_document()
+    assert document.id is not None
+
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    assert report.stopped is None
+    assert [outcome.response_id for outcome in report.rejected] == [document.id]
+    assert (one_aggregate_project / REJECTED_RESPONSES_RELATIVE_PATH / f"{document.id}.json").is_file()
+
+
+@respx.mock
+async def test_an_accepted_import_carries_the_report_the_verdict_was_read_off(
+    one_aggregate_project: Path,
+) -> None:
+    """The forwarded state is a claim about DHIS2's own summary, so the sidecar holds the summary."""
+    _mock_instance()
+    document = _aggregate_document()
+    assert document.id is not None
+
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    outcome = report.accepted[0].import_outcome
+    assert outcome is not None
+    assert outcome.is_accepted is True
+    assert outcome.report_recognised is True
+    assert outcome.http_status is None
+    assert (one_aggregate_project / FORWARDED_RESPONSES_RELATIVE_PATH / f"{document.id}.json").is_file()
+
+
+@respx.mock
+async def test_a_completeness_answer_with_no_import_summary_leaves_the_claim_pending(
+    one_aggregate_project: Path,
+) -> None:
+    """The values landed and the registration did not, which is a claim still owed rather than a refusal."""
+    _mock_instance(completeness_response=httpx.Response(403, json={"message": "Forbidden"}))
+    document = _aggregate_document()
+    assert document.id is not None
+
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    pending = report.completeness_of(ForwardCompletenessKind.PENDING)
+    assert len(pending) == 1
+    assert pending[0].data_set == "BfMAe6Itzgt"
+    assert "403" in (pending[0].message or "")
+    assert report.completeness_of(ForwardCompletenessKind.REFUSED) == ()
+    # The values are in, and they stay in: a claim that did not land does not un-import them.
+    assert (one_aggregate_project / FORWARDED_RESPONSES_RELATIVE_PATH / f"{document.id}.json").is_file()
+
+
+def _forwarded_report(root: Path, response_id: str) -> service.ForwardImportRecord:
+    """The sidecar beside one forwarded receipt, which is where a completeness claim lives once filed."""
+    path = root / FORWARDED_RESPONSES_RELATIVE_PATH / f"{response_id}{IMPORT_REPORT_SUFFIX}"
+    return service.ForwardImportRecord.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+@respx.mock
+async def test_a_completeness_registration_that_times_out_is_retried_by_the_next_drain(
+    one_aggregate_project: Path,
+) -> None:
+    """The values are in DHIS2 and the claim is written down, so the next run pays it without resending them."""
+    routes = _mock_instance()
+    routes["completeness"].mock(side_effect=httpx.TimeoutException("the registration timed out"))
+    document = _aggregate_document()
+    assert document.id is not None
+
+    first = await _forward(one_aggregate_project, import_responses=True)
+
+    assert [outcome.kind for outcome in first.completeness_outcomes] == [ForwardCompletenessKind.PENDING]
+    assert (one_aggregate_project / FORWARDED_RESPONSES_RELATIVE_PATH / f"{document.id}.json").is_file()
+    owed = _forwarded_report(one_aggregate_project, document.id).completeness
+    assert owed is not None
+    assert owed.kind is ForwardCompletenessKind.PENDING
+    assert owed.data_set == "BfMAe6Itzgt"
+    posted_values = routes["aggregate"].call_count
+
+    routes["completeness"].mock(return_value=_accepted_completeness())
+    second = await _forward(one_aggregate_project, import_responses=True)
+
+    # The queue is empty and the claim is paid anyway, which is the whole point of the pass.
+    assert second.spooled == 0
+    assert [retry.response_id for retry in second.completeness_retries] == [document.id]
+    assert second.completeness_retries[0].outcome.kind is ForwardCompletenessKind.REGISTERED
+    assert routes["aggregate"].call_count == posted_values
+    registered = _forwarded_report(one_aggregate_project, document.id).completeness
+    assert registered is not None
+    assert registered.kind is ForwardCompletenessKind.REGISTERED
+
+
+@respx.mock
+async def test_a_registered_claim_is_not_posted_again_by_a_later_drain(one_aggregate_project: Path) -> None:
+    """A claim that landed is not owed, so a second drain of an empty queue posts nothing at all."""
+    routes = _mock_instance()
+    await _forward(one_aggregate_project, import_responses=True)
+    assert routes["completeness"].call_count == 1
+
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    assert report.completeness_retries == ()
+    assert routes["completeness"].call_count == 1
+
+
+@respx.mock
+async def test_a_refused_registration_is_a_verdict_rather_than_a_claim_still_owed(
+    one_aggregate_project: Path,
+) -> None:
+    """DHIS2 answered the claim, so the answer stands until an operator acts on it."""
+    routes = _mock_instance(completeness_response=_refused_completeness())
+    document = _aggregate_document()
+    assert document.id is not None
+
+    first = await _forward(one_aggregate_project, import_responses=True)
+
+    assert [outcome.kind for outcome in first.completeness_outcomes] == [ForwardCompletenessKind.REFUSED]
+    recorded = _forwarded_report(one_aggregate_project, document.id).completeness
+    assert recorded is not None
+    assert recorded.kind is ForwardCompletenessKind.REFUSED
+
+    second = await _forward(one_aggregate_project, import_responses=True)
+
+    assert second.completeness_retries == ()
+    assert routes["completeness"].call_count == 1
+
+
+@respx.mock
+async def test_a_drain_killed_after_the_values_landed_leaves_the_claim_owed(
+    one_aggregate_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The claim is written into the sidecar as the receipt is filed, so an interruption cannot lose it."""
+    routes = _mock_instance()
+    document = _aggregate_document()
+    assert document.id is not None
+
+    async def _interrupt(*arguments: Any, **keyword_arguments: Any) -> None:
+        raise RuntimeError("the drain was killed after the values landed")
+
+    registering = service._register_completeness
+    monkeypatch.setattr(service, "_register_completeness", _interrupt)
+    with pytest.raises(RuntimeError):
+        await _forward(one_aggregate_project, import_responses=True)
+
+    assert routes["completeness"].call_count == 0
+    owed = _forwarded_report(one_aggregate_project, document.id).completeness
+    assert owed is not None
+    assert owed.kind is ForwardCompletenessKind.PENDING
+    posted_values = routes["aggregate"].call_count
+
+    monkeypatch.setattr(service, "_register_completeness", registering)
+    report = await _forward(one_aggregate_project, import_responses=True)
+
+    assert [retry.outcome.kind for retry in report.completeness_retries] == [ForwardCompletenessKind.REGISTERED]
+    assert routes["aggregate"].call_count == posted_values
+    assert routes["completeness"].call_count == 1
+
+
+@respx.mock
+async def test_a_dry_run_pays_no_owed_claim(one_aggregate_project: Path) -> None:
+    """A dry run writes nothing, and a registration is a write like any other."""
+    routes = _mock_instance()
+    routes["completeness"].mock(side_effect=httpx.TimeoutException("the registration timed out"))
+    await _forward(one_aggregate_project, import_responses=True)
+    routes["completeness"].mock(return_value=_accepted_completeness())
+    attempted = routes["completeness"].call_count
+
+    report = await _forward(one_aggregate_project)
+
+    assert report.completeness_retries == ()
+    assert routes["completeness"].call_count == attempted
+
+
+@respx.mock
+async def test_a_run_that_registers_nothing_pays_no_owed_claim(one_aggregate_project: Path) -> None:
+    """`--no-register-completeness` is a statement about the run, and it covers the owed claims too."""
+    routes = _mock_instance()
+    routes["completeness"].mock(side_effect=httpx.TimeoutException("the registration timed out"))
+    await _forward(one_aggregate_project, import_responses=True)
+    routes["completeness"].mock(return_value=_accepted_completeness())
+    attempted = routes["completeness"].call_count
+
+    report = await _forward(one_aggregate_project, import_responses=True, register_completeness=False)
+
+    assert report.completeness_retries == ()
+    assert routes["completeness"].call_count == attempted
