@@ -82,7 +82,6 @@ infra/
 ├── compose.pgadmin.yml      # adds pgAdmin on :5050
 ├── Dockerfile               # custom postgres image with bcrypt
 ├── initdb.sh                # first-boot Postgres init: load dump, reset all user passwords
-├── run.sh                   # convenience wrapper (pre-existing)
 ├── scripts/
 │   ├── list_versions.py     # queries Docker Hub for dhis2/core tags
 │   └── startup.sh           # DHIS2 runtime entry (from source repo)
