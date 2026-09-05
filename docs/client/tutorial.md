@@ -131,6 +131,22 @@ What happens on `__aenter__`:
 
 `client.version_key` is `"v42"` afterwards; `client.raw_version` is `"2.42.4"`.
 
+**Canonical URL discovery.** Step 3 is preceded by one unauthenticated request to
+the profile's base URL, because some DHIS2 deployments answer on a different host
+than the one you configured (`play.dhis2.org/dev` redirects to
+`play.im.dhis2.org/dev`, and `httpx` drops the Authorization header across such a
+redirect). The client follows that chain once with no credentials and adopts the
+destination as the base URL for everything after — but only when the destination
+earns it. A same-origin destination is adopted outright. A different origin is
+adopted only when it keeps the configured scheme (an `https://` base URL is never
+traded for `http://`), sits on the same registrable domain as the configured host
+(the last two labels, so `play.dhis2.org` and `play.im.dhis2.org` are siblings
+under `dhis2.org`; an IP address or a single-label host such as `localhost` has no
+registrable domain and is never a sibling of anything), and answers
+`/api/system/info` with a parsed DHIS2 body — system info, or DHIS2's own error
+envelope for an anonymous caller. Anything else keeps the URL you configured, so
+an open redirect or an SSO identity provider never receives your credentials.
+
 ## Profiles — three ways to build one
 
 ### A. Named profile from the TOML file

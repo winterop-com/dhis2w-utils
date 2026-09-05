@@ -8,6 +8,8 @@ from pathlib import Path
 
 from dhis2w_client.v42.auth.oauth2 import OAuth2Token
 from sqlalchemy import Float, String, select
+from sqlalchemy import inspect as sqlalchemy_inspect
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -29,6 +31,19 @@ class _TokenRow(_Base):
     access_token: Mapped[str] = mapped_column(String, nullable=False)
     refresh_token: Mapped[str | None] = mapped_column(String, nullable=True)
     expires_at: Mapped[float] = mapped_column(Float, nullable=False)
+    base_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    client_id: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+def _drop_table_without_identity_columns(connection: Connection) -> None:
+    """Drop the token table when it lacks the identity columns, so `create_all` rebuilds it."""
+    inspector = sqlalchemy_inspect(connection)
+    if not inspector.has_table(_TokenRow.__tablename__):
+        return
+    columns = {column["name"] for column in inspector.get_columns(_TokenRow.__tablename__)}
+    if {"base_url", "client_id"} <= columns:
+        return
+    _Base.metadata.tables[_TokenRow.__tablename__].drop(connection)
 
 
 class SqliteTokenStore:
@@ -36,6 +51,12 @@ class SqliteTokenStore:
 
     Creates the parent directory and DB file lazily on first access. After the
     DB file exists, perms are forced to 0600.
+
+    Each row carries the instance origin and OAuth2 client id the token was
+    minted for, so `OAuth2Auth` can tell one instance's bearer token from
+    another's. A table that predates those columns is dropped and recreated on
+    first access: a token whose identity is unknown is unusable anyway, and the
+    next call runs the login flow again.
     """
 
     def __init__(self, db_path: Path) -> None:
@@ -59,6 +80,7 @@ class SqliteTokenStore:
             return
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         async with self._engine.begin() as conn:
+            await conn.run_sync(_drop_table_without_identity_columns)
             await conn.run_sync(_Base.metadata.create_all)
         if self._db_path.exists():
             with contextlib.suppress(OSError):
@@ -77,6 +99,8 @@ class SqliteTokenStore:
                 access_token=row.access_token,
                 refresh_token=row.refresh_token,
                 expires_at=row.expires_at,
+                base_url=row.base_url,
+                client_id=row.client_id,
             )
 
     async def set(self, key: str, token: OAuth2Token) -> None:
@@ -92,12 +116,16 @@ class SqliteTokenStore:
                         access_token=token.access_token,
                         refresh_token=refresh,
                         expires_at=token.expires_at,
+                        base_url=token.base_url,
+                        client_id=token.client_id,
                     )
                 )
             else:
                 existing.access_token = token.access_token
                 existing.refresh_token = refresh
                 existing.expires_at = token.expires_at
+                existing.base_url = token.base_url
+                existing.client_id = token.client_id
             await session.commit()
 
     async def delete(self, key: str) -> bool:
