@@ -3815,6 +3815,14 @@ context resource the evaluation is about. `cql measure` takes both halves off a
 Bundle - each `Patient` entry is a person to evaluate, and the whole Bundle is
 what the numerator retrieves from.
 
+A measure report holds every decision per group: `populations_for(group_id)` and
+`stratifier_values_for(group_id)` read one group's membership, and each group is
+counted, scored, and stratified from its own state. A definition that cannot be
+evaluated is recorded in `report.errors` with the patient, group, definition, and
+message rather than counted as nonmembership; the group holding it carries no
+`measure_score`, and `to_fhir()` emits `status: "error"` with a contained
+`OperationOutcome` listing the failures.
+
 It owns the R4 resource models at `dhis2w_fhir_engine.r4.resources`: `Patient`,
 `Bundle`, `QuestionnaireResponse`, `Composition`, `Extension`, and the rest.
 Every model is closed, frozen, and alias-aware, so

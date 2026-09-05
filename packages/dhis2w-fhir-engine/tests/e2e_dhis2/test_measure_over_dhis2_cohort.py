@@ -76,7 +76,9 @@ def test_measure_numerator_names_the_tracked_entities_with_a_recorded_weight(
 
     assert sorted(group.populations[PopulationType.NUMERATOR.value].patients) == expected_numerator_identifiers
     numerator_results = {
-        result.patient_id for result in report.patient_results if result.populations[PopulationType.NUMERATOR.value]
+        result.patient_id
+        for result in report.patient_results
+        if result.populations_for(group.id)[PopulationType.NUMERATOR.value]
     }
     assert sorted(numerator_results) == expected_numerator_identifiers
 

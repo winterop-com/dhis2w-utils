@@ -15,12 +15,15 @@ from .binding import FHIR_VERSION, R4_BINDING, STRUCTURE_DEFINITION_BASE
 from .builtins import builtin_resolver, get_builtin_resolver
 from .datasource import BundleDataSource, FHIRDataSource, InMemoryDataSource, PatientBundleDataSource
 from .measure import (
+    EvaluationError,
+    EvaluationErrorKind,
     GroupResult,
     MeasureEvaluator,
     MeasureGroup,
     MeasurePopulation,
     MeasureReport,
     MeasureScoring,
+    PatientGroupResult,
     PatientResult,
     PopulationCount,
     PopulationType,
@@ -55,12 +58,15 @@ __all__ = [
     "InMemoryDataSource",
     "PatientBundleDataSource",
     # Measure evaluation
+    "EvaluationError",
+    "EvaluationErrorKind",
     "GroupResult",
     "MeasureEvaluator",
     "MeasureGroup",
     "MeasurePopulation",
     "MeasureReport",
     "MeasureScoring",
+    "PatientGroupResult",
     "PatientResult",
     "PopulationCount",
     "PopulationType",

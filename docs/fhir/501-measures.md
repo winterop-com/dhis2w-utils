@@ -146,7 +146,7 @@ The report also holds the per-person decision, which is what you read when a cou
 surprises you:
 
 ```
-per person, as the evaluator decided it:
+per person, as the evaluator decided it, within this group:
   child-1    initial-population, denominator, numerator
   child-2    initial-population, denominator, numerator
   child-3    initial-population, denominator, numerator
@@ -154,7 +154,21 @@ per person, as the evaluator decided it:
 ```
 
 `evaluate_patient` answers the same question for one person, when you want to
-explain a single case rather than score a cohort.
+explain a single case rather than score a cohort. A measure can declare several
+groups, and every decision is held per group: `populations_for(group_id)` and
+`stratifier_values_for(group_id)` read one group's membership, and each group is
+counted, scored, and stratified from its own state alone.
+
+## When a definition cannot be evaluated
+
+A definition that fails - an unknown function, a value set the library never
+declares, a stratifier that raises - is never counted as a negative result. The
+failure lands in `report.errors` as an `EvaluationError` naming the patient, the
+group, the definition, and the message; the group holding it gets no
+`measure_score`; and `to_fhir()` emits `status: "error"` with a contained
+`OperationOutcome` listing every failure. Evaluation still returns a report, so a
+partly broken measure shows what it could compute and what it could not, instead
+of reading as a plausible score.
 
 ## The FHIR MeasureReport
 
