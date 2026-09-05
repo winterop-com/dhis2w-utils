@@ -16,6 +16,7 @@ from dhis2w_core.profile import (
     NoProfileError,
     Profile,
     ProfileAlreadyExistsError,
+    ProfileLayer,
     ProfileSource,
     ResolvedProfile,
     UnknownProfileError,
@@ -27,6 +28,7 @@ from dhis2w_core.profile import (
     validate_profile_name,
     write_profiles_file,
 )
+from dhis2w_core.v41.client_context import scope_from_resolved, token_store_key
 from dhis2w_core.v41.token_store import token_store_for_scope
 
 # ---------------------------------------------------------------------------
@@ -121,7 +123,14 @@ async def verify_all_profiles(*, start: Path | None = None) -> list[VerifyResult
     results: list[VerifyResult] = []
     for name in sorted(catalog.merged):
         entry = catalog.merged[name]
-        resolved = ResolvedProfile(name=name, profile=entry.profile, source=entry.source, source_path=entry.source_path)
+        layer: ProfileLayer = "project-toml" if entry.source == "project-toml" else "global-toml"
+        resolved = ResolvedProfile(
+            name=name,
+            profile=entry.profile,
+            source=entry.source,
+            layer=layer,
+            source_path=entry.source_path,
+        )
         try:
             result = await _verify_one(resolved)
         except Exception as exc:  # noqa: BLE001 — one broken profile must not abort the sweep
@@ -152,9 +161,9 @@ async def _verify_one(resolved: ResolvedProfile) -> VerifyResult:
             )
         # Verify must never trigger the browser flow — if no token is cached yet, tell the
         # user to run `d2w profile login <name>` rather than silently opening a browser.
-        token_store = token_store_for_scope(_scope_for(resolved))
+        token_store = token_store_for_scope(scope_from_resolved(resolved))
         try:
-            cached = await token_store.get(f"profile:{resolved.name}")
+            cached = await token_store.get(token_store_key(resolved.name, profile))
         finally:
             await token_store.close()
         if cached is None:
@@ -168,7 +177,7 @@ async def _verify_one(resolved: ResolvedProfile) -> VerifyResult:
                     f"run `d2w profile login {resolved.name}` to complete the browser flow first"
                 ),
             )
-    auth = _build_probe_auth(profile, profile_name=resolved.name, scope=_scope_for(resolved))
+    auth = _build_probe_auth(profile, profile_name=resolved.name, scope=scope_from_resolved(resolved))
     if auth is None:
         return VerifyResult(
             name=name,
@@ -204,12 +213,6 @@ async def _verify_one(resolved: ResolvedProfile) -> VerifyResult:
     )
 
 
-def _scope_for(resolved: object) -> str:
-    """Return 'project' if the resolved profile came from a project TOML, else 'global'."""
-    src = getattr(resolved, "source", None)
-    return "project" if src == "project-toml" else "global"
-
-
 def _build_probe_auth(
     profile: Profile,
     *,
@@ -240,7 +243,7 @@ def _build_probe_auth(
             scope=profile.scope,
             redirect_uri=profile.redirect_uri,
             token_store=token_store_for_scope(scope),
-            store_key=f"profile:{profile_name}" if profile_name else f"oauth2:{profile.base_url}",
+            store_key=token_store_key(profile_name or "default", profile),
             redirect_capturer=_probe_capturer,
         )
     return None

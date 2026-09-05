@@ -49,6 +49,7 @@ __all__ = [
     "NoProfileError",
     "Profile",
     "ProfileCatalog",
+    "ProfileLayer",
     "ProfileSource",
     "ProfileVersionMismatchError",
     "ProfilesFile",
@@ -141,6 +142,9 @@ def _check_bound_tree(resolved: ResolvedProfile) -> None:
 
 ProfileSource = Literal["arg", "env-profile", "env-raw", "project-toml", "global-toml"]
 
+#: Where a profile entry physically lives, independent of how it was selected.
+ProfileLayer = Literal["project-toml", "global-toml", "env"]
+
 
 class ResolvedProfile(BaseModel):
     """A resolved profile together with its provenance."""
@@ -150,6 +154,7 @@ class ResolvedProfile(BaseModel):
     name: str
     profile: Profile
     source: ProfileSource
+    layer: ProfileLayer
     source_path: Path | None = None
 
 
@@ -306,7 +311,7 @@ def _resolve_raw(name: str | None, *, start: Path | None) -> ResolvedProfile:
     # 3. Raw env (DHIS2_URL + creds) — CI-friendly, no TOML needed.
     raw = _profile_from_env_raw_client()
     if raw is not None:
-        return ResolvedProfile(name="<env>", profile=raw, source="env-raw")
+        return ResolvedProfile(name="<env>", profile=raw, source="env-raw", layer="env")
     # 4. Project TOML default.
     # 5. Global TOML default.
     catalog = load_catalog(start=start)
@@ -332,9 +337,16 @@ def _resolve_by_name(
             "Run `d2w profile list` to see all profiles."
         )
     entry = merged[name]
-    # If caller asked by explicit name (`arg`/`env-profile`), report THAT origin rather than TOML layer.
+    # `source` says how the profile was selected; `layer` says which file the entry lives in.
     reported_source = source if source in {"arg", "env-profile"} else entry.source
-    return ResolvedProfile(name=name, profile=entry.profile, source=reported_source, source_path=entry.source_path)
+    layer: ProfileLayer = "project-toml" if entry.source == "project-toml" else "global-toml"
+    return ResolvedProfile(
+        name=name,
+        profile=entry.profile,
+        source=reported_source,
+        layer=layer,
+        source_path=entry.source_path,
+    )
 
 
 def profile_from_env() -> Profile:

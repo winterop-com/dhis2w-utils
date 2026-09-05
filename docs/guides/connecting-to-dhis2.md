@@ -367,7 +367,7 @@ What happens in order:
 6. After login DHIS2 returns you to `/oauth2/authorize` with a session cookie, Spring AS mints an authorization code, and redirects your browser back to `http://localhost:8765/?code=...&state=...`.
 7. The FastAPI receiver captures the code, validates `state`, and renders a styled "Authentication successful, you can close this tab" page.
 8. `dhis2w-client` POSTs the code to `/oauth2/token` with the PKCE verifier to exchange for access + refresh tokens.
-9. Tokens are persisted to `~/.config/dhis2/tokens.sqlite` (global scope) or `.dhis2/tokens.sqlite` (project scope) under the key `profile:<name>`.
+9. Tokens are persisted under the key `profile:<name>:<base_url>:<client_id>`, so a cached token is bound to one profile on one instance for one OAuth client and never reaches a different one. The file is `.dhis2/tokens.sqlite` when the profile entry lives in a project `profiles.toml` and `~/.config/dhis2/tokens.sqlite` when it lives in the global one — storage follows where the entry lives, not whether you named it with `--profile`.
 10. A final verification against `/api/system/info` + `/api/me` prints the authenticated username, version, and latency.
 
 Expected output:

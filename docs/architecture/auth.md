@@ -113,6 +113,8 @@ class TokenStore(Protocol):
 
 `dhis2w-core` provides a SQLAlchemy+SQLite implementation backed by `.dhis2/tokens.sqlite`. A future keyring-backed implementation can be swapped in without touching `OAuth2Auth`.
 
+`dhis2w_core.client_context.token_store_key()` composes the row key as `profile:<name>:<base_url>:<client_id>`, so two profiles that resolve to the same name on different instances or different OAuth clients never read each other's token. `scope_from_resolved()` picks the file from `ResolvedProfile.layer` — the TOML the entry physically lives in — so a project profile stores its token in the project `.dhis2/tokens.sqlite` whether it was selected by `-p name` or reached through the default chain.
+
 ## DHIS2 server prerequisites (v2.42)
 
 DHIS2 ships its own Spring Authorization Server, but none of it is turned on by default. Without the right `dhis.conf` keys, `d2w profile login` will fail in one of three distinct ways depending on which layer is missing. Getting OAuth2 working against a local DHIS2 means adding **all** of these to `dhis.conf` and restarting the instance:
