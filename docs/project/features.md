@@ -128,8 +128,9 @@ version (v41/v42/v43).
 
 ### Token Store
 
-SQLite-backed (`aiosqlite`) at `.dhis2/tokens.sqlite`, keyed by profile name.
-Handles OAuth2 token caching and automatic refresh on expiry.
+SQLite-backed (`aiosqlite`) at `.dhis2/tokens.sqlite`, keyed by profile name,
+base URL, and OAuth client id. Handles OAuth2 token caching and automatic
+refresh on expiry.
 
 ### First-Party Plugins
 

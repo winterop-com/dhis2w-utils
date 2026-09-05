@@ -46,6 +46,16 @@ def build_auth(
     return build_auth_provider(profile)
 
 
+def token_store_key(profile_name: str, profile: Profile) -> str:
+    """Compose the token-store key binding a cached token to one profile on one instance.
+
+    The key carries the instance origin and the OAuth client id alongside the
+    profile name, so two profiles that resolve to the same name never read each
+    other's bearer token.
+    """
+    return f"profile:{profile_name}:{profile.base_url}:{profile.client_id}"
+
+
 def _build_oauth2(
     profile: Profile,
     *,
@@ -70,14 +80,18 @@ def _build_oauth2(
         scope=profile.scope,
         redirect_uri=profile.redirect_uri,
         token_store=store,
-        store_key=f"profile:{name}",
+        store_key=token_store_key(name, profile),
         open_browser=open_browser,
     )
 
 
 def scope_from_resolved(resolved: ResolvedProfile) -> str:
-    """Translate a `ResolvedProfile.source` into a 'project' / 'global' scope."""
-    if resolved.source == "project-toml":
+    """Translate a `ResolvedProfile.layer` into a 'project' / 'global' token-storage scope.
+
+    Storage follows where the profile entry lives, not how it was selected, so
+    `-p name` and the defaulted chain reach the same `.dhis2/tokens.sqlite`.
+    """
+    if resolved.layer == "project-toml":
         return "project"
     return "global"
 

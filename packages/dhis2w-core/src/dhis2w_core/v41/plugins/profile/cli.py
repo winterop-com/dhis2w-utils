@@ -599,7 +599,7 @@ def login_command(
     Pass `--no-browser` (or `DHIS2_OAUTH_NO_BROWSER=1`) to print the URL to
     stderr instead of launching the system browser.
     """
-    from dhis2w_core.v41.client_context import build_auth, scope_from_resolved
+    from dhis2w_core.v41.client_context import build_auth, scope_from_resolved, token_store_key
 
     resolved = resolve(name)
     if resolved.profile.auth != "oauth2":
@@ -621,7 +621,7 @@ def login_command(
 
     scope_name = scope_from_resolved(resolved)
     token_store = token_store_for_scope(scope_name)
-    store_key = f"profile:{resolved.name}"
+    store_key = token_store_key(resolved.name, resolved.profile)
     asyncio.run(token_store.delete(store_key))
 
     open_browser = not (no_browser or os.environ.get("DHIS2_OAUTH_NO_BROWSER", "0") == "1")
@@ -648,7 +648,7 @@ def logout_command(
     Removes the row from the scope-appropriate `tokens.sqlite`. Next API call
     triggers a fresh `profile login` flow. OAuth2 profiles only.
     """
-    from dhis2w_core.v41.client_context import scope_from_resolved
+    from dhis2w_core.v41.client_context import scope_from_resolved, token_store_key
     from dhis2w_core.v41.token_store import token_store_for_scope
 
     resolved = resolve(name)
@@ -662,7 +662,7 @@ def logout_command(
     store = token_store_for_scope(scope_from_resolved(resolved))
 
     async def _clear() -> Path:
-        await store.delete(f"profile:{resolved.name}")
+        await store.delete(token_store_key(resolved.name, resolved.profile))
         path = store.db_path
         await store.close()
         return path
