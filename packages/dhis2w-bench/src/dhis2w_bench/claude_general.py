@@ -151,14 +151,19 @@ async def _run_python_suite(model: str | None) -> tuple[list[TaskResult], float]
     for task in PYTHON_TASKS:
         started = time.monotonic()
         text, task_cost = await _claude_text(PY_SYSTEM, task.prompt, model)
-        passed, total = _run_python(text, task)
+        outcome = _run_python(text, task)
         cost += task_cost
         results.append(
             TaskResult(
-                suite="python", key=task.key, passed=passed, total=total, seconds=time.monotonic() - started, tokens=0
+                suite="python",
+                key=task.key,
+                passed=outcome.passed,
+                total=outcome.total,
+                seconds=time.monotonic() - started,
+                tokens=0,
             )
         )
-        print(f"  python {task.key}: {passed}/{total}")
+        print(f"  python {task.key}: {outcome.passed}/{outcome.total}")
     return (results, cost)
 
 

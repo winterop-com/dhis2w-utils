@@ -19,9 +19,12 @@ and logs any named model that isn't installed.
 
 Three suites, all scored by **execution or structural match — never an AI judge**:
 
-- **python** — the model writes one function/class; the harness extracts the fenced code block,
-  `exec`s it, and runs hidden test cases. Tasks span easy (Roman numerals, balanced brackets) to
-  harder (LRU cache class, longest-common-subsequence) so models actually separate.
+- **python** — the model writes one function/class; the harness extracts the fenced code block and
+  runs it plus the hidden test cases in a **worker process** — a separate interpreter with the same
+  curated PATH as the cli sandbox, a throwaway temp working directory, and a 20 second bound, so a
+  crash, a `SystemExit`, or a nonterminating loop costs one task instead of the run; it is a bound,
+  not a security sandbox, so run it on a machine you trust. Tasks span easy (Roman numerals,
+  balanced brackets) to harder (LRU cache class, longest-common-subsequence) so models separate.
 - **cli** — the model writes a single shell command for a goal; the harness runs it in a
   **curated-PATH temp sandbox** and checks the effect (a created file, stdout). Only an allowlist of
   read/format tools is reachable (`echo`, `cat`, `wc`, `awk`, ... — no `rm`/`curl`/`sudo`), and

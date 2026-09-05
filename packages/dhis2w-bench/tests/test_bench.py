@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
+from typing import cast
+
 import pytest
 from dhis2w_bench import general, mcp
 from dhis2w_bench.backend import LmStudioBackend, ModelInfo, get_backend
@@ -234,3 +238,84 @@ def test_claude_general_table() -> None:
     assert "`opus`" in table
     assert "6/6" in table
     assert "$2.50" in table
+
+
+# --- python-suite worker isolation ---------------------------------------------------------
+
+
+def _echo_cases(symbol: object) -> list[bool]:
+    """Call the extracted symbol on two inputs and compare against fixed expectations."""
+    call = cast("Callable[[int], int]", symbol)
+    return [call(1) == 1, call(2) == 2]
+
+
+def _python_task(check: Callable[[object], list[bool]] = _echo_cases) -> general.PythonTask:
+    """A minimal python task extracting `echo` and scoring it with `check`."""
+    return general.PythonTask(key="echo", prompt="write echo", symbol="echo", check=check)
+
+
+def _fenced(source: str) -> str:
+    """Wrap `source` in the fenced python block the extractor expects."""
+    return f"```python\n{source}\n```"
+
+
+def test_run_python_scores_a_correct_answer() -> None:
+    """A working answer is executed in the worker and scores every hidden case."""
+    outcome = general._run_python(_fenced("def echo(n):\n    return n\n"), _python_task())
+    assert (outcome.passed, outcome.total, outcome.failed) == (2, 2, 0)
+
+
+def test_run_python_scores_a_wrong_answer() -> None:
+    """A wrong answer scores the cases it fails without ending the run."""
+    outcome = general._run_python(_fenced("def echo(n):\n    return 1\n"), _python_task())
+    assert (outcome.passed, outcome.total) == (1, 2)
+
+
+def test_run_python_syntax_error_is_a_failed_task() -> None:
+    """Source that does not compile scores zero instead of raising into the harness."""
+    outcome = general._run_python(_fenced("def echo(n)\n    return n\n"), _python_task())
+    assert (outcome.passed, outcome.total) == (0, 1)
+
+
+def test_run_python_module_exception_is_a_failed_task() -> None:
+    """An ordinary exception in the module body scores zero and the harness continues."""
+    outcome = general._run_python(_fenced("def echo(n):\n    return n\n\nraise ValueError('boom')\n"), _python_task())
+    assert (outcome.passed, outcome.total) == (0, 1)
+
+
+def test_run_python_system_exit_is_a_failed_task() -> None:
+    """`sys.exit(7)` in the module body stays inside the worker and scores zero."""
+    source = "import sys\n\ndef echo(n):\n    return n\n\nsys.exit(7)\n"
+    outcome = general._run_python(_fenced(source), _python_task())
+    assert (outcome.passed, outcome.total) == (0, 1)
+
+
+def test_run_python_worker_crash_is_a_failed_task() -> None:
+    """A hard worker exit (`os._exit`) that cannot be caught in-process scores zero."""
+    source = "import os\n\ndef echo(n):\n    return n\n\nos._exit(3)\n"
+    outcome = general._run_python(_fenced(source), _python_task())
+    assert (outcome.passed, outcome.total) == (0, 1)
+
+
+def test_run_python_module_loop_is_bounded() -> None:
+    """A nonterminating module body is killed at the timeout and scores zero."""
+    source = "def echo(n):\n    return n\n\nwhile True:\n    pass\n"
+    started = time.monotonic()
+    outcome = general._run_python(_fenced(source), _python_task(), timeout=2.0)
+    assert (outcome.passed, outcome.total) == (0, 1)
+    assert time.monotonic() - started < 30.0
+
+
+def test_run_python_function_loop_is_bounded() -> None:
+    """A nonterminating tested function is killed at the timeout and scores zero."""
+    source = "def echo(n):\n    while True:\n        pass\n"
+    started = time.monotonic()
+    outcome = general._run_python(_fenced(source), _python_task(), timeout=2.0)
+    assert (outcome.passed, outcome.total) == (0, 1)
+    assert time.monotonic() - started < 30.0
+
+
+def test_run_python_missing_symbol_is_a_failed_task() -> None:
+    """Source that never defines the requested symbol scores zero."""
+    outcome = general._run_python(_fenced("value = 1\n"), _python_task())
+    assert (outcome.passed, outcome.total) == (0, 1)
