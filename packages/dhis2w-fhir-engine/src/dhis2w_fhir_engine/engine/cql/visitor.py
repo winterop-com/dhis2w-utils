@@ -3379,18 +3379,20 @@ class CQLEvaluatorVisitor(cqlVisitor):
         return self._call_user_defined_function(name, args)
 
     def _call_user_defined_function(self, name: str, args: list[Any]) -> Any:
-        """Call a user-defined function from the current library."""
+        """Call a user-defined function from the current library, raising when no such function exists."""
         if not self._library:
-            return None
+            raise CQLError(f"Unknown function: {name}()")
 
         # Look up function in library
         func_def = self._library.get_function(name)
         if not func_def:
-            return None
+            raise CQLError(f"Unknown function: {name}()")
 
         # Check argument count (all parameters are required - no defaults)
         if len(args) < len(func_def.parameters):
-            return None
+            raise CQLError(
+                f"Function {name}() takes {len(func_def.parameters)} argument(s) and was called with {len(args)}"
+            )
 
         # Create child context for function execution
         func_context = self.context.child()

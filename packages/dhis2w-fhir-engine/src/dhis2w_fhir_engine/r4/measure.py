@@ -17,12 +17,24 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..engine.elm.exceptions import ELMError
+from ..engine.exceptions import FHIRPathError
+from ..engine.units.ucum import UCUMError
 from ..ingest import ResourceInput, as_resource_dict, as_resource_dicts
+from .resources import Extension, OperationOutcome, OperationOutcomeIssue, Reference
 
 if TYPE_CHECKING:
     from ..engine.cql.context import DataSource
     from ..engine.cql.evaluator import CQLEvaluator
     from ..engine.cql.library import CQLLibrary
+
+EVALUATION_ERROR_EXTENSION_URL = "https://winterop.com/fhir/StructureDefinition/measure-evaluation-errors"
+"""Extension URL on a MeasureReport pointing at the contained OperationOutcome of failed definitions."""
+
+_EVALUATION_ERROR_OUTCOME_ID = "evaluation-errors"
+
+EVALUATION_FAILURES = (FHIRPathError, ELMError, UCUMError)
+"""The engine's own failure types: a definition raising one of these is a measure error, not a bug."""
 
 
 class PopulationType(Enum):
@@ -76,22 +88,89 @@ class MeasureGroup(BaseModel):
     stratifiers: list[str] = Field(default_factory=list)
 
 
-class PatientResult(BaseModel):
-    """Result of evaluating a measure for a single patient.
+class EvaluationErrorKind(Enum):
+    """What kind of definition failed to evaluate."""
+
+    POPULATION = "population"
+    STRATIFIER = "stratifier"
+
+
+class EvaluationError(BaseModel):
+    """One definition that could not be evaluated, with the context it failed in.
 
     Attributes:
-        patient_id: Patient identifier
+        patient_id: Patient the definition was evaluated for
+        group_id: Measure group the definition belongs to
+        definition: Name of the CQL definition that failed
+        kind: Whether the definition is a population or a stratifier
+        message: Failure detail from the engine
+    """
+
+    patient_id: str
+    group_id: str
+    definition: str
+    kind: EvaluationErrorKind
+    message: str
+
+    def describe(self) -> str:
+        """Render the error as one diagnostic line."""
+        return f"patient {self.patient_id}, group {self.group_id}, {self.kind.value} {self.definition}: {self.message}"
+
+
+class PatientGroupResult(BaseModel):
+    """One patient's membership and stratifier values within a single measure group.
+
+    Attributes:
+        group_id: Group identifier
         populations: Dict mapping population type to boolean result
-        observations: Dict mapping observation name to value
         stratifier_values: Dict mapping stratifier name to value
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    patient_id: str
+    group_id: str
     populations: dict[str, bool] = Field(default_factory=dict)
-    observations: dict[str, Any] = Field(default_factory=dict)
     stratifier_values: dict[str, Any] = Field(default_factory=dict)
+
+
+class PatientResult(BaseModel):
+    """Result of evaluating a measure for a single patient.
+
+    Attributes:
+        patient_id: Patient identifier
+        groups: Dict mapping group id to that group's membership and stratifier values
+        observations: Dict mapping observation name to value
+        errors: Definitions that could not be evaluated for this patient
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    patient_id: str
+    groups: dict[str, PatientGroupResult] = Field(default_factory=dict)
+    observations: dict[str, Any] = Field(default_factory=dict)
+    errors: list[EvaluationError] = Field(default_factory=list)
+
+    def group(self, group_id: str) -> PatientGroupResult:
+        """Get this patient's result for one group, creating it when first written."""
+        existing = self.groups.get(group_id)
+        if existing is None:
+            existing = PatientGroupResult(group_id=group_id)
+            self.groups[group_id] = existing
+        return existing
+
+    def populations_for(self, group_id: str) -> dict[str, bool]:
+        """Get this patient's population membership within one group."""
+        result = self.groups.get(group_id)
+        return result.populations if result else {}
+
+    def stratifier_values_for(self, group_id: str) -> dict[str, Any]:
+        """Get this patient's stratifier values within one group."""
+        result = self.groups.get(group_id)
+        return result.stratifier_values if result else {}
+
+    def errors_for(self, group_id: str) -> list[EvaluationError]:
+        """Get the failed definitions recorded for one group."""
+        return [error for error in self.errors if error.group_id == group_id]
 
 
 class PopulationCount(BaseModel):
@@ -147,6 +226,7 @@ class MeasureReport(BaseModel):
         period_end: End of measurement period
         groups: Results by group
         patient_results: Individual patient results
+        errors: Definitions that could not be evaluated, across every patient and group
         evaluated_at: When the measure was evaluated
     """
 
@@ -155,21 +235,49 @@ class MeasureReport(BaseModel):
     period_end: datetime | None = None
     groups: list[GroupResult] = Field(default_factory=list)
     patient_results: list[PatientResult] = Field(default_factory=list)
+    errors: list[EvaluationError] = Field(default_factory=list)
     evaluated_at: datetime = Field(default_factory=datetime.now)
+
+    def errors_for(self, group_id: str) -> list[EvaluationError]:
+        """Get the failed definitions recorded for one group."""
+        return [error for error in self.errors if error.group_id == group_id]
 
     def to_fhir(self) -> dict[str, Any]:
         """Convert to FHIR MeasureReport resource.
+
+        A report carrying evaluation errors is emitted with status `error` and a contained
+        OperationOutcome listing each failed definition.
 
         Returns:
             FHIR MeasureReport as dictionary
         """
         report: dict[str, Any] = {
             "resourceType": "MeasureReport",
-            "status": "complete",
+            "status": "error" if self.errors else "complete",
             "type": "summary",
             "measure": self.measure_id,
             "date": self.evaluated_at.isoformat(),
         }
+
+        if self.errors:
+            outcome = OperationOutcome(
+                id=_EVALUATION_ERROR_OUTCOME_ID,
+                issue=[
+                    OperationOutcomeIssue(
+                        severity="error",
+                        code="processing",
+                        diagnostics=error.describe(),
+                    )
+                    for error in self.errors
+                ],
+            )
+            report["contained"] = [outcome.model_dump(by_alias=True, exclude_none=True, mode="json")]
+            report["extension"] = [
+                Extension(
+                    url=EVALUATION_ERROR_EXTENSION_URL,
+                    valueReference=Reference(reference=f"#{_EVALUATION_ERROR_OUTCOME_ID}"),
+                ).model_dump(by_alias=True, exclude_none=True, mode="json")
+            ]
 
         if self.period_start and self.period_end:
             report["period"] = {
@@ -441,34 +549,53 @@ class MeasureEvaluator:
 
         # Evaluate each population
         for group in self._groups:
+            group_result = result.group(group.id)
+
             for population in group.populations:
                 try:
                     value = self._evaluator.evaluate_definition(
                         population.definition,
                         resource=ingested,
                     )
-                    # Convert to boolean
-                    if value is None:
-                        result.populations[population.type.value] = False
-                    elif isinstance(value, bool):
-                        result.populations[population.type.value] = value
-                    elif isinstance(value, list):
-                        result.populations[population.type.value] = len(value) > 0
-                    else:
-                        result.populations[population.type.value] = bool(value)
-                except Exception:
-                    result.populations[population.type.value] = False
+                except EVALUATION_FAILURES as error:
+                    result.errors.append(
+                        EvaluationError(
+                            patient_id=patient_id,
+                            group_id=group.id,
+                            definition=population.definition,
+                            kind=EvaluationErrorKind.POPULATION,
+                            message=repr(error),
+                        )
+                    )
+                    continue
+
+                # Convert to boolean
+                if value is None:
+                    group_result.populations[population.type.value] = False
+                elif isinstance(value, bool):
+                    group_result.populations[population.type.value] = value
+                elif isinstance(value, list):
+                    group_result.populations[population.type.value] = len(value) > 0
+                else:
+                    group_result.populations[population.type.value] = bool(value)
 
             # Evaluate stratifiers
             for stratifier in group.stratifiers:
                 try:
-                    value = self._evaluator.evaluate_definition(
+                    group_result.stratifier_values[stratifier] = self._evaluator.evaluate_definition(
                         stratifier,
                         resource=ingested,
                     )
-                    result.stratifier_values[stratifier] = value
-                except Exception:
-                    result.stratifier_values[stratifier] = None
+                except EVALUATION_FAILURES as error:
+                    result.errors.append(
+                        EvaluationError(
+                            patient_id=patient_id,
+                            group_id=group.id,
+                            definition=stratifier,
+                            kind=EvaluationErrorKind.STRATIFIER,
+                            message=repr(error),
+                        )
+                    )
 
         return result
 
@@ -508,10 +635,12 @@ class MeasureEvaluator:
         for patient in as_resource_dicts(patients):
             patient_result = self.evaluate_patient(patient, data_source)
             report.patient_results.append(patient_result)
+            report.errors.extend(patient_result.errors)
 
         # Aggregate results by group
         for group in self._groups:
             group_result = GroupResult(id=group.id)
+            group_failed = bool(report.errors_for(group.id))
 
             # Initialize population counts
             for population in group.populations:
@@ -519,13 +648,13 @@ class MeasureEvaluator:
 
             # Count patients in each population
             for patient_result in report.patient_results:
-                for pop_type, in_pop in patient_result.populations.items():
+                for pop_type, in_pop in patient_result.populations_for(group.id).items():
                     if in_pop and pop_type in group_result.populations:
                         group_result.populations[pop_type].count += 1
                         group_result.populations[pop_type].patients.append(patient_result.patient_id)
 
-            # Calculate measure score for proportion measures
-            if self._scoring == MeasureScoring.PROPORTION:
+            # Calculate measure score for proportion measures; a group with a failed definition gets none
+            if self._scoring == MeasureScoring.PROPORTION and not group_failed:
                 group_result.measure_score = self._calculate_proportion_score(group_result.populations)
 
             # Calculate stratified results
@@ -534,7 +663,7 @@ class MeasureEvaluator:
                     strat_results: dict[Any, StratifierResult] = {}
 
                     for patient_result in report.patient_results:
-                        strat_value = patient_result.stratifier_values.get(stratifier)
+                        strat_value = patient_result.stratifier_values_for(group.id).get(stratifier)
 
                         if strat_value not in strat_results:
                             strat_results[strat_value] = StratifierResult(value=strat_value)
@@ -545,7 +674,7 @@ class MeasureEvaluator:
                                 )
 
                         # Count patient in stratum populations
-                        for pop_type, in_pop in patient_result.populations.items():
+                        for pop_type, in_pop in patient_result.populations_for(group.id).items():
                             if in_pop:
                                 pop_count = strat_results[strat_value].populations.get(pop_type)
                                 if pop_count:
@@ -603,6 +732,7 @@ class MeasureEvaluator:
         summary: dict[str, Any] = {
             "measure": report.measure_id,
             "total_patients": len(report.patient_results),
+            "errors": [error.describe() for error in report.errors],
             "groups": [],
         }
 

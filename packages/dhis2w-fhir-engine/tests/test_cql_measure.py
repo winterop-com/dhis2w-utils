@@ -17,10 +17,13 @@ from dhis2w_fhir_engine.r4 import (
     PopulationType,
 )
 from dhis2w_fhir_engine.r4.measure import (
+    EVALUATION_ERROR_EXTENSION_URL,
+    EvaluationErrorKind,
     GroupResult,
     MeasureGroup,
     MeasurePopulation,
     MeasureReport,
+    PatientGroupResult,
     PatientResult,
     PopulationCount,
     StratifierResult,
@@ -215,9 +218,9 @@ class TestPatientEvaluation:
         result = evaluator.evaluate_patient(patient)
 
         assert result.patient_id == "p1"
-        assert result.populations["initial-population"] is True
-        assert result.populations["denominator"] is True
-        assert result.populations["numerator"] is True
+        assert result.populations_for("default")["initial-population"] is True
+        assert result.populations_for("default")["denominator"] is True
+        assert result.populations_for("default")["numerator"] is True
 
     def test_evaluate_patient_with_conditions(self) -> None:
         """Test patient evaluation with conditional logic."""
@@ -238,19 +241,19 @@ class TestPatientEvaluation:
         # Adult under 40
         patient1 = create_patient("p1", 25)
         result1 = evaluator.evaluate_patient(patient1)
-        assert result1.populations["initial-population"] is True
-        assert result1.populations["numerator"] is False
+        assert result1.populations_for("default")["initial-population"] is True
+        assert result1.populations_for("default")["numerator"] is False
 
         # Adult 40+
         patient2 = create_patient("p2", 50)
         result2 = evaluator.evaluate_patient(patient2)
-        assert result2.populations["initial-population"] is True
-        assert result2.populations["numerator"] is True
+        assert result2.populations_for("default")["initial-population"] is True
+        assert result2.populations_for("default")["numerator"] is True
 
         # Minor
         patient3 = create_patient("p3", 15)
         result3 = evaluator.evaluate_patient(patient3)
-        assert result3.populations["initial-population"] is False
+        assert result3.populations_for("default")["initial-population"] is False
 
     def test_evaluate_patient_with_exclusions(self) -> None:
         """Test patient evaluation with exclusions."""
@@ -274,12 +277,12 @@ class TestPatientEvaluation:
         # Regular patient
         patient1 = create_patient("p1", 50)
         result1 = evaluator.evaluate_patient(patient1)
-        assert result1.populations["denominator-exclusion"] is False
+        assert result1.populations_for("default")["denominator-exclusion"] is False
 
         # Elderly patient (excluded)
         patient2 = create_patient("p2", 90)
         result2 = evaluator.evaluate_patient(patient2)
-        assert result2.populations["denominator-exclusion"] is True
+        assert result2.populations_for("default")["denominator-exclusion"] is True
 
     def test_evaluate_patient_with_stratifier(self) -> None:
         """Test patient evaluation with stratifier."""
@@ -298,15 +301,15 @@ class TestPatientEvaluation:
 
         patient1 = create_patient("p1", 30)
         result1 = evaluator.evaluate_patient(patient1)
-        assert result1.stratifier_values["Stratifier Age Group"] == "Under 40"
+        assert result1.stratifier_values_for("default")["Stratifier Age Group"] == "Under 40"
 
         patient2 = create_patient("p2", 50)
         result2 = evaluator.evaluate_patient(patient2)
-        assert result2.stratifier_values["Stratifier Age Group"] == "40-64"
+        assert result2.stratifier_values_for("default")["Stratifier Age Group"] == "40-64"
 
         patient3 = create_patient("p3", 70)
         result3 = evaluator.evaluate_patient(patient3)
-        assert result3.stratifier_values["Stratifier Age Group"] == "65+"
+        assert result3.stratifier_values_for("default")["Stratifier Age Group"] == "65+"
 
     def test_evaluate_patient_no_measure_loaded(self) -> None:
         """Test error when no measure is loaded."""
@@ -640,12 +643,17 @@ class TestDataClasses:
         """Test the PatientResult model."""
         result = PatientResult(
             patient_id="p1",
-            populations={"initial-population": True, "numerator": False},
-            stratifier_values={"AgeGroup": "40-64"},
+            groups={
+                "default": PatientGroupResult(
+                    group_id="default",
+                    populations={"initial-population": True, "numerator": False},
+                    stratifier_values={"AgeGroup": "40-64"},
+                )
+            },
         )
         assert result.patient_id == "p1"
-        assert result.populations["initial-population"] is True
-        assert result.stratifier_values["AgeGroup"] == "40-64"
+        assert result.populations_for("default")["initial-population"] is True
+        assert result.stratifier_values_for("default")["AgeGroup"] == "40-64"
 
     def test_population_count(self) -> None:
         """Test the PopulationCount model."""
@@ -694,8 +702,8 @@ class TestMeasureIntegration:
 
         result = evaluator.evaluate_patient(patient, data_source=ds)
 
-        assert result.populations["initial-population"] is True
-        assert result.populations["numerator"] is True
+        assert result.populations_for("default")["initial-population"] is True
+        assert result.populations_for("default")["numerator"] is True
 
     def test_measure_population_with_data_source(self) -> None:
         """Test population evaluation with data source."""
@@ -776,3 +784,263 @@ class TestGetPopulationSummary:
         assert group_summary["populations"]["denominator"] == 3
         assert group_summary["populations"]["numerator"] == 2
         assert group_summary["measure_score"] == pytest.approx(0.6667, rel=0.01)
+
+
+# ============================================================================
+# Multi-Group and Error Surface Tests
+# ============================================================================
+
+
+TWO_GROUP_MEASURE = """
+    library TwoGroups version '1.0'
+
+    define "Yes":
+        true
+
+    define "No":
+        false
+
+    define "Yes Stratum":
+        'all-yes'
+
+    define "No Stratum":
+        'all-no'
+"""
+
+
+def build_two_group_evaluator() -> MeasureEvaluator:
+    """Build a measure with one group that includes every patient and one that includes none."""
+    evaluator = MeasureEvaluator()
+    evaluator.load_measure(TWO_GROUP_MEASURE)
+    evaluator.add_population(PopulationType.DENOMINATOR, "Yes", group_id="yes")
+    evaluator.add_population(PopulationType.NUMERATOR, "Yes", group_id="yes")
+    evaluator.add_stratifier("Yes Stratum", group_id="yes")
+    evaluator.add_population(PopulationType.DENOMINATOR, "No", group_id="no")
+    evaluator.add_population(PopulationType.NUMERATOR, "No", group_id="no")
+    evaluator.add_stratifier("No Stratum", group_id="no")
+    return evaluator
+
+
+class TestMultipleGroups:
+    """Each measure group carries its own membership, counts, score, and strata."""
+
+    def test_patient_membership_is_kept_per_group(self) -> None:
+        """One patient is in the yes group's denominator and out of the no group's."""
+        evaluator = build_two_group_evaluator()
+
+        result = evaluator.evaluate_patient(create_patient("p1", 45))
+
+        assert result.populations_for("yes") == {"denominator": True, "numerator": True}
+        assert result.populations_for("no") == {"denominator": False, "numerator": False}
+        assert result.stratifier_values_for("yes") == {"Yes Stratum": "all-yes"}
+        assert result.stratifier_values_for("no") == {"No Stratum": "all-no"}
+        assert result.errors == []
+
+    def test_counts_and_scores_are_independent_per_group(self) -> None:
+        """Aggregation reads only the group's own membership."""
+        evaluator = build_two_group_evaluator()
+        patients = [create_patient("p1", 30), create_patient("p2", 60)]
+
+        report = evaluator.evaluate_population(patients)
+
+        yes_group = next(group for group in report.groups if group.id == "yes")
+        no_group = next(group for group in report.groups if group.id == "no")
+
+        assert yes_group.populations["denominator"].count == 2
+        assert yes_group.populations["denominator"].patients == ["p1", "p2"]
+        assert yes_group.populations["numerator"].count == 2
+        assert yes_group.measure_score == 1.0
+
+        assert no_group.populations["denominator"].count == 0
+        assert no_group.populations["numerator"].count == 0
+        assert no_group.measure_score is None
+
+    def test_strata_are_independent_per_group(self) -> None:
+        """A stratifier appears only under the group that declares it, with that group's counts."""
+        evaluator = build_two_group_evaluator()
+        patients = [create_patient("p1", 30), create_patient("p2", 60)]
+
+        report = evaluator.evaluate_population(patients)
+
+        yes_group = next(group for group in report.groups if group.id == "yes")
+        no_group = next(group for group in report.groups if group.id == "no")
+
+        assert list(yes_group.stratifiers) == ["Yes Stratum"]
+        assert list(no_group.stratifiers) == ["No Stratum"]
+
+        yes_stratum = yes_group.stratifiers["Yes Stratum"][0]
+        assert yes_stratum.value == "all-yes"
+        assert yes_stratum.populations["denominator"].count == 2
+
+        no_stratum = no_group.stratifiers["No Stratum"][0]
+        assert no_stratum.value == "all-no"
+        assert no_stratum.populations["denominator"].count == 0
+
+    def test_both_groups_reach_the_fhir_report(self) -> None:
+        """`to_fhir()` keeps group identity and each group's own counts."""
+        evaluator = build_two_group_evaluator()
+
+        fhir = evaluator.evaluate_population([create_patient("p1", 30)]).to_fhir()
+
+        assert [group["id"] for group in fhir["group"]] == ["yes", "no"]
+        yes_counts = {entry["code"]["coding"][0]["code"]: entry["count"] for entry in fhir["group"][0]["population"]}
+        no_counts = {entry["code"]["coding"][0]["code"]: entry["count"] for entry in fhir["group"][1]["population"]}
+        assert yes_counts == {"denominator": 1, "numerator": 1}
+        assert no_counts == {"denominator": 0, "numerator": 0}
+        assert fhir["status"] == "complete"
+
+
+class TestEvaluationErrors:
+    """A definition that cannot be evaluated is reported, never counted as nonmembership."""
+
+    def test_unknown_function_is_an_error_and_not_a_zero_score(self) -> None:
+        """An undefined CQL function reaches the error list instead of scoring zero."""
+        evaluator = MeasureEvaluator()
+        evaluator.load_measure("""
+            library Broken version '1.0'
+
+            define "Initial Population":
+                true
+
+            define "Denominator":
+                true
+
+            define "Numerator":
+                MissingFunction()
+        """)
+
+        report = evaluator.evaluate_population([create_patient("p1", 45)])
+
+        assert report.groups[0].measure_score is None
+        assert len(report.errors) == 1
+        error = report.errors[0]
+        assert error.patient_id == "p1"
+        assert error.group_id == "default"
+        assert error.definition == "Numerator"
+        assert error.kind is EvaluationErrorKind.POPULATION
+        assert "MissingFunction" in error.message
+        assert report.patient_results[0].errors == report.errors
+
+    def test_missing_terminology_is_an_error(self) -> None:
+        """A retrieve naming a value set the library never declares is reported, not counted."""
+        evaluator = MeasureEvaluator()
+        evaluator.load_measure("""
+            library MissingTerminology version '1.0'
+
+            define "Initial Population":
+                true
+
+            define "Denominator":
+                true
+
+            define "Numerator":
+                exists [Condition: "Diabetes Codes"]
+        """)
+
+        report = evaluator.evaluate_population([create_patient("p1", 45)])
+
+        assert report.groups[0].measure_score is None
+        assert [error.definition for error in report.errors] == ["Numerator"]
+        assert "Diabetes Codes" in report.errors[0].message
+
+    def test_failing_stratifier_is_an_error(self) -> None:
+        """A stratifier that cannot be evaluated is reported and the group gets no score."""
+        evaluator = MeasureEvaluator()
+        evaluator.load_measure("""
+            library BrokenStratifier version '1.0'
+
+            define "Initial Population":
+                true
+
+            define "Denominator":
+                true
+
+            define "Numerator":
+                true
+
+            define "Stratifier Broken":
+                MissingFunction()
+        """)
+
+        report = evaluator.evaluate_population([create_patient("p1", 45)])
+
+        assert report.groups[0].measure_score is None
+        assert [error.kind for error in report.errors] == [EvaluationErrorKind.STRATIFIER]
+        assert report.errors[0].definition == "Stratifier Broken"
+
+    def test_only_the_failing_group_loses_its_score(self) -> None:
+        """A broken definition in one group leaves the other group's score intact."""
+        evaluator = MeasureEvaluator()
+        evaluator.load_measure("""
+            library PartlyBroken version '1.0'
+
+            define "Yes":
+                true
+
+            define "Broken":
+                MissingFunction()
+        """)
+        evaluator.add_population(PopulationType.DENOMINATOR, "Yes", group_id="healthy")
+        evaluator.add_population(PopulationType.NUMERATOR, "Yes", group_id="healthy")
+        evaluator.add_population(PopulationType.DENOMINATOR, "Yes", group_id="broken")
+        evaluator.add_population(PopulationType.NUMERATOR, "Broken", group_id="broken")
+
+        report = evaluator.evaluate_population([create_patient("p1", 45)])
+
+        healthy = next(group for group in report.groups if group.id == "healthy")
+        broken = next(group for group in report.groups if group.id == "broken")
+        assert healthy.measure_score == 1.0
+        assert broken.measure_score is None
+        assert [error.group_id for error in report.errors] == ["broken"]
+        assert report.errors_for("healthy") == []
+
+    def test_fhir_report_carries_the_errors(self) -> None:
+        """`to_fhir()` emits status error and a contained OperationOutcome naming each failure."""
+        evaluator = MeasureEvaluator()
+        evaluator.load_measure("""
+            library Broken version '1.0'
+
+            define "Initial Population":
+                true
+
+            define "Denominator":
+                true
+
+            define "Numerator":
+                MissingFunction()
+        """)
+
+        fhir = evaluator.evaluate_population([create_patient("p1", 45)]).to_fhir()
+
+        assert fhir["status"] == "error"
+        outcome = fhir["contained"][0]
+        assert outcome["resourceType"] == "OperationOutcome"
+        assert outcome["issue"][0]["severity"] == "error"
+        assert "Numerator" in outcome["issue"][0]["diagnostics"]
+        assert fhir["extension"][0]["url"] == EVALUATION_ERROR_EXTENSION_URL
+        assert fhir["extension"][0]["valueReference"]["reference"] == f"#{outcome['id']}"
+        assert "measureScore" not in fhir["group"][0]
+
+    def test_a_healthy_measure_stays_complete(self) -> None:
+        """A measure whose definitions all evaluate carries no errors and completes."""
+        evaluator = MeasureEvaluator()
+        evaluator.load_measure("""
+            library Healthy version '1.0'
+
+            define "Initial Population":
+                true
+
+            define "Denominator":
+                true
+
+            define "Numerator":
+                true
+        """)
+
+        report = evaluator.evaluate_population([create_patient("p1", 45)])
+        fhir = report.to_fhir()
+
+        assert report.errors == []
+        assert report.groups[0].measure_score == 1.0
+        assert fhir["status"] == "complete"
+        assert "contained" not in fhir

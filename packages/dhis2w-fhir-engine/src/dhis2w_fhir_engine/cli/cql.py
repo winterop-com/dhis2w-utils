@@ -527,6 +527,12 @@ def measure(
                 for stratum in strata:
                     rprint(f"    {stratum.value}: {stratum.populations}")
 
+    if report.errors:
+        rprint("\n[bold red]Definitions that could not be evaluated:[/bold red]")
+        for evaluation_error in report.errors:
+            rprint(f"  {evaluation_error.describe()}")
+        rprint("[dim]Groups holding a failed definition carry no score.[/dim]")
+
     if output is not None:
         output.write_text(json.dumps(report.to_fhir(), indent=2, default=str))
         rprint(f"\n[dim]Report written to {output}[/dim]")

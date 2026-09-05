@@ -251,6 +251,54 @@ def _except(args: list[Any]) -> list[Any]:
     return []
 
 
+def _child_nodes(item: Any) -> list[Any]:
+    """Immediate child nodes of one item, flattening list-valued members."""
+    if isinstance(item, dict):
+        children: list[Any] = []
+        for key, value in item.items():
+            if key.startswith("_"):
+                continue
+            if isinstance(value, list):
+                children.extend(value)
+            else:
+                children.append(value)
+        return children
+    if isinstance(item, list):
+        return list(item)
+    return []
+
+
+def _descendent_nodes(item: Any) -> list[Any]:
+    """All descendant nodes of one item, depth first."""
+    nodes: list[Any] = []
+    for child in _child_nodes(item):
+        nodes.append(child)
+        nodes.extend(_descendent_nodes(child))
+    return nodes
+
+
+def _children(args: list[Any]) -> Any:
+    """Immediate child nodes of every item in the argument; null propagates."""
+    if not args or args[0] is None:
+        return None
+    source = args[0] if isinstance(args[0], list) else [args[0]]
+    nodes: list[Any] = []
+    for item in source:
+        nodes.extend(_child_nodes(item))
+    return nodes
+
+
+def _descendents(args: list[Any]) -> Any:
+    """All descendant nodes of every item in the argument; null propagates."""
+    if not args or args[0] is None:
+        return None
+    source = args[0] if isinstance(args[0], list) else [args[0]]
+    nodes: list[Any] = []
+    for item in source:
+        nodes.extend(_descendent_nodes(item))
+    return nodes
+
+
 def register(registry: "FunctionRegistry") -> None:
     """Register all list functions."""
     registry.register("First", _first, category="list", min_args=1, max_args=1)
@@ -272,3 +320,5 @@ def register(registry: "FunctionRegistry") -> None:
     registry.register("Union", _union, category="list", min_args=2, max_args=2)
     registry.register("Intersect", _intersect, category="list", min_args=2, max_args=2)
     registry.register("Except", _except, category="list", min_args=2, max_args=2)
+    registry.register("Children", _children, category="list", min_args=1, max_args=1)
+    registry.register("Descendents", _descendents, aliases=["Descendants"], category="list", min_args=1, max_args=1)

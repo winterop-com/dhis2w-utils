@@ -107,10 +107,16 @@ def main() -> None:
     print(f"measure score = numerator / denominator = {numerator} / {denominator} = {group.measure_score}")
     print()
 
-    print("per person, as the evaluator decided it:")
+    print("per person, as the evaluator decided it, within this group:")
     for result in report.patient_results:
-        memberships = [name for name, member in result.populations.items() if member]
+        memberships = [name for name, member in result.populations_for(group.id).items() if member]
         print(f"  {result.patient_id:10} {', '.join(memberships)}")
+
+    if report.errors:
+        print()
+        print("definitions that could not be evaluated (their group carries no score):")
+        for evaluation_error in report.errors:
+            print(f"  {evaluation_error.describe()}")
 
     print()
     fhir_report = report.to_fhir()

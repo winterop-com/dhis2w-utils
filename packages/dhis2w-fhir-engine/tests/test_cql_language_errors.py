@@ -220,13 +220,14 @@ class TestExpressionRunsToTheEnd:
 
 
 class TestUnresolvedNames:
-    """Unknown identifiers and functions evaluate to null rather than raising."""
+    """An unknown identifier evaluates to null; an unknown function raises."""
 
     def test_unknown_identifier(self, evaluator: CQLEvaluator) -> None:
         assert evaluator.evaluate_expression("UnknownIdentifier") is None
 
     def test_unknown_function(self, evaluator: CQLEvaluator) -> None:
-        assert evaluator.evaluate_expression("UnknownFunction(1)") is None
+        with pytest.raises(CQLError, match="Unknown function: UnknownFunction"):
+            evaluator.evaluate_expression("UnknownFunction(1)")
 
     def test_unknown_definition_reference(self, evaluator: CQLEvaluator) -> None:
         evaluator.compile("""
@@ -261,7 +262,8 @@ class TestUnresolvedNames:
             include Helper version '1.0' called H
             define Uses: H.Missing(1)
         """)
-        assert with_include.evaluate_definition("Uses") is None
+        with pytest.raises(CQLError, match="Unknown function: Missing"):
+            with_include.evaluate_definition("Uses")
 
 
 class TestDivisionByZero:
