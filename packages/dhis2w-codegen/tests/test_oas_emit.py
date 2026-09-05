@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from dhis2w_codegen.oas_emit import emit_from_openapi
+from dhis2w_codegen.oas_emit import _build_enum, _template_env, emit_from_openapi
 
 
 def _run_emitter(tmp_path: Path, spec: dict[str, Any]) -> Path:
@@ -224,3 +224,55 @@ def test_emitter_is_regen_stable(tmp_path: Path) -> None:
         first_text = (first_oas / filename).read_text()
         second_text = (second_oas / filename).read_text()
         assert first_text == second_text, f"emitter output drifted across runs in {filename}"
+
+
+HOSTILE_ENUM_VALUES = [
+    'say "hello"',
+    "back\\slash",
+    "line\nbreak",
+    "café — naïve",
+]
+
+
+def _compile_rendered_source(source: str, filename: str) -> dict[str, Any]:
+    """Compile rendered template source in memory and return its module namespace."""
+    namespace: dict[str, Any] = {}
+    exec(compile(source, filename, "exec"), namespace)  # noqa: S102
+    return namespace
+
+
+def test_oas_enum_values_with_hostile_characters_round_trip() -> None:
+    """Quotes, backslashes, newlines and non-ASCII enum values compile and read back verbatim."""
+    enum_model = _build_enum("Hostile", {"type": "string", "enum": HOSTILE_ENUM_VALUES})
+    source = _template_env().get_template("oas/oas_enums.py.jinja").render(enums=[enum_model])
+    namespace = _compile_rendered_source(source, "<oas_enums>")
+    rendered_enum = namespace["Hostile"]
+    assert [member.value for member in rendered_enum] == HOSTILE_ENUM_VALUES
+
+
+def test_oas_enum_description_with_hostile_characters_compiles() -> None:
+    """A description carrying a backslash and a trailing quote stays inside the generated docstring."""
+    enum_model = _build_enum(
+        "Described",
+        {"type": "string", "enum": ["ONE"], "description": 'ends with a backslash \\ and a quote "'},
+    )
+    source = _template_env().get_template("oas/oas_enums.py.jinja").render(enums=[enum_model])
+    namespace = _compile_rendered_source(source, "<oas_enums>")
+    assert namespace["Described"].ONE.value == "ONE"
+
+
+def test_oas_inline_literal_with_hostile_characters_compiles(tmp_path: Path) -> None:
+    """An inline field enum carrying a double quote emits a compilable `Literal[...]`."""
+    spec = {
+        "components": {
+            "schemas": {
+                "Tagged": {
+                    "type": "object",
+                    "properties": {"kind": {"type": "string", "enum": ['say "hello"', "plain"]}},
+                }
+            }
+        }
+    }
+    oas_dir = _run_emitter(tmp_path, spec)
+    source = (oas_dir / "tagged.py").read_text(encoding="utf-8")
+    compile(source, "<tagged>", "exec")

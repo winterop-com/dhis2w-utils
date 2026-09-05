@@ -15,7 +15,7 @@ from .schemas import {{ resource_classes|join(", ") }}
 
 GENERATED = True
 VERSION_KEY = "{{ version_key }}"
-RAW_VERSION = "{{ raw_version }}"
+RAW_VERSION = {{ raw_version|python_string_literal }}
 
 __all__ = [
     "GENERATED",

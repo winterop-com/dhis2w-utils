@@ -106,7 +106,7 @@ class _{{ res.class_name }}Resource:
     """CRUD accessor for the `{{ res.plural }}` collection on DHIS2 {{ version_key }}."""
 
     _path = "/api/{{ res.plural }}"
-    _plural_key = "{{ res.plural }}"
+    _plural_key = {{ res.plural|python_string_literal }}
 
     def __init__(self, client: Dhis2Client) -> None:
         """Bind the resource accessor to the sharing client."""

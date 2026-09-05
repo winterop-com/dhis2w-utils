@@ -22,10 +22,15 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
+from jinja2 import Environment
 from pydantic import BaseModel, ConfigDict, Field
 
-from dhis2w_codegen._shared import format_output, sanitize_identifier
+from dhis2w_codegen._shared import (
+    build_template_environment,
+    format_output,
+    python_string_literal,
+    sanitize_identifier,
+)
 from dhis2w_codegen.names import to_class_name, to_module_name
 from dhis2w_codegen.spec_patches import apply_patches
 
@@ -127,6 +132,9 @@ class _OasEnumValue(BaseModel):
 
     identifier: str
     value: str
+    # Python source for the value, escaped via `repr` so quotes, backslashes,
+    # newlines and non-ASCII text in a wire value cannot break the emitted file.
+    literal: str
 
 
 class _OasEnum(BaseModel):
@@ -307,7 +315,7 @@ def _build_enum_value(raw: Any) -> _OasEnumValue:
     identifier = re.sub(r"[^A-Za-z0-9_]", "_", raw_str).upper()
     if not identifier or not (identifier[0].isalpha() or identifier[0] == "_"):
         identifier = f"_{identifier}"
-    return _OasEnumValue(identifier=identifier, value=raw_str)
+    return _OasEnumValue(identifier=identifier, value=raw_str, literal=python_string_literal(raw_str))
 
 
 def _build_alias(name: str, schema: dict[str, Any]) -> _OasAlias:
@@ -562,7 +570,7 @@ def _resolve_type(
             imports.typing_annotated = True
             imports.pydantic_field = True
             property_literal = discriminator["propertyName"]
-            return f'Annotated[{union_expr}, _Field(discriminator="{property_literal}")]', imports
+            return f"Annotated[{union_expr}, _Field(discriminator={python_string_literal(property_literal)})]", imports
         return union_expr, imports
 
     if "enum" in schema and schema.get("type") in {"string", "integer"}:
@@ -581,7 +589,7 @@ def _resolve_type(
             and len(values) <= _MAX_CLOSED_ENUM_SIZE
         ):
             imports.typing_literal = True
-            rendered = [f'"{value}"' if isinstance(value, str) else str(value) for value in values]
+            rendered = [python_string_literal(value) if isinstance(value, str) else str(value) for value in values]
             return f"Literal[{', '.join(rendered)}]", imports
         return "str" if schema.get("type") == "string" else "int", imports
 
@@ -672,25 +680,18 @@ def _resolve_type(
 # ---------------------------------------------------------------------------
 
 
-_SINGLE_LITERAL_RE = re.compile(r'^Literal\[("[^"]+"|\d+)\]$')
+_SINGLE_LITERAL_RE = re.compile(r"""^Literal\[('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|\d+)\]$""")
 
 
 def _single_literal_value(type_expr: str) -> str | None:
-    """If `type_expr` is exactly `Literal["x"]` (single value), return `"x"`; else None."""
+    """If `type_expr` is exactly a single-value `Literal[...]`, return that value's source; else None."""
     match = _SINGLE_LITERAL_RE.match(type_expr)
     return match.group(1) if match else None
 
 
 def _template_env() -> Environment:
     """Build the Jinja environment used by every OAS template."""
-    return Environment(
-        loader=PackageLoader("dhis2w_codegen", "templates"),
-        autoescape=select_autoescape(default=False),
-        undefined=StrictUndefined,
-        keep_trailing_newline=True,
-        trim_blocks=True,
-        lstrip_blocks=True,
-    )
+    return build_template_environment()
 
 
 def _write_aliases(oas_dir: Path, environment: Environment, aliases: Iterable[_OasAlias]) -> None:

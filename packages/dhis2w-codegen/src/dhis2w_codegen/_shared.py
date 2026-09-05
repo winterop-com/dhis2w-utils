@@ -7,6 +7,40 @@ import keyword
 import subprocess
 from pathlib import Path
 
+from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
+
+
+def python_string_literal(value: object) -> str:
+    """Serialise `value` as Python source for a string literal, escaping via `repr`."""
+    return repr(str(value))
+
+
+def docstring_body(value: object) -> str:
+    """Escape text so it is safe between the `\"\"\"` delimiters of a generated docstring."""
+    text = str(value).replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
+    if text.endswith('"'):
+        text = f'{text[:-1]}\\"'
+    return text
+
+
+def build_template_environment() -> Environment:
+    """Build the Jinja environment shared by the schemas emitter and the OpenAPI emitter.
+
+    `trim_blocks` / `lstrip_blocks` keep `{% ... %}` control tags from leaving
+    blank lines behind, which is what makes rebuilds byte-deterministic.
+    """
+    environment = Environment(
+        loader=PackageLoader("dhis2w_codegen", "templates"),
+        autoescape=select_autoescape(default=False),
+        undefined=StrictUndefined,
+        keep_trailing_newline=True,
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    environment.filters["python_string_literal"] = python_string_literal
+    environment.filters["docstring_body"] = docstring_body
+    return environment
+
 
 def sanitize_identifier(wire_name: str) -> tuple[str, str | None]:
     """Return `(python_name, alias_or_none)` for a wire field name.
