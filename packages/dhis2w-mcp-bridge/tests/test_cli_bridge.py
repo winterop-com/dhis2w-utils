@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import re
 import stat
 from pathlib import Path
+from typing import Any
 
 import pytest
 from dhis2w_mcp_bridge.cli_bridge import (
@@ -13,6 +15,7 @@ from dhis2w_mcp_bridge.cli_bridge import (
     EXIT_REFUSED,
     EXIT_TIMEOUT,
     READ_ONLY_COMMANDS,
+    _build_argv,
     _host_is_protected,
     _resolve_base_url,
     is_read_only,
@@ -30,12 +33,17 @@ READ_ONLY_VERBS = frozenset(
     {
         "list", "ls", "get", "show", "info", "whoami", "me", "types", "members", "tree",
         "find", "search", "query", "list-for-combo", "vars-for", "where-de-is-used",
-        "authority-list", "hub-list", "hub-url", "oidc-config", "status", "diff",
+        "authority-list", "hub-list", "status", "diff",
         "diff-profiles", "verify", "bugs", "integrity", "metadata", "outlier-detection",
         "usage", "export",
     }
 )  # fmt: skip
 
+# `hub-url` and `oidc-config` are deliberately absent from READ_ONLY_VERBS: both read when given
+# no options but mutate when given one — `apps hub-url --set URL` writes the `keyAppHubUrl` system
+# setting, `profile oidc-config` writes a profile into a `profiles.toml` — so neither is read-only
+# at the command level and both stay off the allowlist.
+#
 # Read-only leaves whose verb is NOT a generic read verb, so the verb heuristic can't reach
 # them. `settings` is deliberately absent from READ_ONLY_VERBS: it is a read under `security`
 # (GET /api/systemSettings) but a WRITE under `dev customize` (bulk-set), so allowing the bare
@@ -195,10 +203,19 @@ async def test_readonly_refuses_disk_write_flag(monkeypatch: pytest.MonkeyPatch)
         ["metadata", "list", "dataElements", "--output", "/tmp/x.json"],
         ["metadata", "export", "-o", "/tmp/x.json"],
         ["metadata", "list", "dataElements", "--output=/tmp/x.json"],
+        ["metadata", "export", "-o/tmp/x.json"],
+        ["metadata", "export", "-o=/tmp/x.json"],
+        ["dev", "codegen", "diff", "--output-root", "/tmp/x"],
     ):
         result = await run_cli(args, read_only=True)
         assert result.exit_code == EXIT_REFUSED, f"{args} should be refused"
         assert "read-only" in result.stderr
+
+
+def test_output_id_scheme_is_not_a_disk_write() -> None:
+    """`--output-id-scheme` names an identifier scheme, not a file, so it stays a read."""
+    assert is_read_only(["analytics", "query", "--output-id-scheme", "CODE"]) is True
+    assert is_read_only(["analytics", "query", "--output-id-scheme=CODE"]) is True
 
 
 def test_help_token_as_option_value_does_not_bypass_the_guard() -> None:
@@ -316,24 +333,29 @@ def test_resolve_base_url_reads_the_profile_fresh_each_call(monkeypatch: pytest.
     assert _resolve_base_url(None) == "http://localhost:8080"
 
 
-def _live_leaf_paths() -> set[tuple[str, ...]]:
-    """Introspect the Typer/Click command tree and return every leaf command path."""
+def _live_leaves() -> list[tuple[tuple[str, ...], Any]]:
+    """Introspect the Typer/Click command tree and return every leaf as (command path, command)."""
     import typer.main
     from dhis2w_cli.main import build_app
 
     root = typer.main.get_command(build_app())
-    leaves: set[tuple[str, ...]] = set()
+    leaves: list[tuple[tuple[str, ...], Any]] = []
 
-    def walk(node: object, path: tuple[str, ...]) -> None:
+    def walk(node: Any, path: tuple[str, ...]) -> None:
         commands = getattr(node, "commands", None)
         if commands:
             for name, child in commands.items():
                 walk(child, (*path, name))
         else:
-            leaves.add(path)
+            leaves.append((path, node))
 
     walk(root, ())
     return leaves
+
+
+def _live_leaf_paths() -> set[tuple[str, ...]]:
+    """Introspect the Typer/Click command tree and return every leaf command path."""
+    return {path for path, _command in _live_leaves()}
 
 
 def test_readonly_set_matches_live_tree(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -365,3 +387,105 @@ def test_guard_allows_exactly_read_only_leaves(monkeypatch: pytest.MonkeyPatch) 
     assert allowed == set(READ_ONLY_COMMANDS)
     # Sanity: the tree really does contain mutating commands that the guard denies.
     assert leaves - allowed, "expected mutating commands to exist and be denied"
+
+
+#: Help text naming a filesystem write. An option matching this, or typed as a path, must be
+#: refused by the read-only guard in every form Click accepts.
+_WRITE_HELP_PATTERN = re.compile(r"\b(write|writes|writing|save|saves|saving)\b", re.IGNORECASE)
+
+#: Placeholder value used when probing an option through the guard; nothing is ever written.
+_PROBE_PATH = "/tmp/dhis2w-guard-probe.json"
+
+
+def _option_forms(option: str) -> list[list[str]]:
+    """Return the separated, equals, and (for short options) attached forms of `option`."""
+    forms = [[option, _PROBE_PATH], [f"{option}={_PROBE_PATH}"]]
+    if not option.startswith("--"):
+        forms.append([f"{option}{_PROBE_PATH}"])
+    return forms
+
+
+def test_no_file_writing_option_survives_the_guard(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Across the live tree, no allowlisted command has a path option the guard admits.
+
+    Walks every command `is_read_only()` allows, takes each option that is typed as a filesystem
+    path or whose help documents a write, and asserts the guard denies it separated (`-o PATH`),
+    joined (`-o=PATH`), and attached (`-oPATH`) — the form Click accepts and a plain token
+    comparison misses.
+    """
+    monkeypatch.setenv("DHIS2_VERSION", "v42")
+    admitted: list[tuple[tuple[str, ...], list[str]]] = []
+    probed = 0
+    for path, command in _live_leaves():
+        if not is_read_only(list(path)):
+            continue
+        for parameter in command.params:
+            if parameter.param_type_name != "option":
+                continue
+            type_name = type(parameter.type).__name__
+            help_text = parameter.help or ""
+            names_a_path = "Path" in type_name or "File" in type_name
+            if not names_a_path and not _WRITE_HELP_PATTERN.search(help_text):
+                continue
+            for option in parameter.opts:
+                for form in _option_forms(option):
+                    probed += 1
+                    if is_read_only([*path, *form]):
+                        admitted.append((path, form))
+    assert probed, "expected the live tree to contain file-writing options to probe"
+    assert not admitted, f"read-only guard admits file-writing options: {admitted}"
+
+
+# --- Profile flags inside args -------------------------------------------------------------
+
+#: Subprocess entry point patched out so a guard test fails loudly if a command ever spawns.
+_SPAWN = "asyncio.create_subprocess_exec"
+
+
+@pytest.fixture
+def forbid_spawn(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make any subprocess spawn a test failure, so refusals are proven to come first."""
+
+    async def _never(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("a subprocess was spawned; the guard must refuse before this")
+
+    monkeypatch.setattr(_SPAWN, _never)
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["-p", "other", "system", "info"],
+        ["-pother", "system", "info"],
+        ["--profile", "other", "system", "info"],
+        ["--profile=other", "system", "info"],
+        ["-p", "other", "system", "settings", "set", "keyApplicationTitle", "probe"],
+        ["--json", "-p", "other", "metadata", "list", "dataElements"],
+    ],
+)
+async def test_profile_flag_in_args_is_refused(args: list[str], forbid_spawn: None) -> None:
+    """A profile flag inside args is refused before anything is spawned, in every Click form."""
+    result = await run_cli(args, profile="local")
+    assert result.exit_code == EXIT_REFUSED
+    assert "Profile is chosen by the profile parameter, not inside args" in result.stderr
+
+
+async def test_profile_flag_packed_into_a_single_arg_is_refused(forbid_spawn: None) -> None:
+    """Tokenizing a space-packed first arg happens before the guard, so a packed flag is caught."""
+    result = await run_cli(["-p other system info"], profile="local")
+    assert result.exit_code == EXIT_REFUSED
+    assert "Profile is chosen by the profile parameter, not inside args" in result.stderr
+
+
+async def test_subcommand_short_option_named_p_is_not_a_profile_flag(fake_cli: Path) -> None:
+    """A `-p` after the command path is that subcommand's own option and runs untouched."""
+    result = await run_cli(["analytics", "events", "query", "-p", "IpHINAT79UW"], profile="local")
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["argv"][-2:] == ["-p", "IpHINAT79UW"]
+
+
+def test_only_the_tool_parameter_reaches_argv() -> None:
+    """The built argv carries exactly one profile: the one the tool parameter named."""
+    argv = _build_argv("/bin/d2w", ["system", "info"], "local")
+    assert argv.count("-p") == 1
+    assert argv[argv.index("-p") + 1] == "local"

@@ -17,7 +17,7 @@ from rich.logging import RichHandler
 
 
 def _extract_profile_from_argv(argv: list[str]) -> str | None:
-    """Pre-scan argv for `--profile NAME` / `--profile=NAME` / `-p NAME`.
+    """Pre-scan argv for the profile Click will apply: the last root `--profile` / `-p` value.
 
     Plugin discovery needs to happen *after* `--profile` is applied — the
     `version` field on the resolved profile picks which `v{41,42,43}`
@@ -26,23 +26,47 @@ def _extract_profile_from_argv(argv: list[str]) -> str | None:
     runs before `build_app()` so the env is in place when
     `resolve_startup_version()` fires.
 
-    Returns `None` when no `--profile` flag is present. Stops at `--`
-    (positional separator) so a profile-shaped string passed after `--`
-    is not mistaken for the option value.
+    It reads argv exactly as Click does, so the mounted tree and the
+    executed profile always name the same instance: every form of the
+    option (`--profile NAME`, `--profile=NAME`, `-p NAME`, `-pNAME`),
+    the last occurrence winning, over the leading option region only.
+    Click stops reading root options at the first positional token, so
+    the scan stops at the command path (a `-p` after it belongs to that
+    subcommand) and at `--`.
+
+    Returns `None` when the root region carries no profile flag.
     """
-    i = 0
-    while i < len(argv):
-        arg = argv[i]
-        if arg == "--":
-            return None
-        if arg in {"--profile", "-p"}:
-            if i + 1 < len(argv):
-                return argv[i + 1]
-            return None
-        if arg.startswith("--profile="):
-            return arg.removeprefix("--profile=")
-        i += 1
-    return None
+    profile: str | None = None
+    index = 0
+    while index < len(argv):
+        argument = argv[index]
+        if argument == "--" or not argument.startswith("-"):
+            break
+        index += 1
+        if argument.startswith("--"):
+            if argument == "--profile":
+                if index >= len(argv):
+                    break
+                profile = argv[index]
+                index += 1
+            elif argument.startswith("--profile="):
+                profile = argument.removeprefix("--profile=")
+            continue
+        # A single-dash token is read character by character, and `-p` is the only root short
+        # option that takes a value: the rest of the token when attached (`-pNAME`, and `-p=NAME`
+        # keeps the `=` exactly as Click does), otherwise the next argument (`-p NAME`).
+        position = argument.find("p", 1)
+        if position == -1:
+            continue
+        attached = argument[position + 1 :]
+        if attached:
+            profile = attached
+        elif index < len(argv):
+            profile = argv[index]
+            index += 1
+        else:
+            break
+    return profile
 
 
 def _version_banner() -> str:
