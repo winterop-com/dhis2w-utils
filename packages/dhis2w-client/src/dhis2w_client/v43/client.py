@@ -12,6 +12,7 @@ from typing import Any, Self
 import httpx
 from pydantic import BaseModel
 
+from dhis2w_client._streaming import StreamParams, StreamSink, stream_to_sink
 from dhis2w_client.errors import (
     AuthenticationError,
     Dhis2ApiError,
@@ -494,6 +495,43 @@ class Dhis2Client:
             params=params,
             extra_headers=extra_headers,
             raise_for_status=False,
+        )
+
+    async def stream(
+        self,
+        method: str,
+        path: str,
+        sink: StreamSink,
+        *,
+        params: StreamParams | None = None,
+        extra_headers: dict[str, str] | None = None,
+        chunk_size: int = 64 * 1024,
+    ) -> int:
+        """Stream a response body straight to `sink` without buffering; return bytes written.
+
+        The generic streaming primitive: `method`/`path` name any endpoint and
+        `sink` is where its body lands -- a `pathlib.Path`, a file-like object
+        with `.write(bytes)` (sync or async), or a callable taking each bytes
+        chunk. Runs on the shared pool with fresh auth, so retry / pool-tuning /
+        TLS config all apply.
+
+        Use it to stream a large export straight to storage, e.g.
+        `await client.stream("GET", "/api/dataValueSets.json", sink, params=...)`
+        or an analytics pivot to a non-Path sink. `AnalyticsAccessor.stream_to`
+        is the Path-only convenience over this.
+
+        `params` forwards DHIS2's repeated-key shape (a mapping with list values
+        or a list of 2-tuples). Raises `AuthenticationError` on 401 and
+        `Dhis2ApiError` on any other 4xx / 5xx.
+        """
+        return await stream_to_sink(
+            self,
+            method,
+            path,
+            sink,
+            params=params,
+            extra_headers=extra_headers,
+            chunk_size=chunk_size,
         )
 
     async def get[T: BaseModel](
