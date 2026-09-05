@@ -1,6 +1,6 @@
 [project]
 name = "dhis2w-mcp"
-version = "1.12.0"
+version = "1.13.0.dev0"
 description = "dhis2 FastMCP server — mounts plugins from dhis2w-core."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
