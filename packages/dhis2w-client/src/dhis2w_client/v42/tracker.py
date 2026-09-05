@@ -27,7 +27,7 @@ without parsing `bundleReport`.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -319,6 +319,162 @@ class TrackerAccessor:
             )
         return outstanding
 
+    async def tracked_entities(
+        self,
+        *,
+        program: str | None = None,
+        tracked_entity_type: str | None = None,
+        org_unit: str | Sequence[str] | None = None,
+        ou_mode: str | None = None,
+        tracked_entity: str | Sequence[str] | None = None,
+        status: str | None = None,
+        fields: str | None = None,
+        filter: str | Sequence[str] | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        updated_after: DateLike | None = None,
+        extra_params: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """GET `/api/tracker/trackedEntities` and return the parsed page envelope.
+
+        The read side of `register` / `enroll`. `org_unit`, `tracked_entity`,
+        and `filter` each accept a single id or a sequence, repeating as
+        `orgUnit=` / `trackedEntity=` / `filter=` query params the way the
+        tracker API expects. `status` filters by enrollment status
+        (`ACTIVE` / `COMPLETED` / `CANCELLED`) via `programStatus`. `fields`
+        and `filter` are the tracker field-selector / attribute-filter
+        strings, forwarded verbatim. `updated_after` accepts an ISO string,
+        `date`, or `datetime`. `extra_params` covers the rest of the surface
+        (`order`, `updatedBefore`, `enrollmentEnrolledAfter`, ...).
+
+        Returns the raw page envelope: the rows live under `instances` on
+        current majors (older trees key them under `trackedEntities`), beside
+        the `page` / `pageSize` / `total` paging fields. Parse individual rows
+        with `TrackedEntity.model_validate(row)` when a typed view is wanted.
+
+        Raises `Dhis2ApiError` on 4xx / 5xx.
+        """
+        params = _read_params(
+            program=program,
+            tracked_entity_type=tracked_entity_type,
+            org_unit=org_unit,
+            ou_mode=ou_mode,
+            tracked_entity=tracked_entity,
+            status=status,
+            status_param="programStatus",
+            fields=fields,
+            filter=filter,
+            page=page,
+            page_size=page_size,
+            updated_after=updated_after,
+            extra_params=extra_params,
+        )
+        return await self._client.get_raw("/api/tracker/trackedEntities", params=params)
+
+    async def enrollments(
+        self,
+        *,
+        program: str | None = None,
+        org_unit: str | Sequence[str] | None = None,
+        ou_mode: str | None = None,
+        tracked_entity: str | Sequence[str] | None = None,
+        enrollment: str | Sequence[str] | None = None,
+        status: str | None = None,
+        fields: str | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        updated_after: DateLike | None = None,
+        extra_params: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """GET `/api/tracker/enrollments` and return the parsed page envelope.
+
+        The read side of `enroll`. `org_unit`, `tracked_entity`, and
+        `enrollment` each accept a single id or a sequence, repeating as
+        `orgUnit=` / `trackedEntity=` / `enrollment=` query params. `status`
+        filters by enrollment status (`ACTIVE` / `COMPLETED` / `CANCELLED`)
+        via `programStatus`. `updated_after` accepts an ISO string, `date`,
+        or `datetime`. `extra_params` covers the rest (`order`,
+        `enrolledAfter`, `followUp`, ...).
+
+        Returns the raw page envelope: the rows live under `instances` on
+        current majors (older trees key them under `enrollments`), beside the
+        paging fields.
+
+        Raises `Dhis2ApiError` on 4xx / 5xx.
+        """
+        params = _read_params(
+            program=program,
+            org_unit=org_unit,
+            ou_mode=ou_mode,
+            tracked_entity=tracked_entity,
+            enrollment=enrollment,
+            status=status,
+            status_param="programStatus",
+            fields=fields,
+            page=page,
+            page_size=page_size,
+            updated_after=updated_after,
+            extra_params=extra_params,
+        )
+        return await self._client.get_raw("/api/tracker/enrollments", params=params)
+
+    async def events(
+        self,
+        *,
+        program: str | None = None,
+        program_stage: str | None = None,
+        org_unit: str | Sequence[str] | None = None,
+        ou_mode: str | None = None,
+        tracked_entity: str | Sequence[str] | None = None,
+        enrollment: str | Sequence[str] | None = None,
+        status: str | None = None,
+        fields: str | None = None,
+        filter: str | Sequence[str] | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        updated_after: DateLike | None = None,
+        occurred_after: DateLike | None = None,
+        extra_params: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """GET `/api/tracker/events` and return the parsed page envelope.
+
+        The read side of `add_event` — works for both tracker events (scoped
+        by `enrollment` / `tracked_entity`) and standalone event-program
+        events (scoped by `program` / `program_stage` / `org_unit`).
+        `org_unit`, `tracked_entity`, `enrollment`, and `filter` each accept a
+        single id or a sequence, repeating as the matching query param.
+        `status` filters by event status (`ACTIVE` / `COMPLETED` /
+        `SCHEDULE` / `SKIPPED` / `VISITED`) via `status`. `updated_after` and
+        `occurred_after` accept an ISO string, `date`, or `datetime`.
+        `extra_params` covers the rest (`order`, `occurredBefore`,
+        `scheduledAfter`, `assignedUser`, ...).
+
+        Returns the raw page envelope: the rows live under `instances` on
+        current majors (older trees key them under `events`), beside the
+        paging fields. Parse individual rows with `Event.model_validate(row)`
+        when a typed view is wanted.
+
+        Raises `Dhis2ApiError` on 4xx / 5xx.
+        """
+        params = _read_params(
+            program=program,
+            program_stage=program_stage,
+            org_unit=org_unit,
+            ou_mode=ou_mode,
+            tracked_entity=tracked_entity,
+            enrollment=enrollment,
+            status=status,
+            status_param="status",
+            fields=fields,
+            filter=filter,
+            page=page,
+            page_size=page_size,
+            updated_after=updated_after,
+            occurred_after=occurred_after,
+            extra_params=extra_params,
+        )
+        return await self._client.get_raw("/api/tracker/events", params=params)
+
     async def _post_tracker(self, body: Mapping[str, Any], *, import_strategy: str) -> WebMessageResponse:
         """POST to `/api/tracker` with the standard sync-mode params."""
         raw = await self._client.post_raw(
@@ -339,6 +495,72 @@ class TrackerAccessor:
             for stage in (raw.get("programStages") or [])
             if isinstance(stage, dict) and isinstance(stage.get("id"), str) and stage.get("repeatable") is not True
         }
+
+
+def _read_params(
+    *,
+    program: str | None = None,
+    program_stage: str | None = None,
+    tracked_entity_type: str | None = None,
+    org_unit: str | Sequence[str] | None = None,
+    ou_mode: str | None = None,
+    tracked_entity: str | Sequence[str] | None = None,
+    enrollment: str | Sequence[str] | None = None,
+    status: str | None = None,
+    status_param: str = "status",
+    fields: str | None = None,
+    filter: str | Sequence[str] | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
+    updated_after: DateLike | None = None,
+    occurred_after: DateLike | None = None,
+    extra_params: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a `/api/tracker/*` read query, mapping snake args to wire params.
+
+    Single-or-sequence args (`org_unit`, `tracked_entity`, `enrollment`,
+    `filter`) repeat; scalars pass straight through; `None` is dropped so
+    unset params never reach the wire. `status_param` names the wire key the
+    `status` value rides — `programStatus` for tracked entities / enrollments,
+    `status` for events. Date args normalise to ISO via `_to_iso`.
+    """
+    params: dict[str, Any] = {}
+    if program is not None:
+        params["program"] = program
+    if program_stage is not None:
+        params["programStage"] = program_stage
+    if tracked_entity_type is not None:
+        params["trackedEntityType"] = tracked_entity_type
+    _repeat(params, "orgUnit", org_unit)
+    if ou_mode is not None:
+        params["ouMode"] = ou_mode
+    _repeat(params, "trackedEntity", tracked_entity)
+    _repeat(params, "enrollment", enrollment)
+    if status is not None:
+        params[status_param] = status
+    if fields is not None:
+        params["fields"] = fields
+    _repeat(params, "filter", filter)
+    if page is not None:
+        params["page"] = page
+    if page_size is not None:
+        params["pageSize"] = page_size
+    updated_after_iso = _to_iso(updated_after)
+    if updated_after_iso is not None:
+        params["updatedAfter"] = updated_after_iso
+    occurred_after_iso = _to_iso(occurred_after)
+    if occurred_after_iso is not None:
+        params["occurredAfter"] = occurred_after_iso
+    if extra_params:
+        params.update(extra_params)
+    return params
+
+
+def _repeat(params: dict[str, Any], key: str, value: str | Sequence[str] | None) -> None:
+    """Add `value` as a single-or-repeated query param, skipping `None`."""
+    if value is None:
+        return
+    params[key] = [value] if isinstance(value, str) else list(value)
 
 
 def _event_dict(
