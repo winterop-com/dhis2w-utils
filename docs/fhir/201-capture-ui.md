@@ -62,7 +62,7 @@ field for a token headed with the issuer it has to come from. The posture is
 read off `/metadata`, which is the one address open in every scope.
 
 **What is typed is checked before it is kept.** Submitting asks the server
-`GET /facade/whoami` with those credentials, and nothing is stored until the server
+`GET /facade/whoami` with those credentials, and nothing is held until the server
 names the caller. A wrong password is refused at the prompt - *DHIS2 did not
 accept this username and password.* - with the fields still there to try
 again with, and a server that could not be reached says so instead, because
@@ -88,11 +88,14 @@ pending forever instead of saying what happened. Callers still **send**
 and it differs for every caller alike rather than by guessing which ones are
 browsers.
 
-The credential lives in the page, and every request is signed from there. A
-copy is kept in `sessionStorage`, for that browser tab only, so a reload finds
-the session again: closing the tab ends the session, and a second tab signs in
-on its own. A browser set to block site data refuses that copy, and the tab
-then signs its requests exactly as any other does and loses only the reload.
+The credential lives in the page, for as long as that page is loaded, and every
+request is signed from there. It is written to no browser storage at all -
+neither `sessionStorage` nor `localStorage` - so a reload asks who this is
+again, and so does a second tab. Under the DHIS2 posture the credential is
+`Basic <base64 of user:password>`, which is the password in a form anything can
+decode; a page load is the longest anything here holds one. The same rule covers
+every posture: a deployment token and a JWT are held the same way and go the
+same way.
 
 In a checkout, `--ui` before the bundle exists refuses in one line rather
 than serving a blank page:
@@ -1110,7 +1113,7 @@ thing for anyone who was never told about the chord. Type, and it narrows:
   ground and the dark one.
 - **View** - **Collapse the navigation**, or **Expand the navigation** when it already is.
 - **Help** - **Keyboard shortcuts**, the same list `?` puts up.
-- **Session** - **Sign out**, when this tab holds a credential.
+- **Session** - **Sign out**, when this page holds a credential.
 
 Each row is one line: an icon for what kind of thing it is, its name, the line
 about it beside the name, and the kind itself - *Page*, *Form*, *Receipt*,
