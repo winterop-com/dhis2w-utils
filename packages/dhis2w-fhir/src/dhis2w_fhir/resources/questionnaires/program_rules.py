@@ -10,7 +10,11 @@ Three tiers, and a rule is in exactly one of them:
 1. A rule refusing a numeric answer outside a range becomes the core `minValue` / `maxValue`
    extensions on the question it tests.
 2. A rule hiding one question on the value of another becomes core `item.enableWhen` entries on the
-   question it hides.
+   question it hides. Where that question is answered from an option set, the DHIS2 rule compares
+   against the option code the instance holds and the emitted condition names the concept code the
+   bound CodeSystem publishes for that option, which `[generate] concept_code_source` and the
+   hostile-name posture decide together. A literal no option of the set carries names no concept at
+   all, so that rule goes to tier 3 rather than state a condition no answer can meet.
 3. Every other rule is published as a `D2ProgramRule` extension on the Questionnaire, carrying the
    DHIS2 expression verbatim. Nothing about tier 3 is normative: it says the server holds a rule
    this form cannot express, so a consumer knows an answer the form admits may still be refused.
@@ -31,6 +35,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dhis2w_fhir.foundation.schemas import PROGRAM_RULE_ACTION_DEFINITIONS
 from dhis2w_fhir.i18n import TranslationIn
+from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, generate_note
+from dhis2w_fhir.resources.option_sets.schemas import OptionConceptCodeIndex
 from dhis2w_fhir.resources.questionnaires.schemas import (
     BOUND_ELEMENTS_BY_ITEM_TYPE,
     MAXIMUM_VALUE_EXTENSION_URL,
@@ -85,8 +91,9 @@ _ORDERED_ANSWER_ELEMENTS = {
 #: attachment, a reference, a url - is never the source of a published condition.
 _ANSWER_ELEMENTS = {**_ORDERED_ANSWER_ELEMENTS, "string": "answerString", "text": "answerString"}
 
-#: The `answer[x]` element a question answered from an option set compares on: the DHIS2 rule tests
-#: the stored option code, which is the code of the concept the form's own ValueSet binds.
+#: The `answer[x]` element a question answered from an option set compares on. The DHIS2 rule tests
+#: the option code the instance stores, and the coding names the concept code the bound CodeSystem
+#: publishes for that option, which the two are joined through `OptionConceptCodeIndex` to reach.
 _CODING_ANSWER_ELEMENT = "answerCoding"
 
 _VARIABLE = r"#\{\s*([^{}]+?)\s*\}"
@@ -232,11 +239,16 @@ class FormProgramRules(BaseModel):
 
 
 class ProgramRulePlan(BaseModel):
-    """One run's reading of every program rule, resolved per form so both emitters state the same thing."""
+    """One run's reading of every program rule, resolved per form so both emitters state the same thing.
+
+    `notes` holds what the reading alone saw: a hide whose option literal the bound set publishes no
+    concept for, which is a rule the guide states as its untranslated form.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     forms: dict[str, FormProgramRules] = Field(default_factory=dict)
+    notes: list[GenerateNote] = Field(default_factory=list)
 
     def for_form(self, source_uid: str) -> FormProgramRules:
         """What one form publishes of its program's rules; an empty reading for a form with none."""
@@ -272,15 +284,24 @@ def parse_rule_condition(condition: str) -> RuleComparison | None:
     return _parse_literal(variable, operator, literal_text.strip())
 
 
-def plan_program_rules(sources: list[QuestionnaireSourceIn]) -> ProgramRulePlan:
+def plan_program_rules(
+    sources: list[QuestionnaireSourceIn], option_concept_codes: OptionConceptCodeIndex | None = None
+) -> ProgramRulePlan:
     """Read every source's program rules into what each form emits, one tier per rule.
 
     A rule is resolved once for the whole program and then written onto each of the program's forms,
     because whether it translates depends on where its questions are asked: a hide whose source
     question is on another stage's form is a hide this form cannot state, and the rule is published
     whole instead. That decision is taken here, once, so the FSH and the JSON never differ about it.
+
+    `option_concept_codes` is the run's DHIS2-code-to-concept-code join, which a hide on a coded
+    answer names its `answerCoding.code` out of. A reading handed none translates no coded hide at
+    all: without the join there is no concept code to name, and a rule stated as a condition the
+    published CodeSystem holds no code for is a rule the form gets wrong.
     """
+    codes = option_concept_codes if option_concept_codes is not None else OptionConceptCodeIndex()
     forms: dict[str, FormProgramRules] = {}
+    notes: list[GenerateNote] = []
     for program_sources in _sources_by_program(sources).values():
         rules = program_sources[0].program_rules
         variables = {variable.name: variable for variable in program_sources[0].program_rule_variables}
@@ -289,8 +310,15 @@ def plan_program_rules(sources: list[QuestionnaireSourceIn]) -> ProgramRulePlan:
         enable_when: dict[str, dict[str, ItemEnableWhen]] = {source.uid: {} for source in program_sources}
         published: list[PublishedProgramRule] = []
         for rule in rules:
-            reading = _read_rule(rule, variables, questions)
+            unresolved: list[_UnresolvedOptionLiteral] = []
+            reading = _read_rule(rule, variables, questions, codes, unresolved)
             if reading is None:
+                if unresolved:
+                    notes.append(
+                        generate_note(
+                            GenerateNoteCategory.FORM_STRUCTURE, _unresolved_literal_text(rule, unresolved[0])
+                        )
+                    )
                 published.append(_published_rule(rule))
                 continue
             for placed in reading.bounds:
@@ -301,7 +329,7 @@ def plan_program_rules(sources: list[QuestionnaireSourceIn]) -> ProgramRulePlan:
             forms[source.uid] = FormProgramRules(
                 bounds=bounds[source.uid], enable_when=enable_when[source.uid], published=published
             )
-    return ProgramRulePlan(forms=forms)
+    return ProgramRulePlan(forms=forms, notes=notes)
 
 
 def merged_bounds(
@@ -348,6 +376,16 @@ class _PlacedEnableWhen(BaseModel):
     shown: ItemEnableWhen
 
 
+class _UnresolvedOptionLiteral(BaseModel):
+    """One rule literal the bound option set publishes no concept code for, and where the rule read it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    question_uid: str
+    option_set_uid: str
+    literal: str
+
+
 class _RuleReading(BaseModel):
     """What one fully translated rule puts on which form: its bounds and its enableWhen entries."""
 
@@ -361,8 +399,14 @@ def _read_rule(
     rule: ProgramRuleIn,
     variables: dict[str, ProgramRuleVariableIn],
     questions: dict[str, dict[str, QuestionnaireItemIn]],
+    option_concept_codes: OptionConceptCodeIndex,
+    unresolved: list[_UnresolvedOptionLiteral],
 ) -> _RuleReading | None:
-    """Translate one rule onto the program's forms, or None when any part of it is inexpressible."""
+    """Translate one rule onto the program's forms, or None when any part of it is inexpressible.
+
+    `unresolved` collects the coded literals the bound sets publish no concept for, so a caller
+    holding a refused rule can say which literal refused it.
+    """
     comparison = parse_rule_condition(rule.condition)
     if comparison is None or not rule.actions:
         return None
@@ -376,7 +420,7 @@ def _read_rule(
     if action_types == {"SHOWERROR"}:
         return _read_bounding_rule(rule, comparison, source_uid, questions)
     if action_types == {"HIDEFIELD"}:
-        return _read_hiding_rule(rule, comparison, source_uid, questions)
+        return _read_hiding_rule(rule, comparison, source_uid, questions, option_concept_codes, unresolved)
     return None
 
 
@@ -413,6 +457,8 @@ def _read_hiding_rule(
     comparison: RuleComparison,
     source_uid: str,
     questions: dict[str, dict[str, QuestionnaireItemIn]],
+    option_concept_codes: OptionConceptCodeIndex,
+    unresolved: list[_UnresolvedOptionLiteral],
 ) -> _RuleReading | None:
     """Read a rule hiding questions on one other question's value as the `enableWhen` that shows them.
 
@@ -432,7 +478,7 @@ def _read_hiding_rule(
             question = form_questions.get(source_uid)
             if question is None:
                 return None
-            shown = _shown_when(comparison, question)
+            shown = _shown_when(comparison, question, option_concept_codes, unresolved)
             if shown is None:
                 return None
             entries.append(_PlacedEnableWhen(form_uid=form_uid, question_uid=target_uid, shown=shown))
@@ -468,7 +514,12 @@ def _bound_of(comparison: RuleComparison, question: QuestionnaireItemIn) -> Prog
     return ProgramRuleBound(url=url, element=element, decimal=comparison.number)
 
 
-def _shown_when(comparison: RuleComparison, question: QuestionnaireItemIn) -> ItemEnableWhen | None:
+def _shown_when(
+    comparison: RuleComparison,
+    question: QuestionnaireItemIn,
+    option_concept_codes: OptionConceptCodeIndex,
+    unresolved: list[_UnresolvedOptionLiteral],
+) -> ItemEnableWhen | None:
     """The `enableWhen` showing a question a rule hides, or None where R4 cannot state the inversion.
 
     Two things make the inversion faithful. The operator negates - a hide when the answer is
@@ -487,7 +538,7 @@ def _shown_when(comparison: RuleComparison, question: QuestionnaireItemIn) -> It
                 )
             ]
         )
-    condition = _answer_condition(comparison, question, resolved, operator)
+    condition = _answer_condition(comparison, question, resolved, operator, option_concept_codes, unresolved)
     if condition is None:
         return None
     if comparison.holds_when_blank():
@@ -504,17 +555,37 @@ def _shown_when(comparison: RuleComparison, question: QuestionnaireItemIn) -> It
 
 
 def _answer_condition(
-    comparison: RuleComparison, question: QuestionnaireItemIn, resolved_item_type: str, operator: str
+    comparison: RuleComparison,
+    question: QuestionnaireItemIn,
+    resolved_item_type: str,
+    operator: str,
+    option_concept_codes: OptionConceptCodeIndex,
+    unresolved: list[_UnresolvedOptionLiteral],
 ) -> EnableWhenCondition | None:
-    """One typed `enableWhen` entry, or None where the item type cannot answer the comparison."""
+    """One typed `enableWhen` entry, or None where the item type cannot answer the comparison.
+
+    A coded answer compares on the concept code the bound CodeSystem publishes, which is the option
+    UID under `concept_code_source = "id"` and the published code under `"code"` - the rewritten one
+    where the substitute posture hyphenated it. The DHIS2 rule holds the option code the instance
+    stores, so the join is what turns the one into the other; a literal the join has no option for
+    refuses the condition and the whole rule with it.
+    """
     if question.option_set_uid is not None:
         if comparison.literal_kind != "string" or operator in _ORDERED_OPERATORS:
+            return None
+        concept_code = option_concept_codes.concept_code(question.option_set_uid, comparison.text)
+        if concept_code is None:
+            unresolved.append(
+                _UnresolvedOptionLiteral(
+                    question_uid=question.uid, option_set_uid=question.option_set_uid, literal=comparison.text
+                )
+            )
             return None
         return EnableWhenCondition(
             question_link_id=question.uid,
             operator=operator,
             answer_element=_CODING_ANSWER_ELEMENT,
-            text=comparison.text,
+            text=concept_code,
             option_set_uid=question.option_set_uid,
         )
     if resolved_item_type == "boolean":
@@ -550,6 +621,15 @@ def _answer_condition(
             question_link_id=question.uid, operator=operator, answer_element=element, text=comparison.text
         )
     return None
+
+
+def _unresolved_literal_text(rule: ProgramRuleIn, unresolved: _UnresolvedOptionLiteral) -> str:
+    """What one hide reports when the option set it reads publishes no concept for the literal it compares to."""
+    return (
+        f"program rule {rule.name!r} ({rule.uid}) hides on question {unresolved.question_uid} answering "
+        f"{unresolved.literal!r}, which option set {unresolved.option_set_uid} publishes no concept for; "
+        "the rule is published whole rather than as an enableWhen"
+    )
 
 
 def _published_rule(rule: ProgramRuleIn) -> PublishedProgramRule:

@@ -30,6 +30,8 @@ from dhis2w_fhir.conversion.schemas import CodedAnswerMode, ConversionNaming
 from dhis2w_fhir.foundation.schemas import PROGRAM_RULE_ACTION_DEFINITIONS
 from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.r4 import Questionnaire
+from dhis2w_fhir.resources.option_sets import option_concept_code_index
+from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIn
 from dhis2w_fhir.resources.questionnaires.program_rules import (
     PROGRAM_RULE_ACTION_TYPES,
     parse_rule_condition,
@@ -86,11 +88,39 @@ def _source(
     )
 
 
+def _option(uid: str, code: str, original_code: str | None = None) -> OptionIn:
+    """One option of the set under test, `original_code` set where the substitute posture rewrote its code."""
+    return OptionIn(uid=uid, name=uid, code=code, original_code=original_code)
+
+
+def _option_set(uid: str, options: list[OptionIn]) -> OptionSetIn:
+    """One option set a question under test binds its answers to."""
+    return OptionSetIn(uid=uid, name=uid, options=options)
+
+
+def _plan(
+    rules: list[ProgramRuleIn],
+    variables: list[ProgramRuleVariableIn],
+    items: list[QuestionnaireItemIn],
+    option_sets: list[OptionSetIn] | None = None,
+    config: GenerateConfig | None = None,
+) -> Any:
+    """One program's rules read against the concept codes the bound option sets publish."""
+    resolved = config if config is not None else GenerateConfig()
+    return plan_program_rules(
+        [_source(rules, variables, items)], option_concept_code_index(option_sets or [], resolved)
+    )
+
+
 def _reading(
-    rules: list[ProgramRuleIn], variables: list[ProgramRuleVariableIn], items: list[QuestionnaireItemIn]
+    rules: list[ProgramRuleIn],
+    variables: list[ProgramRuleVariableIn],
+    items: list[QuestionnaireItemIn],
+    option_sets: list[OptionSetIn] | None = None,
+    config: GenerateConfig | None = None,
 ) -> Any:
     """What one form publishes of its program's rules."""
-    return plan_program_rules([_source(rules, variables, items)]).for_form("Prog1aaaaaa")
+    return _plan(rules, variables, items, option_sets, config).for_form("Prog1aaaaaa")
 
 
 # The conditions the grammar takes, each with the variable, operator, and literal it reads out.
@@ -269,15 +299,21 @@ def test_a_comparison_against_the_empty_string_becomes_the_exists_operator(condi
     assert [(entry.operator, entry.boolean) for entry in shown.conditions] == [("exists", exists)]
 
 
-def test_a_hide_on_an_option_set_answer_compares_against_the_option_code() -> None:
-    """A `#choice` question is answered from the form's own ValueSet, so the condition names a coding."""
+_CODED_HIDE = [_rule("#{MalariaTestResult} == 'NEGATIVE'", "HIDEFIELD", "Spc1aaaaaaa")]
+_CODED_HIDE_VARIABLES = [_variable("MalariaTestResult", "Res1aaaaaaa")]
+_CODED_HIDE_ITEMS = [
+    _question("Res1aaaaaaa", value_type="TEXT", option_set_uid="Os1aaaaaaaa"),
+    _question("Spc1aaaaaaa", value_type="TEXT"),
+]
+
+
+def test_a_hide_on_an_option_set_answer_names_the_option_uid_under_the_id_code_source() -> None:
+    """The rule holds the DHIS2 option code, and an id-source CodeSystem codes that option by its UID."""
     reading = _reading(
-        [_rule("#{MalariaTestResult} == 'NEGATIVE'", "HIDEFIELD", "Spc1aaaaaaa")],
-        [_variable("MalariaTestResult", "Res1aaaaaaa")],
-        [
-            _question("Res1aaaaaaa", value_type="TEXT", option_set_uid="Os1aaaaaaaa"),
-            _question("Spc1aaaaaaa", value_type="TEXT"),
-        ],
+        _CODED_HIDE,
+        _CODED_HIDE_VARIABLES,
+        _CODED_HIDE_ITEMS,
+        [_option_set("Os1aaaaaaaa", [_option("Opt1aaaaaaa", "NEGATIVE"), _option("Opt2aaaaaaa", "POSITIVE")])],
     )
 
     shown = reading.enable_when_for("Spc1aaaaaaa")
@@ -286,9 +322,58 @@ def test_a_hide_on_an_option_set_answer_compares_against_the_option_code() -> No
     assert (first.operator, first.answer_element, first.text, first.option_set_uid) == (
         "!=",
         "answerCoding",
-        "NEGATIVE",
+        "Opt1aaaaaaa",
         "Os1aaaaaaaa",
     )
+
+
+def test_a_hide_on_an_option_set_answer_names_the_option_code_under_the_code_code_source() -> None:
+    """A code-source CodeSystem codes the option by its DHIS2 code, which is what the rule already holds."""
+    reading = _reading(
+        _CODED_HIDE,
+        _CODED_HIDE_VARIABLES,
+        _CODED_HIDE_ITEMS,
+        [_option_set("Os1aaaaaaaa", [_option("Opt1aaaaaaa", "NEGATIVE"), _option("Opt2aaaaaaa", "POSITIVE")])],
+        GenerateConfig(concept_code_source="code"),
+    )
+
+    shown = reading.enable_when_for("Spc1aaaaaaa")
+    assert shown is not None
+    assert shown.conditions[0].text == "NEGATIVE"
+
+
+def test_a_hide_on_a_substituted_option_code_names_the_rewrite_the_guide_published() -> None:
+    """The substitute posture hyphenates a code carrying a space, so the rule answer follows the rewrite."""
+    reading = _reading(
+        [_rule("#{MalariaTestResult} == 'Not detected'", "HIDEFIELD", "Spc1aaaaaaa")],
+        _CODED_HIDE_VARIABLES,
+        _CODED_HIDE_ITEMS,
+        [_option_set("Os1aaaaaaaa", [_option("Opt1aaaaaaa", "Not-detected", original_code="Not detected")])],
+        GenerateConfig(concept_code_source="code"),
+    )
+
+    shown = reading.enable_when_for("Spc1aaaaaaa")
+    assert shown is not None
+    assert shown.conditions[0].text == "Not-detected"
+
+
+def test_a_hide_on_a_literal_no_option_carries_is_published_whole() -> None:
+    """An `enableWhen` naming a code the bound CodeSystem never wrote is a condition no answer can meet."""
+    plan = _plan(
+        [_rule("#{MalariaTestResult} == 'OTHER'", "HIDEFIELD", "Spc1aaaaaaa")],
+        _CODED_HIDE_VARIABLES,
+        _CODED_HIDE_ITEMS,
+        [_option_set("Os1aaaaaaaa", [_option("Opt1aaaaaaa", "NEGATIVE")])],
+    )
+    reading = plan.for_form("Prog1aaaaaa")
+
+    assert reading.enable_when_for("Spc1aaaaaaa") is None
+    assert [published.uid for published in reading.published] == ["Rule1aaaaaa"]
+    assert len(plan.notes) == 1
+    message = plan.notes[0].message
+    assert "rule Rule1aaaaaa" in message
+    assert "Res1aaaaaaa" in message
+    assert "'OTHER'" in message
 
 
 def test_a_hide_whose_source_question_the_form_does_not_ask_is_published_whole() -> None:

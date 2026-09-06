@@ -578,6 +578,16 @@ translation adds the arm that says so, joined by `enableBehavior = #any`:
 * item[=].enableBehavior = #any
 ```
 
+A hide on a question answered from an option set compares on `answerCoding`, and
+its code is the concept code the bound CodeSystem publishes for the option the
+rule names - the option UID under `concept_code_source = "id"`, the option's own
+code under `"code"`, hyphenated where the substitute posture rewrote a code
+carrying a space. The DHIS2 rule holds the option code the instance stores, so
+the two are joined through the very concept-code assignment the terminology
+target emits from. A literal no option of the bound set carries names no concept
+at all: that rule goes to tier 3 instead of stating a condition no answer can
+meet, and the run raises a note naming the rule, the question, and the literal.
+
 **Tier 3 - everything else is published, non-normatively.** Every other rule
 becomes a repeating `D2ProgramRule` extension on the Questionnaire:
 

@@ -80,6 +80,7 @@ from dhis2w_fhir.resources.attribute_combos.schemas import AttributeComboPlan
 from dhis2w_fhir.resources.option_sets import (
     code_system_canonical,
     concept_map_canonical,
+    option_concept_code_index,
     option_set_identity_index,
     value_set_canonical,
 )
@@ -161,7 +162,7 @@ if TYPE_CHECKING:
     from dhis2w_fhir.attributes import AttributeCodeIndex
     from dhis2w_fhir.config import GenerateConfig
     from dhis2w_fhir.resources.categories.decomposition import CategoryDecomposition
-    from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
+    from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan, OptionSetIn
 
 __all__ = [
     "DataDictionaryDocumentBuild",
@@ -338,6 +339,7 @@ def build_questionnaire_documents(
     ig_status: IgStatus,
     option_set_plan: OptionSetIdentityPlan,
     attribute_codes: AttributeCodeIndex,
+    option_sets: list[OptionSetIn] | None = None,
     stem_plan: QuestionnaireStemPlan | None = None,
     assignments: AssignmentPlan | None = None,
     attribute_combos: AttributeComboPlan | None = None,
@@ -347,11 +349,12 @@ def build_questionnaire_documents(
     Takes the parameters `build_questionnaire_artifacts` takes and decides the same things from
     them, so a caller can build the FSH source and the served documents off one fetch:
     `option_set_plan` is the identity plan the terminology target emits from, and
-    `attribute_codes` is the run's `uid -> code` join the D2AttributeValue extensions read from.
-    `stem_plan` is the questionnaire surface's identity-stem plan; left None it resolves here
-    through the very `plan_questionnaire_stems` call the FSH target resolves through, so the two
-    paths cannot disagree on an id, a canonical URL, or a name. `assignments` names the
-    assignment List each form is scoped by, and `attribute_combos` the attribute-option-combo
+    `attribute_codes` is the run's `uid -> code` join the D2AttributeValue extensions read from,
+    and `option_sets` is the sets the forms bind, whose options decide the concept code a program
+    rule's coded `enableWhen` answer names. `stem_plan` is the questionnaire surface's identity-stem
+    plan; left None it resolves here through the very `plan_questionnaire_stems` call the FSH
+    target resolves through, so the two paths cannot disagree on an id, a canonical URL, or a name.
+    `assignments` names the assignment List each form is scoped by, and `attribute_combos` the attribute-option-combo
     ValueSet each form's responses are keyed from - the same two plans the FSH path renders its
     extensions from.
     """
@@ -361,7 +364,7 @@ def build_questionnaire_documents(
     attribute_combo_plan = attribute_combos if attribute_combos is not None else AttributeComboPlan()
     plan = stem_plan if stem_plan is not None else plan_questionnaire_stems(sources, config.naming.source)
     index = option_set_identity_index(option_set_plan, bound_option_set_uids(sources), config)
-    rule_plan = plan_program_rules(sources)
+    rule_plan = plan_program_rules(sources, option_concept_code_index(option_sets or [], config))
     questionnaires = [
         _questionnaire_document(
             source,
@@ -379,7 +382,7 @@ def build_questionnaire_documents(
         )
         for source in sorted(sources, key=lambda item: (item.name, item.uid))
     ]
-    notes: list[GenerateNote] = list(plan.targets.notes)
+    notes: list[GenerateNote] = [*plan.targets.notes, *rule_plan.notes]
     if index.unplanned_uids:
         notes.append(
             aggregate_generate_note(

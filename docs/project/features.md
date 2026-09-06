@@ -814,6 +814,11 @@ NamingSystems declaring them, plus these extensions:
   `item.enableWhen` with the operator negated, plus - where DHIS2 would show
   the question before anything is answered - an `exists` arm under
   `enableBehavior = #any`.
+- **A hide on a coded answer names the concept code the bound set publishes**,
+  which follows `concept_code_source` - the option UID under `id`, the option
+  code under `code`, hyphenated where the substitute posture rewrote it. A
+  literal no option of the set carries is published whole on `D2ProgramRule`
+  instead, with a note naming the rule, the question, and the literal.
 - **A deliberately conservative grammar** reads the conditions: one comparison
   between one `#{variable}` and one literal, optionally `d2:hasValue`-guarded
   on that same variable, with the variable resolved through

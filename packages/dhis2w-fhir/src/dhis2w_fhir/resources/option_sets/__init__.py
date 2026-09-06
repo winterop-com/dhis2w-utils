@@ -89,6 +89,8 @@ from dhis2w_fhir.resources.option_sets.schemas import (
     ConceptAssignment,
     ConceptAssignmentPlan,
     ConceptSourceIn,
+    OptionConceptCodeIndex,
+    OptionConceptCodes,
     OptionIn,
     OptionSetIdentity,
     OptionSetIdentityIndex,
@@ -115,6 +117,7 @@ __all__ = [
     "concept_assignments",
     "concept_map_canonical",
     "max_slug_length",
+    "option_concept_code_index",
     "option_set_code_fallback",
     "option_set_concept_map_file_prefix",
     "option_set_fsh_name",
@@ -483,6 +486,31 @@ def concept_assignments(source: ConceptSourceIn, config: GenerateConfig) -> Conc
             )
         )
     return ConceptAssignmentPlan(assignments=assignments, notes=notes)
+
+
+def option_concept_code_index(option_sets: list[OptionSetIn], config: GenerateConfig) -> OptionConceptCodeIndex:
+    """Join every option's DHIS2 code to the concept code its set's CodeSystem publishes for it.
+
+    Read through `concept_assignments`, the one place a concept code is decided, so a consumer
+    holding a DHIS2 option code - a program rule comparing an answer against one - names the very
+    concept the terminology target wrote: the option UID under `concept_code_source = "id"`, the
+    published code under `"code"`, hostile-name rewrite and UID fall-back alike. An option the
+    assignment left without a code is absent, because no concept was written for it.
+
+    The notes each assignment raises stay on its plan and go unread here: a fall-back is a fact
+    about the CodeSystem, so the terminology target is where it belongs in the report.
+    """
+    sets: dict[str, OptionConceptCodes] = {}
+    for option_set in option_sets:
+        plan = concept_assignments(option_set, config)
+        sets[option_set.uid] = OptionConceptCodes(
+            concept_codes_by_dhis2_code={
+                assignment.option.dhis2_code: assignment.code
+                for assignment in plan.assignments
+                if assignment.option.dhis2_code is not None and assignment.code is not None
+            }
+        )
+    return OptionConceptCodeIndex(sets=sets)
 
 
 def _json_artifact(directory: str, stem: str, resource: CodeSystem | ValueSet | ConceptMap) -> JsonArtifact:
