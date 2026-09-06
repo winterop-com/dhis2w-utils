@@ -26,7 +26,7 @@ members = [
 
 [manifest.dependency-groups]
 dev = [
-    { name = "coverage", extras = ["toml"], specifier = ">=7.15.4" },
+    { name = "coverage", extras = ["toml"], specifier = ">=7.16.0" },
     { name = "hypothesis", specifier = ">=6.165.10" },
     { name = "mkdocs", specifier = ">=1.6" },
     { name = "mkdocs-material", specifier = ">=9.7.7" },
