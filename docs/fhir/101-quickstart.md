@@ -286,7 +286,7 @@ running 8 step(s)
 [4/8] categories: 1 category, 3 files written, 0 files unchanged
 [5/8] questionnaires: 9 questionnaires, 21 files written, 0 files unchanged, 1 note
 [6/8] examples: 9 examples, 9 files written, 0 files unchanged, 1 note
-[7/8] organisation units: 1,332 organisation units, 2667 files written, 0 files unchanged, 1 note
+[7/8] organisation units: 1,332 organisation units, 2,667 files written, 0 files unchanged, 1 note
 [8/8] pages: 6 pages, 15 files written, 0 files unchanged, 1 note
 full pipeline: 2,772 file(s) written across 7 target(s)
 ...

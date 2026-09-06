@@ -456,6 +456,11 @@ class ProgramRuleIndex(BaseModel):
     rules_by_program: dict[str, list[ProgramRuleIn]] = Field(default_factory=dict)
 
 
+def grouped_count(count: int, noun: str) -> str:
+    """A count with its noun, grouped for reading: `2,667 files`, `1 file`."""
+    return f"{count:,}{pluralize(count, noun).removeprefix(str(count))}"
+
+
 class GenerateSubject(BaseModel):
     """What a generate target covers, counted in the instance's own objects rather than in files."""
 
@@ -468,8 +473,9 @@ class GenerateSubject(BaseModel):
     def label(self) -> str:
         """The subject as one phrase, grouped for reading: `1,696 organisation units`, `1 option set`."""
         spelled = self.noun if self.count == 1 else self.plural
-        counted = pluralize(self.count, self.noun) if spelled is None else f"{self.count} {spelled}"
-        return f"{self.count:,}{counted.removeprefix(str(self.count))}"
+        if spelled is not None:
+            return f"{self.count:,} {spelled}"
+        return grouped_count(self.count, self.noun)
 
 
 class GenerateReport(BaseModel):
@@ -801,13 +807,13 @@ def _target_counts(report: GenerateReport) -> str:
     """One-line outcome of one generate target: what it covers, then what it wrote, left alone, removed, and noted."""
     parts = [] if report.subject is None else [report.subject.label()]
     parts += [
-        f"{pluralize(len(report.written_files), 'file')} written",
-        f"{pluralize(report.unchanged_count, 'file')} unchanged",
+        f"{grouped_count(len(report.written_files), 'file')} written",
+        f"{grouped_count(report.unchanged_count, 'file')} unchanged",
     ]
     if report.deleted_files:
-        parts.append(f"{pluralize(len(report.deleted_files), 'file')} deleted")
+        parts.append(f"{grouped_count(len(report.deleted_files), 'file')} deleted")
     if report.notes:
-        parts.append(f"{len(report.notes)} note{'' if len(report.notes) == 1 else 's'}")
+        parts.append(grouped_count(len(report.notes), "note"))
     return ", ".join(parts)
 
 

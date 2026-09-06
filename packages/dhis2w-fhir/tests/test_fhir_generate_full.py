@@ -591,6 +591,19 @@ def test_a_target_with_no_subject_reports_files_alone() -> None:
     assert _target_counts(report) == "24 files written, 0 files unchanged"
 
 
+def test_every_count_on_one_line_is_grouped_the_same_way() -> None:
+    """Subject and files sit on one line, so they are read in one number style."""
+    report = GenerateReport(
+        project_root=Path("/project"),
+        target_directory="organization",
+        written_files=[f"registry/{index}.json" for index in range(2667)],
+        unchanged_count=1332,
+        subject=GenerateSubject(count=1332, noun="organisation unit"),
+    )
+
+    assert _target_counts(report) == "1,332 organisation units, 2,667 files written, 1,332 files unchanged"
+
+
 def test_an_irregular_plural_is_spelled_out() -> None:
     """A subject whose plural an `s` would misspell carries the spelling it is read by."""
     assert GenerateSubject(count=150, noun="category", plural="categories").label() == "150 categories"

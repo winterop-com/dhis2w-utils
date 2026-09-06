@@ -695,9 +695,9 @@ def _render_generate_report(
         DetailRow("profile", f"{generation.name} ({generation.origin})"),
         DetailRow("project", str(report.project_root)),
         DetailRow("target", _target_label(report)),
-        DetailRow("files written", str(len(report.written_files))),
-        DetailRow("files unchanged", str(report.unchanged_count)),
-        DetailRow("files deleted", str(len(report.deleted_files))),
+        DetailRow("files written", f"{len(report.written_files):,}"),
+        DetailRow("files unchanged", f"{report.unchanged_count:,}"),
+        DetailRow("files deleted", f"{len(report.deleted_files):,}"),
         *extra_rows,
     ]
     render_detail(title, rows, console=STDERR_CONSOLE)
@@ -839,10 +839,10 @@ def _render_full_report(report: GenerateFullReport, generation: GenerationProfil
                 "target": outcome.target,
                 "subject": outcome.report.subject.label() if outcome.report.subject is not None else "",
                 "directory": _target_label(outcome.report),
-                "written": str(len(outcome.report.written_files)),
-                "unchanged": str(outcome.report.unchanged_count),
-                "deleted": str(len(outcome.report.deleted_files)),
-                "notes": str(len(outcome.report.notes)),
+                "written": f"{len(outcome.report.written_files):,}",
+                "unchanged": f"{outcome.report.unchanged_count:,}",
+                "deleted": f"{len(outcome.report.deleted_files):,}",
+                "notes": f"{len(outcome.report.notes):,}",
             }
             for outcome in outcomes
         ],
@@ -950,7 +950,7 @@ def generate_option_sets_command(ctx: typer.Context, progress: ProgressOption = 
         _TARGET_TITLES["option-sets"],
         report,
         generation,
-        extra_rows=[DetailRow("option sets", str(report.option_set_count))],
+        extra_rows=[DetailRow("option sets", f"{report.option_set_count:,}")],
     )
 
 
@@ -971,7 +971,7 @@ def generate_categories_command(ctx: typer.Context, progress: ProgressOption = T
         _TARGET_TITLES["categories"],
         report,
         generation,
-        extra_rows=[DetailRow("categories", str(report.category_count))],
+        extra_rows=[DetailRow("categories", f"{report.category_count:,}")],
     )
 
 
@@ -1001,8 +1001,8 @@ def generate_questionnaires_command(ctx: typer.Context, progress: ProgressOption
         report,
         generation,
         extra_rows=[
-            DetailRow("questionnaires", str(report.questionnaire_count)),
-            DetailRow("assignments", str(report.assignment_count)),
+            DetailRow("questionnaires", f"{report.questionnaire_count:,}"),
+            DetailRow("assignments", f"{report.assignment_count:,}"),
         ],
     )
 
@@ -1024,7 +1024,7 @@ def generate_examples_command(ctx: typer.Context, progress: ProgressOption = Tru
         _TARGET_TITLES["examples"],
         report,
         generation,
-        extra_rows=[DetailRow("examples", str(report.example_count))],
+        extra_rows=[DetailRow("examples", f"{report.example_count:,}")],
     )
 
 
@@ -1048,9 +1048,9 @@ def generate_organisation_units_command(ctx: typer.Context, progress: ProgressOp
         report,
         generation,
         extra_rows=[
-            DetailRow("organisation units", str(report.organisation_unit_count)),
-            DetailRow("positions", str(report.position_count)),
-            DetailRow("boundaries", str(report.boundary_count)),
+            DetailRow("organisation units", f"{report.organisation_unit_count:,}"),
+            DetailRow("positions", f"{report.position_count:,}"),
+            DetailRow("boundaries", f"{report.boundary_count:,}"),
         ],
     )
 
@@ -1072,7 +1072,7 @@ def generate_pages_command(ctx: typer.Context, progress: ProgressOption = True) 
         _TARGET_TITLES["pages"],
         report,
         generation,
-        extra_rows=[DetailRow("pages", str(report.page_count)), DetailRow("intros", str(report.intro_count))],
+        extra_rows=[DetailRow("pages", f"{report.page_count:,}"), DetailRow("intros", f"{report.intro_count:,}")],
     )
 
 
@@ -1136,8 +1136,8 @@ def generate_load_set_command(
         report,
         generation,
         extra_rows=[
-            DetailRow("responses", str(report.response_count)),
-            DetailRow("questionnaires", str(report.questionnaire_count)),
+            DetailRow("responses", f"{report.response_count:,}"),
+            DetailRow("questionnaires", f"{report.questionnaire_count:,}"),
         ],
     )
 

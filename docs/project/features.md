@@ -701,7 +701,7 @@ finding apart; `--details` prints them inline.
   carries a `Subject` column - `1,332 organisation units`, `13 option sets`,
   `14 questionnaires` - beside `Files written`, `Files unchanged`, and
   `Files deleted`, and the step line leads with the same subject
-  (`[7/8] organisation units: 1,332 organisation units, 2667 files written,
+  (`[7/8] organisation units: 1,332 organisation units, 2,667 files written,
   0 files unchanged`). The two numbers differ wherever one covered object ships
   as several resources: an organisation unit becomes both an `Organization` and
   a `Location`. The foundation target covers no instance object, so it reports

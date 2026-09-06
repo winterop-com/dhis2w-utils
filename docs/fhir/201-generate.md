@@ -35,7 +35,7 @@ running 8 step(s)
 [4/8] categories: 5 categories, 15 files written, 0 files unchanged
 [5/8] questionnaires: 14 questionnaires, 28 files written, 0 files unchanged, 1 note
 [6/8] examples: 14 examples, 14 files written, 0 files unchanged, 2 notes
-[7/8] organisation units: 1,332 organisation units, 2667 files written, 0 files unchanged
+[7/8] organisation units: 1,332 organisation units, 2,667 files written, 0 files unchanged
 [8/8] pages: 6 pages, 20 files written, 0 files unchanged, 1 note
 full pipeline: 2,806 file(s) written across 7 target(s)
 info: local_basic (fhir.toml) -> /home/you/demo-ig
@@ -71,7 +71,7 @@ info: local_basic (fhir.toml) -> /home/you/demo-ig
 │               │                    │ maps               │               │                 │               │      │
 │examples       │ 14 examples        │ ig/input/fsh/examp │ 14            │ 0               │ 0             │ 1    │
 │               │                    │ les                │               │                 │               │      │
-│org-units      │ 1,332 organisation │ ig/input/fsh/organ │ 2667          │ 0               │ 0             │ 0    │
+│org-units      │ 1,332 organisation │ ig/input/fsh/organ │ 2,667         │ 0               │ 0             │ 0    │
 │               │ units              │ ization,           │               │                 │               │      │
 │               │                    │ resources/registry │               │                 │               │      │
 │pages          │ 6 pages            │ ig/input/pageconte │ 20            │ 0               │ 0             │ 0    │
@@ -115,7 +115,7 @@ running 8 step(s)
 [4/8] categories: 5 categories, 0 files written, 15 files unchanged
 [5/8] questionnaires: 14 questionnaires, 0 files written, 28 files unchanged, 1 note
 [6/8] examples: 14 examples, 0 files written, 14 files unchanged, 2 notes
-[7/8] organisation units: 1,332 organisation units, 0 files written, 2667 files unchanged
+[7/8] organisation units: 1,332 organisation units, 0 files written, 2,667 files unchanged
 [8/8] pages: 6 pages, 0 files written, 20 files unchanged, 1 note
 full pipeline: 0 file(s) written across 7 target(s)
 ```
