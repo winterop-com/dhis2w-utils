@@ -124,7 +124,14 @@ clean:  ## Remove build output (keeps ig/input-cache, the terminology cache the 
 
 clean-all: clean  ## Also remove the terminology cache and the FHIR package cache volume
 	rm -rf $(IG_DIR)/input-cache
-	-docker volume rm $(CACHE_VOLUME)
+# The package cache volume is shared by every project scaffolded on this machine, so removing it
+# here makes the next build of each of them a cold one; a volume another project already removed is
+# reported, not treated as a failure.
+	@if docker volume inspect $(CACHE_VOLUME) >/dev/null 2>&1; then \
+		docker volume rm $(CACHE_VOLUME); \
+	else \
+		echo "$(CACHE_VOLUME): no package cache volume to remove"; \
+	fi
 
 # The caches survive a refresh on purpose. The terminology cache is hours of tx.fhir.org
 # round-trips on a large guide, the package cache is re-downloads, and neither can go stale
