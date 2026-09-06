@@ -4011,7 +4011,11 @@ against DHIS2 v41, v42, and v43.
   the Dockerfile); nothing `d2w fhir generate` or SUSHI writes is. `make
   verify-igs` refreshes, validates, generates, and dockerized-SUSHI-compiles all
   eight - an on-demand target, because it needs a reachable DHIS2 instance and
-  docker.
+  docker. Above that, `.github/workflows/publisher-check.yml` runs one full HL7
+  IG Publisher build of `aggregate-minimal` weekly, so a publisher release that
+  tightens validation shows up as a red scheduled run rather than in a user's
+  project; `make publisher-check-summary QA=<qa.json>` reads the same report
+  locally.
 - **`examples/client/`**: 80+ Python examples (whoami, CRUD, analytics, OIDC,
   bulk import, tracker lifecycle, sharing, error handling, ...)
 - **`examples/cli/`**: 60+ shell scripts covering every CLI domain

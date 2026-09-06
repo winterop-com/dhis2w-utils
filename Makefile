@@ -1,4 +1,4 @@
-.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage frontend-dev ui lint-frontend test-frontend e2e-frontend screenshot docs docs-serve docs-build docs-cli docs-mcp docs-d2path build publish-all deps-upgrade clean clean-artifacts dhis2-run dhis2-down dhis2-seed dhis2-versions-check dhis2-versions-bump dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples verify-igs bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
+.PHONY: help install lint check-examples test test-slow test-contract test-durations coverage frontend-dev ui lint-frontend test-frontend e2e-frontend screenshot docs docs-serve docs-build docs-cli docs-mcp docs-d2path build publish-all deps-upgrade clean clean-artifacts dhis2-run dhis2-down dhis2-seed dhis2-versions-check dhis2-versions-bump dhis2-build-e2e-dump dhis2-codegen-all dhis2-codegen-play dhis2-codegen-play-v42 dhis2-codegen-play-v43 verify-examples verify-igs publisher-check-summary bench-list bench-round bench-bridge bench-general bench-mcp bench-router bench-claude-general bench-claude-mcp bench-claude-bridge bench-validate bench-matrix bench-composite bench-longcontext refresh-setup refresh-and-verify
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -70,6 +70,7 @@ help:
 	@echo "  dhis2-codegen-play    Refresh v42 + v43 generated/ trees against play.im.dhis2.org (no docker)"
 	@echo "  verify-examples       Run every non-interactive example + print PASS/FAIL summary"
 	@echo "  verify-igs            Refresh, validate, generate + dockerized SUSHI compile every example IG (on demand; needs docker)"
+	@echo "  publisher-check-summary  Summarise an IG publisher QA report: version, counts, error families (QA=<path to qa.json>)"
 	@echo ""
 	@echo "Model testing (local LLMs; reads -> play42, writes -> local_basic; no model defaults):"
 	@echo "  bench-list       List the models the backend has installed (pick from these)"
@@ -359,6 +360,10 @@ verify-igs:
 		echo "    note: infra/home/credentials/.env.auth missing - the guides need a reachable DHIS2 instance"; \
 		$(UV) run python -u infra/scripts/verify_igs.py; \
 	fi
+
+publisher-check-summary:
+	@test -n "$(QA)" || { echo "usage: make publisher-check-summary QA=<path to ig/output/qa.json>"; exit 2; }
+	@$(UV) run python -u infra/scripts/publisher_qa_summary.py --qa $(QA)
 
 bench-list:
 	@echo ">>> Installed models (the backend's view; MODEL_BACKEND= to switch)"
