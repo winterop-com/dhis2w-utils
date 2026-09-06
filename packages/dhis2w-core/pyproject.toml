@@ -1,6 +1,6 @@
 [project]
 name = "dhis2w-core"
-version = "1.13.2"
+version = "1.14.0.dev0"
 description = "Shared DHIS2 tooling runtime: profile discovery, plugin registry, auth factory, token store, first-party plugins."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
