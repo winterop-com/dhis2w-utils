@@ -485,7 +485,10 @@ unrecognisable stops the run with a printout naming
 ## The `[generate.examples]` table { #examples }
 
 Every form in the guide can ship with example filled-in responses, so a reader
-sees real-shaped data, not just an empty form.
+sees real-shaped data, not just an empty form. An example answers the form the
+way a person filling it in would: it answers only the questions the form's own
+`enableWhen` leaves enabled given the rest of its answers, and every numeric
+answer falls inside the `minValue` / `maxValue` the question declares.
 
 ### `per_target`
 

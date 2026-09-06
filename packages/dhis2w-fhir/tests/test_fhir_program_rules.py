@@ -239,6 +239,58 @@ def test_a_rule_bound_narrows_the_bound_the_value_type_already_states() -> None:
     ]
 
 
+def test_a_rule_refusing_negatives_states_the_minimum_it_admits() -> None:
+    """`SHOWERROR` below zero admits zero upwards, which is what `minValue` says - the complement, not the rule."""
+    reading = _reading(
+        [_rule("#{count} < 0", "SHOWERROR", "Cnt1aaaaaaa")],
+        [_variable("count", "Cnt1aaaaaaa")],
+        [_question("Cnt1aaaaaaa", value_type="INTEGER")],
+    )
+
+    assert [(bound.url.rsplit("/", 1)[-1], bound.integer) for bound in reading.bounds_for("Cnt1aaaaaaa")] == [
+        ("minValue", 0)
+    ]
+    assert not reading.published
+
+
+def test_the_literal_first_mirror_of_a_refusal_states_the_same_bound() -> None:
+    """`0 > #{x}` is `#{x} < 0` written the other way round, so it admits zero upwards too."""
+    reading = _reading(
+        [_rule("0 > #{count}", "SHOWERROR", "Cnt1aaaaaaa")],
+        [_variable("count", "Cnt1aaaaaaa")],
+        [_question("Cnt1aaaaaaa", value_type="INTEGER")],
+    )
+
+    assert [(bound.url.rsplit("/", 1)[-1], bound.integer) for bound in reading.bounds_for("Cnt1aaaaaaa")] == [
+        ("minValue", 0)
+    ]
+
+
+def test_a_refusal_the_value_type_admits_nothing_of_is_published_rather_than_bound() -> None:
+    """A rule refusing every answer from zero up leaves a zero-or-positive question nothing to answer with."""
+    reading = _reading(
+        [_rule("#{count} >= 0", "SHOWERROR", "Cnt1aaaaaaa")],
+        [_variable("count", "Cnt1aaaaaaa")],
+        [_question("Cnt1aaaaaaa", value_type="INTEGER_ZERO_OR_POSITIVE")],
+    )
+
+    assert not reading.bounds_for("Cnt1aaaaaaa")
+    assert [rule.uid for rule in reading.published] == ["Rule1aaaaaa"]
+
+
+def test_a_refusal_of_every_non_negative_answer_still_bounds_an_unbounded_integer() -> None:
+    """DHIS2 really does refuse every non-negative answer to a plain integer, so the form says so."""
+    reading = _reading(
+        [_rule("#{count} >= 0", "SHOWERROR", "Cnt1aaaaaaa")],
+        [_variable("count", "Cnt1aaaaaaa")],
+        [_question("Cnt1aaaaaaa", value_type="INTEGER")],
+    )
+
+    assert [(bound.url.rsplit("/", 1)[-1], bound.integer) for bound in reading.bounds_for("Cnt1aaaaaaa")] == [
+        ("maxValue", -1)
+    ]
+
+
 def test_a_warning_rule_is_published_rather_than_bound() -> None:
     """DHIS2 enforces the error actions on import and lets a warning through, so only an error is a bound."""
     reading = _reading(

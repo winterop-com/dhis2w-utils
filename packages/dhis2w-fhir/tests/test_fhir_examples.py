@@ -37,13 +37,18 @@ from dhis2w_fhir.resources.examples import (
     response_status_code,
     synthetic_uid,
 )
+from dhis2w_fhir.resources.examples.enablement import ExampleGate, asked_question_uids
 from dhis2w_fhir.resources.examples.schemas import ExampleAnswerIn, ExampleResponseIn
-from dhis2w_fhir.resources.option_sets import option_set_identities
+from dhis2w_fhir.resources.option_sets import option_concept_code_index, option_set_identities
 from dhis2w_fhir.resources.option_sets.schemas import OptionIn, OptionSetIdentityPlan, OptionSetIn
+from dhis2w_fhir.resources.questionnaires.program_rules import EnableWhenCondition, ItemEnableWhen
 from dhis2w_fhir.resources.questionnaires.schemas import (
     CategoryComboIn,
     CategoryOptionComboIn,
     ProgramContextIn,
+    ProgramRuleActionIn,
+    ProgramRuleIn,
+    ProgramRuleVariableIn,
     QuestionnaireItemIn,
     QuestionnaireSectionIn,
     QuestionnaireSourceIn,
@@ -1867,3 +1872,198 @@ def test_an_attribute_the_instance_does_not_call_unique_is_answered_as_it_always
     values = _unique_values(ordinary, 3, [])
 
     assert values == ["Example Unique ID"] * 3
+
+
+#: The one-option set a gated example draws a known coded answer from.
+_GATE_OPTION_SET = OptionSetIn(
+    uid="Osg1aaaaaaa",
+    name="Malaria status",
+    options=[OptionIn(uid="Opg1aaaaaaa", name="Negative", code="NEG")],
+)
+
+
+def _gate_variable(name: str, question_uid: str) -> ProgramRuleVariableIn:
+    """One rule variable reading one question of the form under test."""
+    return ProgramRuleVariableIn(name=name, source_type="DATAELEMENT_CURRENT_EVENT", data_element_uid=question_uid)
+
+
+def _gate_rule(uid: str, condition: str, action_type: str, target_uid: str) -> ProgramRuleIn:
+    """One program rule taking a single action against one question."""
+    return ProgramRuleIn(
+        uid=uid,
+        name=f"rule {uid}",
+        condition=condition,
+        actions=[ProgramRuleActionIn(action_type=action_type, data_element_uid=target_uid)],
+    )
+
+
+def _gated_program(condition: str) -> QuestionnaireSourceIn:
+    """An event form hiding its comment on the coded answer to its status question."""
+    return QuestionnaireSourceIn(
+        uid="Gate1aaaaaa",
+        name="Gated programme",
+        kind="event",
+        flat_items=[
+            QuestionnaireItemIn(uid="Deg1aaaaaaa", name="Status", value_type="TEXT", option_set_uid="Osg1aaaaaaa"),
+            QuestionnaireItemIn(uid="Deg2aaaaaaa", name="Comment", value_type="LONG_TEXT"),
+        ],
+        program_rules=[_gate_rule("Ruleg1aaaaa", condition, "HIDEFIELD", "Deg2aaaaaaa")],
+        program_rule_variables=[_gate_variable("status", "Deg1aaaaaaa")],
+    )
+
+
+def _sectioned_gated_program(condition: str) -> QuestionnaireSourceIn:
+    """A sectioned event form hiding a question of its second section on the first section's answer."""
+    return QuestionnaireSourceIn(
+        uid="Gate2aaaaaa",
+        name="Sectioned gated programme",
+        kind="event",
+        sections=[
+            QuestionnaireSectionIn(
+                uid="Secg1aaaaaa",
+                name="Screening",
+                items=[
+                    QuestionnaireItemIn(
+                        uid="Deg1aaaaaaa", name="Status", value_type="TEXT", option_set_uid="Osg1aaaaaaa"
+                    )
+                ],
+            ),
+            QuestionnaireSectionIn(
+                uid="Secg2aaaaaa",
+                name="Follow-up",
+                items=[QuestionnaireItemIn(uid="Deg2aaaaaaa", name="Comment", value_type="LONG_TEXT")],
+            ),
+        ],
+        program_rules=[_gate_rule("Ruleg1aaaaa", condition, "HIDEFIELD", "Deg2aaaaaaa")],
+        program_rule_variables=[_gate_variable("status", "Deg1aaaaaaa")],
+    )
+
+
+def _gated_build(source: QuestionnaireSourceIn, option_sets: list[OptionSetIn]) -> Any:
+    """One synthetic example of a gated form, read through the run's own concept-code join."""
+    return build_synthetic_responses(
+        [source],
+        option_sets,
+        1,
+        _ROOT_ORG_UNIT,
+        _TODAY,
+        option_concept_codes=option_concept_code_index(option_sets, GenerateConfig()),
+    )
+
+
+def _answered_uids(source: QuestionnaireSourceIn, option_sets: list[OptionSetIn]) -> list[str]:
+    """The data elements the form's one synthetic example answers."""
+    return [answer.data_element_uid for answer in _gated_build(source, option_sets).responses[0].answers]
+
+
+def test_an_example_answers_a_gated_question_only_where_its_gate_holds() -> None:
+    """The comment is hidden when the status is `NEG`, and the one option the set holds is `NEG`."""
+    assert _answered_uids(_gated_program("#{status} == 'NEG'"), [_GATE_OPTION_SET]) == ["Deg1aaaaaaa"]
+
+
+def test_an_example_answers_a_gated_question_whose_gate_the_drawn_answer_opens() -> None:
+    """A rule hiding the comment on a code the example does not draw leaves the comment asked."""
+    assert _answered_uids(_gated_program("#{status} == 'POS'"), [_GATE_OPTION_SET]) == [
+        "Deg1aaaaaaa",
+        "Deg2aaaaaaa",
+    ]
+
+
+def test_a_gated_question_inside_a_section_is_dropped_the_way_a_flat_one_is() -> None:
+    """A `linkId` nested under a group is gated by its own enableWhen, whatever section holds it."""
+    assert _answered_uids(_sectioned_gated_program("#{status} == 'NEG'"), [_GATE_OPTION_SET]) == ["Deg1aaaaaaa"]
+
+
+def test_a_disabled_question_is_tallied_so_the_example_count_stays_honest() -> None:
+    """A question the form turned out not to ask is one the run says it left unanswered."""
+    build = _gated_build(_gated_program("#{status} == 'NEG'"), [_GATE_OPTION_SET])
+
+    messages = [note.message for note in build.notes]
+
+    assert any("left disabled by the form's own enableWhen" in message for message in messages)
+    assert any("Comment (Deg2aaaaaaa)" in message for message in messages)
+
+
+def test_every_condition_has_to_hold_where_the_form_states_no_enable_behavior() -> None:
+    """R4 reads an item with several conditions and no `enableBehavior` as `all`, and so does the sweep."""
+    conditions = [
+        EnableWhenCondition(question_link_id="Deg1aaaaaaa", operator="=", answer_element="answerString", text="NEG"),
+        EnableWhenCondition(question_link_id="Deg3aaaaaaa", operator=">", answer_element="answerInteger", integer=5),
+    ]
+    gates = [
+        ExampleGate(uid="Deg1aaaaaaa"),
+        ExampleGate(uid="Deg3aaaaaaa"),
+        ExampleGate(uid="Deg2aaaaaaa", shown=ItemEnableWhen(conditions=conditions)),
+        ExampleGate(uid="Deg4aaaaaaa", shown=ItemEnableWhen(conditions=conditions, behavior="any")),
+    ]
+
+    half_met = asked_question_uids(gates, {"Deg1aaaaaaa": ["NEG"], "Deg3aaaaaaa": ["4"]})
+    both_met = asked_question_uids(gates, {"Deg1aaaaaaa": ["NEG"], "Deg3aaaaaaa": ["6"]})
+
+    assert "Deg2aaaaaaa" not in half_met
+    assert "Deg4aaaaaaa" in half_met
+    assert "Deg2aaaaaaa" in both_met
+
+
+def _bounded_program(conditions: list[str], value_type: str) -> QuestionnaireSourceIn:
+    """An event form whose one question every named `SHOWERROR` condition refuses answers to."""
+    return QuestionnaireSourceIn(
+        uid="Bnd1aaaaaaa",
+        name="Bounded programme",
+        kind="event",
+        flat_items=[QuestionnaireItemIn(uid="Deb1aaaaaaa", name="Reading", value_type=value_type)],
+        program_rules=[
+            _gate_rule(f"Ruleb{index}aaaaa", condition, "SHOWERROR", "Deb1aaaaaaa")
+            for index, condition in enumerate(conditions)
+        ],
+        program_rule_variables=[_gate_variable("reading", "Deb1aaaaaaa")],
+    )
+
+
+def test_an_integer_answer_stays_under_the_maximum_a_rule_states() -> None:
+    """A rule refusing anything over ten states `maxValue` ten, and the example answers ten or under."""
+    build = build_synthetic_responses([_bounded_program(["#{reading} > 10"], "INTEGER")], [], 8, _ROOT_ORG_UNIT, _TODAY)
+
+    values = [int(answer.value) for response in build.responses for answer in response.answers]
+
+    assert len(values) == 8
+    assert all(value <= 10 for value in values)
+
+
+def test_a_decimal_answer_stays_over_the_minimum_a_rule_states() -> None:
+    """A rule refusing anything under fifty states `minValue` fifty, and the example answers fifty or over."""
+    build = build_synthetic_responses([_bounded_program(["#{reading} < 50"], "NUMBER")], [], 8, _ROOT_ORG_UNIT, _TODAY)
+
+    values = [float(answer.value) for response in build.responses for answer in response.answers]
+
+    assert len(values) == 8
+    assert all(value >= 50 for value in values)
+
+
+def test_a_negative_integer_question_answers_inside_the_sign_its_value_type_admits() -> None:
+    """`INTEGER_NEGATIVE` states `maxValue` -1, so the example answers below zero rather than at random."""
+    source = QuestionnaireSourceIn(
+        uid="Bnd2aaaaaaa",
+        name="Negative programme",
+        kind="event",
+        flat_items=[QuestionnaireItemIn(uid="Deb2aaaaaaa", name="Balance", value_type="INTEGER_NEGATIVE")],
+    )
+
+    build = build_synthetic_responses([source], [], 8, _ROOT_ORG_UNIT, _TODAY)
+    values = [int(answer.value) for response in build.responses for answer in response.answers]
+
+    assert len(values) == 8
+    assert all(value <= -1 for value in values)
+
+
+def test_a_question_whose_bounds_admit_nothing_is_left_unanswered_with_a_note() -> None:
+    """Two rules can leave a maximum under a minimum, and no answer is inside a range holding none."""
+    build = build_synthetic_responses(
+        [_bounded_program(["#{reading} > 10", "#{reading} < 50"], "INTEGER")], [], 1, _ROOT_ORG_UNIT, _TODAY
+    )
+
+    messages = [note.message for note in build.notes]
+
+    assert build.responses[0].answers == []
+    assert any("value range admitting no answer at all" in message for message in messages)
+    assert any("Reading (Deb1aaaaaaa)" in message for message in messages)

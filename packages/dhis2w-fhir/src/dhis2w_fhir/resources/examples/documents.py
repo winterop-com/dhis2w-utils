@@ -60,8 +60,14 @@ from dhis2w_fhir.resources.examples import (
     example_tracker_context,
     location_stem,
 )
-from dhis2w_fhir.resources.option_sets import code_system_canonical, option_set_identity_index
+from dhis2w_fhir.resources.option_sets import (
+    code_system_canonical,
+    option_concept_code_index,
+    option_set_identity_index,
+)
+from dhis2w_fhir.resources.option_sets.schemas import OptionConceptCodeIndex
 from dhis2w_fhir.resources.questionnaires import bound_option_set_uids
+from dhis2w_fhir.resources.questionnaires.program_rules import FormProgramRules, plan_program_rules
 from dhis2w_fhir.resources.questionnaires.schemas import (
     QuestionnaireStemPlan,
     form_subject_type,
@@ -217,6 +223,8 @@ def build_example_documents(
     """
     systems = _ExampleSystems.from_config(config, canonical)
     plan = stem_plan if stem_plan is not None else plan_questionnaire_stems(sources, config.naming.source)
+    option_concept_codes = option_concept_code_index(option_sets, config)
+    program_rule_plan = plan_program_rules(sources, option_concept_codes)
     rules = ExampleAnswerRules(
         timezone=config.timezone, published_organisation_unit_uids=published_organisation_unit_uids
     )
@@ -243,6 +251,8 @@ def build_example_documents(
                 canonical,
                 tally,
                 rules,
+                program_rule_plan.for_form(source.uid),
+                option_concept_codes,
                 target_stem=plan.targets.stem_for(source.uid),
                 organisation_unit_stems=organisation_unit_stems,
                 attribute_combos=attribute_combo_plan,
@@ -274,6 +284,8 @@ def _response_document(
     canonical: str,
     tally: ExampleTally,
     rules: ExampleAnswerRules,
+    program_rules: FormProgramRules,
+    option_concept_codes: OptionConceptCodeIndex,
     *,
     target_stem: str,
     organisation_unit_stems: StemResolution | None,
@@ -290,7 +302,9 @@ def _response_document(
     attribute_option_combo = example_attribute_option_combo(
         response, source, attribute_combos, attribute_combo_assignments, tally
     )
-    answers = example_answers(response, source, option_sets_by_uid, assignments, tally, rules)
+    answers = example_answers(
+        response, source, option_sets_by_uid, assignments, tally, rules, program_rules, option_concept_codes
+    )
     authored = example_authored(response, tally, rules)
     tracker = example_tracker_context(response, source, tally, rules)
     complete = example_is_complete(source.kind, period=period, authored=authored, tracker=tracker)

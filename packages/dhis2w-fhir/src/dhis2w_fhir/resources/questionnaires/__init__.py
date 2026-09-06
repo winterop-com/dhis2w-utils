@@ -92,6 +92,7 @@ from dhis2w_fhir.resources.questionnaires.program_rules import (
 )
 from dhis2w_fhir.resources.questionnaires.schemas import (
     BOUND_ELEMENTS_BY_ITEM_TYPE,
+    BOUNDS_BY_VALUE_TYPE,
     CATEGORY_OPTION_COMBO_TERMINOLOGY,
     DATA_ELEMENT_TERMINOLOGY,
     DISPLAY_IN_LIST_PROPERTY_DESCRIPTION,
@@ -226,19 +227,6 @@ _ENVIRONMENT = Environment(
     trim_blocks=True,
     lstrip_blocks=True,
 )
-
-#: The range each bounded DHIS2 numeric value type admits, as the `minValue` / `maxValue`
-#: extensions a question carries. Only the value types whose name *is* a constraint appear:
-#: `INTEGER` and `NUMBER` are unbounded in DHIS2, so a bound on them would invent a rule the
-#: instance does not enforce. A guard test asserts every key is a member of the generated
-#: `ValueType` enum across v41, v42, and v43.
-BOUNDS_BY_VALUE_TYPE = {
-    "INTEGER_POSITIVE": NumericBounds(minimum_value=1),
-    "INTEGER_ZERO_OR_POSITIVE": NumericBounds(minimum_value=0),
-    "INTEGER_NEGATIVE": NumericBounds(maximum_value=-1),
-    "PERCENTAGE": NumericBounds(minimum_value=0, maximum_value=100),
-    "UNIT_INTERVAL": NumericBounds(minimum_value=0, maximum_value=1),
-}
 
 #: The one DHIS2 value type that captures several answers to a single question.
 _MULTI_VALUE_TYPE = "MULTI_TEXT"

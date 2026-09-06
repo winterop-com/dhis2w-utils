@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import datetime
 import hashlib
+import math
 import random
 import re
 import string
@@ -51,6 +52,7 @@ from dhis2w_fhir.r4.primitives import (
 )
 from dhis2w_fhir.resources.attribute_combos import attribute_combo_sources
 from dhis2w_fhir.resources.attribute_combos.schemas import AttributeComboPlan
+from dhis2w_fhir.resources.examples.enablement import settled_question_uids
 from dhis2w_fhir.resources.examples.schemas import (
     MAXIMUM_EXAMPLES_PER_TARGET,
     ExampleAnswer,
@@ -66,21 +68,39 @@ from dhis2w_fhir.resources.examples.schemas import (
     RegistrationIdentities,
     SyntheticPlacement,
 )
-from dhis2w_fhir.resources.option_sets import concept_assignments, option_set_identity_index
+from dhis2w_fhir.resources.option_sets import (
+    concept_assignments,
+    option_concept_code_index,
+    option_set_identity_index,
+)
 from dhis2w_fhir.resources.option_sets.schemas import (
     ConceptAssignmentPlan,
+    OptionConceptCodeIndex,
     OptionIn,
     OptionSetIdentity,
     OptionSetIdentityPlan,
     OptionSetIn,
 )
-from dhis2w_fhir.resources.questionnaires import bound_option_set_uids, is_disaggregated, source_items
+from dhis2w_fhir.resources.questionnaires import (
+    bound_option_set_uids,
+    is_disaggregated,
+    source_items,
+    value_type_bounds,
+)
+from dhis2w_fhir.resources.questionnaires.program_rules import (
+    FormProgramRules,
+    merged_bounds,
+    plan_program_rules,
+)
 from dhis2w_fhir.resources.questionnaires.schemas import (
+    MAXIMUM_VALUE_EXTENSION_URL,
+    MINIMUM_VALUE_EXTENSION_URL,
     FormKind,
     QuestionnaireItemIn,
     QuestionnaireSourceIn,
     QuestionnaireStemPlan,
     form_subject_type,
+    item_type,
     plan_questionnaire_stems,
     source_display_name,
     source_program,
@@ -110,6 +130,7 @@ __all__ = [
     "ExampleAttributeOptionCombo",
     "ExampleCoding",
     "ExampleItem",
+    "ExampleNumericBounds",
     "ExampleResponseIn",
     "ExampleSelection",
     "ExampleSource",
@@ -127,6 +148,7 @@ __all__ = [
     "example_authored",
     "example_concept_assignments",
     "example_is_complete",
+    "example_numeric_bounds",
     "example_items",
     "example_period",
     "example_tracker_context",
@@ -296,6 +318,9 @@ _SYNTHETIC_MULTI_SELECTIONS = 2
 #: The bounds the synthetic numeric value types draw from.
 _SYNTHETIC_INTEGER_BOUND = 1000
 _SYNTHETIC_PERCENTAGE_BOUND = 100.0
+
+#: The span a unit-interval question draws over where its bounds leave an end open.
+_SYNTHETIC_UNIT_INTERVAL_SPAN = 1.0
 _SYNTHETIC_DECIMAL_PLACES = 1
 _SYNTHETIC_UNIT_INTERVAL_PLACES = 2
 _HOURS_PER_DAY = 24
@@ -418,6 +443,7 @@ class ExampleTally(BaseModel):
     periodless_data_sets: list[str] = Field(default_factory=list)
     unauthored_responses: list[str] = Field(default_factory=list)
     incomplete_tracker_responses: list[str] = Field(default_factory=list)
+    unasked_questions: list[str] = Field(default_factory=list)
 
     def to_notes(self) -> list[GenerateNote]:
         """Roll the tally up into one aggregate note per noteworthy example outcome."""
@@ -495,6 +521,16 @@ class ExampleTally(BaseModel):
                     self.unauthored_responses,
                 )
             )
+        if self.unasked_questions:
+            notes.append(
+                aggregate_generate_note(
+                    GenerateNoteCategory.SKIPPED_QUESTION,
+                    f"{pluralize(len(self.unasked_questions), 'captured value')} "
+                    f"{verb_for_count(len(self.unasked_questions), 'answers', 'answer')} a question the "
+                    "form's own enableWhen leaves disabled given the rest of the response; left unanswered",
+                    self.unasked_questions,
+                )
+            )
         if self.incomplete_tracker_responses:
             notes.append(
                 aggregate_generate_note(
@@ -552,6 +588,8 @@ def build_example_artifacts(
         timezone=config.timezone, published_organisation_unit_uids=published_organisation_unit_uids
     )
     foundation = FoundationNaming.from_naming(config.naming)
+    option_concept_codes = option_concept_code_index(option_sets, config)
+    program_rule_plan = plan_program_rules(sources, option_concept_codes)
     index = option_set_identity_index(option_set_plan, bound_option_set_uids(sources), config)
     sources_by_uid = {source.uid: source for source in sources}
     option_sets_by_uid = {option_set.uid: option_set for option_set in option_sets}
@@ -577,6 +615,8 @@ def build_example_artifacts(
             canonical,
             tally,
             rules,
+            program_rule_plan.for_form(source.uid),
+            option_concept_codes,
             target_stem=plan.targets.stem_for(source.uid),
             organisation_unit_stems=organisation_unit_stems,
             attribute_combos=attribute_combo_plan,
@@ -690,6 +730,7 @@ def build_synthetic_responses(
     placements: dict[str, SyntheticPlacement] | None = None,
     registration_program_uids: frozenset[str] = frozenset(),
     salt: str = "",
+    option_concept_codes: OptionConceptCodeIndex | None = None,
 ) -> SyntheticBuild:
     """Generate `per_target` deterministic example responses per target, answering every question it can.
 
@@ -722,11 +763,19 @@ def build_synthetic_responses(
     with `E1064`, and the enrollment behind it, and every event on that enrollment. `salt` moves
     every draw of the run at once, which is what a caller wanting a *second* importable corpus
     passes: the identities a corpus mints are as much a one-shot as the values it invents.
+
+    `option_concept_codes` is the run's DHIS2-code-to-concept-code join, which the form's own
+    `enableWhen` is read through: a hide on a coded answer names the concept the CodeSystem
+    publishes, and the draw answers in DHIS2 codes. A caller handing none states a run whose coded
+    hides no form expresses, so every coded gate is left open.
     """
     build = SyntheticBuild()
     option_sets_by_uid = {option_set.uid: option_set for option_set in option_sets}
+    program_rule_plan = plan_program_rules(sources, option_concept_codes)
     unanswerable: list[str] = []
     indistinct: list[str] = []
+    unsatisfiable: list[str] = []
+    unasked: list[str] = []
     for source in sorted(sources, key=lambda item: (item.name, item.uid)):
         placement = (placements or {}).get(source.uid)
         for ordinal in range(1, per_target + 1):
@@ -739,6 +788,10 @@ def build_synthetic_responses(
                     today,
                     unanswerable,
                     indistinct,
+                    unsatisfiable,
+                    unasked,
+                    program_rule_plan.for_form(source.uid),
+                    option_concept_codes,
                     _assigned_registration(source, ordinal, per_target, registration_program_uids, salt),
                     salt,
                 )
@@ -752,6 +805,26 @@ def build_synthetic_responses(
                 "or a reference to a DHIS2 object the IG does not publish; left unanswered in the "
                 "synthetic examples",
                 sorted(set(unanswerable)),
+            )
+        )
+    if unasked:
+        build.notes.append(
+            aggregate_generate_note(
+                GenerateNoteCategory.SKIPPED_QUESTION,
+                f"{pluralize(len(set(unasked)), 'question')} "
+                f"{verb_for_count(len(set(unasked)), 'is', 'are')} left disabled by the form's own "
+                "enableWhen given the rest of the response; left unanswered in the synthetic examples",
+                sorted(set(unasked)),
+            )
+        )
+    if unsatisfiable:
+        build.notes.append(
+            aggregate_generate_note(
+                GenerateNoteCategory.SKIPPED_QUESTION,
+                f"{pluralize(len(set(unsatisfiable)), 'question')} "
+                f"{verb_for_count(len(set(unsatisfiable)), 'declares', 'declare')} a value range admitting "
+                "no answer at all, its maximum below its minimum; left unanswered in the synthetic examples",
+                sorted(set(unsatisfiable)),
             )
         )
     if indistinct:
@@ -799,10 +872,22 @@ def _synthetic_response(
     today: datetime.date,
     unanswerable: list[str],
     indistinct: list[str],
+    unsatisfiable: list[str],
+    unasked: list[str],
+    rules: FormProgramRules,
+    option_concept_codes: OptionConceptCodeIndex | None = None,
     registration: RegistrationIdentities | None = None,
     salt: str = "",
 ) -> ExampleResponseIn:
-    """Generate one target's `n`-th example: its period or occurrence, its tracker context, then its answers."""
+    """Generate one target's `n`-th example: its period or occurrence, its tracker context, then its answers.
+
+    `rules` is what the form's program rules put on its questions, which is both where a numeric
+    question's bounds come from - the example answers inside the very range its Questionnaire
+    declares, and a question whose bounds admit no value at all is left unanswered and tallied -
+    and what decides which questions the form turns out to be asking at all. Every question is
+    drawn and the disabled ones are dropped afterwards, because a condition names another question
+    and the answer settling it is one this same draw produces.
+    """
     generator = random.Random(derived_seed(source.uid, ordinal, salt))  # noqa: S311 - illustrative values, not a secret
     period = _synthetic_period(source, today)
     window = _SyntheticWindow.of_period(period) if period is not None else _SyntheticWindow.recent(today)
@@ -832,8 +917,20 @@ def _synthetic_response(
     unique_token = tracked_entity_uid or instance_id
     for key in _answerable_keys(source):
         option_set = option_sets_by_uid.get(key.item.option_set_uid or "")
+        bounds = example_numeric_bounds(key.item, rules)
+        if bounds.admits_nothing:
+            unsatisfiable.append(f"{key.item.name} ({key.item.uid})")
+            continue
         value = _synthetic_value(
-            key.item, option_set, generator, window, instance_id, organisation_unit_uid, unique_token, indistinct
+            key.item,
+            option_set,
+            generator,
+            window,
+            instance_id,
+            organisation_unit_uid,
+            unique_token,
+            indistinct,
+            bounds,
         )
         if value is None:
             unanswerable.append(f"{key.item.name} ({key.item.uid})")
@@ -845,6 +942,7 @@ def _synthetic_response(
                 value=value,
             )
         )
+    answers = _enabled_answers(source, rules, answers, unasked, option_concept_codes)
     return ExampleResponseIn(
         instance_id=instance_id,
         target_uid=source.uid,
@@ -860,6 +958,25 @@ def _synthetic_response(
         incident_at=incident_at,
         answers=answers,
     )
+
+
+def _enabled_answers(
+    source: QuestionnaireSourceIn,
+    rules: FormProgramRules,
+    answers: list[ExampleAnswerIn],
+    unasked: list[str],
+    option_concept_codes: OptionConceptCodeIndex | None,
+) -> list[ExampleAnswerIn]:
+    """Keep the answers the form turns out to be asking for, tallying every question it leaves disabled."""
+    captured: dict[str, list[str]] = {}
+    for answer in answers:
+        captured.setdefault(answer.data_element_uid, []).append(answer.value)
+    asked = settled_question_uids(source, rules, captured, option_concept_codes)
+    names = {item.uid: item.name for item in source_items(source)}
+    for uid in captured:
+        if uid not in asked:
+            unasked.append(f"{names.get(uid, uid)} ({uid})")
+    return [answer for answer in answers if answer.data_element_uid in asked]
 
 
 def _placed_organisation_unit(
@@ -992,6 +1109,54 @@ def _pick_hour(generator: random.Random) -> str:
     return f"{generator.randrange(_HOURS_PER_DAY):02d}"
 
 
+class ExampleNumericBounds(BaseModel):
+    """The range one numeric question's answers fall in: its value type's, tightened by any rule's.
+
+    The very range the generated Questionnaire states as the `minValue` / `maxValue` extensions,
+    read through the questionnaire emitter's own `merged_bounds`, so an example answers inside the
+    bounds the form it answers declares rather than inside a range of the generator's own.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    minimum: float | None = None
+    maximum: float | None = None
+
+    @property
+    def admits_nothing(self) -> bool:
+        """Whether the two ends leave no value between them - a maximum below the minimum."""
+        return self.minimum is not None and self.maximum is not None and self.minimum > self.maximum
+
+
+def example_numeric_bounds(item: QuestionnaireItemIn, rules: FormProgramRules) -> ExampleNumericBounds:
+    """The range one question's numeric answers must fall in, open at both ends for an unbounded question."""
+    stated = merged_bounds(value_type_bounds(item.value_type, item_type(item)), rules.bounds_for(item.uid))
+    ends = {
+        bound.url: float(bound.integer if bound.integer is not None else (bound.decimal or 0.0)) for bound in stated
+    }
+    return ExampleNumericBounds(
+        minimum=ends.get(MINIMUM_VALUE_EXTENSION_URL), maximum=ends.get(MAXIMUM_VALUE_EXTENSION_URL)
+    )
+
+
+def _bounded_integer(bounds: ExampleNumericBounds, generator: random.Random) -> int:
+    """Draw one whole number inside the question's bounds, over the generator's own span where an end is open."""
+    low = math.ceil(bounds.minimum) if bounds.minimum is not None else None
+    high = math.floor(bounds.maximum) if bounds.maximum is not None else None
+    if low is None:
+        low = 0 if high is None else high - _SYNTHETIC_INTEGER_BOUND + 1
+    if high is None:
+        high = low + _SYNTHETIC_INTEGER_BOUND - 1
+    return generator.randrange(low, high + 1)
+
+
+def _bounded_decimal(bounds: ExampleNumericBounds, generator: random.Random, places: int, span: float) -> float:
+    """Draw one decimal inside the question's bounds, over `span` where an end is open, at `places` precision."""
+    low = bounds.minimum if bounds.minimum is not None else 0.0
+    high = bounds.maximum if bounds.maximum is not None else low + span
+    return min(max(round(generator.uniform(low, high), places), low), high)
+
+
 def _synthetic_value(
     item: QuestionnaireItemIn,
     option_set: OptionSetIn | None,
@@ -1001,6 +1166,7 @@ def _synthetic_value(
     organisation_unit_uid: str,
     unique_token: str,
     indistinct: list[str],
+    bounds: ExampleNumericBounds,
 ) -> str | None:
     """Generate one DHIS2-shaped value string for a question; None when the type is not worth faking.
 
@@ -1008,6 +1174,11 @@ def _synthetic_value(
     two registrations of one corpus never collide on `E1064`; where it has none, the ordinary draw
     stands and the question is tallied onto `indistinct` so the run says which values it cannot
     make distinct rather than leaving the refusal to be discovered at import.
+
+    `bounds` is the range the question's own form declares - its value type's, tightened by any
+    program rule the guide read as a `minValue` / `maxValue` extension - and every numeric draw
+    falls inside it, so an example never answers a question with a value the form it answers
+    refuses. A caller settles a range admitting nothing before it draws at all.
     """
     value_type = item.value_type
     if value_type in UNSYNTHESIZABLE_VALUE_TYPES:
@@ -1024,11 +1195,11 @@ def _synthetic_value(
     if value_type == ORGANISATION_UNIT_VALUE_TYPE:
         return organisation_unit_uid
     if value_type in INTEGER_VALUE_TYPES:
-        return str(generator.randrange(_SYNTHETIC_INTEGER_BOUND))
+        return str(_bounded_integer(bounds, generator))
     if value_type == "UNIT_INTERVAL":
-        return str(round(generator.uniform(0, 1), _SYNTHETIC_UNIT_INTERVAL_PLACES))
+        return str(_bounded_decimal(bounds, generator, _SYNTHETIC_UNIT_INTERVAL_PLACES, _SYNTHETIC_UNIT_INTERVAL_SPAN))
     if value_type in DECIMAL_VALUE_TYPES:
-        return str(round(generator.uniform(0, _SYNTHETIC_PERCENTAGE_BOUND), _SYNTHETIC_DECIMAL_PLACES))
+        return str(_bounded_decimal(bounds, generator, _SYNTHETIC_DECIMAL_PLACES, _SYNTHETIC_PERCENTAGE_BOUND))
     if value_type == "TRUE_ONLY":
         return "true"
     if value_type == "BOOLEAN":
@@ -1229,6 +1400,8 @@ def _example_view(
     canonical: str,
     tally: ExampleTally,
     rules: ExampleAnswerRules,
+    program_rules: FormProgramRules,
+    option_concept_codes: OptionConceptCodeIndex,
     *,
     target_stem: str,
     organisation_unit_stems: StemResolution | None,
@@ -1247,7 +1420,9 @@ def _example_view(
     attribute_option_combo = example_attribute_option_combo(
         response, source, attribute_combos, attribute_combo_assignments, tally
     )
-    answers = example_answers(response, source, option_sets_by_uid, assignments, tally, rules)
+    answers = example_answers(
+        response, source, option_sets_by_uid, assignments, tally, rules, program_rules, option_concept_codes
+    )
     authored = example_authored(response, tally, rules)
     tracker = example_tracker_context(response, source, tally, rules)
     complete = example_is_complete(source.kind, period=period, authored=authored, tracker=tracker)
@@ -1379,25 +1554,50 @@ def example_answers(
     assignments: dict[str, ConceptAssignmentPlan],
     tally: ExampleTally,
     rules: ExampleAnswerRules,
+    program_rules: FormProgramRules | None = None,
+    option_concept_codes: OptionConceptCodeIndex | None = None,
 ) -> dict[str, list[ExampleAnswer]]:
     """Type every captured value and index it by the questionnaire `linkId` it answers.
 
     The `linkId` shaping is the questionnaire emitter's own disaggregation rule, so an aggregate
     value lands on `<deUid>.<cocUid>` and an event value lands on `<deUid>` whatever category
     combo its data element declares.
+
+    `program_rules` is what the form's own program rules put on its items, which is where the
+    `enableWhen` an answer must satisfy comes from: a value answering a question the rest of the
+    response leaves disabled is dropped and tallied, because R4 reads a disabled item as one no
+    response answers. A caller handing none states a form nothing gates, and every value is
+    emitted.
     """
     items_by_uid = {item.uid: item for item in source_items(source)}
+    asked = _asked_question_uids(response, source, program_rules or FormProgramRules(), option_concept_codes)
     answers: dict[str, list[ExampleAnswer]] = {}
     for captured in response.answers:
         item = items_by_uid.get(captured.data_element_uid)
         if item is None:
             tally.unknown_data_elements.append(f"{captured.data_element_uid} in {response.instance_id}")
             continue
+        if captured.data_element_uid not in asked:
+            tally.unasked_questions.append(f"{item.name} ({item.uid}) in {response.instance_id}")
+            continue
         link_id = captured.data_element_uid
         if is_disaggregated(item, source.kind) and captured.category_option_combo_uid is not None:
             link_id = f"{link_id}.{captured.category_option_combo_uid}"
         answers[link_id] = _typed_answers(item, captured.value, option_sets_by_uid, assignments, tally, rules)
     return answers
+
+
+def _asked_question_uids(
+    response: ExampleResponseIn,
+    source: QuestionnaireSourceIn,
+    program_rules: FormProgramRules,
+    option_concept_codes: OptionConceptCodeIndex | None,
+) -> frozenset[str]:
+    """Which of the form's questions the response's own answers leave it asking, swept to a fixed point."""
+    captured: dict[str, list[str]] = {}
+    for answer in response.answers:
+        captured.setdefault(answer.data_element_uid, []).append(answer.value)
+    return settled_question_uids(source, program_rules, captured, option_concept_codes)
 
 
 def _typed_answers(
