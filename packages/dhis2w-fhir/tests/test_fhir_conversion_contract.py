@@ -18,6 +18,8 @@ What the gate proves:
 - The FSH the foundation target emits and the compiled artifact this gate reads are one thing: the
   differential is asserted equal to `DATA_VALUE_SET_ELEMENTS`, the declaration the FSH template is
   rendered from, so an edit to either without the other fails here.
+- Every `evaluate` transform of the compiled map carries one parameter, the FHIRPath expression the
+  publisher's validator holds it to, and names its variables inside that expression.
 
 What the gate does NOT prove:
 
@@ -49,6 +51,9 @@ _MAP_GOLDEN = Path(__file__).parent / "data" / "r4" / "StructureMap-d2-aggregate
 
 #: The FHIR `date` datatype, which is what the contract types `completeDate` as.
 _FHIR_DATE = re.compile(r"^\d{4}(-\d{2}(-\d{2})?)?$")
+
+#: A variable reference inside a FHIRPath expression, which is how an `evaluate` transform reaches its source.
+_VARIABLE = re.compile(r"%([A-Za-z][A-Za-z0-9]*)")
 
 #: The FHIR type a nested group of elements carries; its value on the wire is a list of objects.
 _BACKBONE = "BackboneElement"
@@ -171,6 +176,41 @@ def test_the_compiled_map_reads_a_response_and_writes_the_model_published_beside
     for group in compiled["group"]:
         _collect(group["rule"])
     assert written == {element.path.rsplit(".", 1)[-1] for element in DATA_VALUE_SET_ELEMENTS}
+
+
+def test_every_evaluate_transform_carries_the_expression_alone() -> None:
+    """`evaluate` takes one parameter, the FHIRPath expression, and names its variables inside it.
+
+    The IG publisher's validator holds `evaluate` to a single parameter, so an expression reaching
+    for the rule's source names that variable itself - `%questionnaire.resolve()...` rather than a
+    separate `valueId` beside a bare path - and every variable it names is one an enclosing rule or
+    the group's own input binds.
+    """
+    compiled = json.loads(_MAP_GOLDEN.read_text(encoding="utf-8"))
+    expressions: list[str] = []
+
+    def _walk(rules: list[dict[str, Any]], bound: frozenset[str]) -> None:
+        for rule in rules:
+            in_scope = (
+                bound
+                | {source["variable"] for source in rule.get("source", []) if "variable" in source}
+                | {target["variable"] for target in rule.get("target", []) if "variable" in target}
+            )
+            for target in rule.get("target", []):
+                if target.get("transform") != "evaluate":
+                    continue
+                parameters = target["parameter"]
+                assert [sorted(parameter) for parameter in parameters] == [["valueString"]]
+                expression = parameters[0]["valueString"]
+                expressions.append(expression)
+                for variable in _VARIABLE.findall(expression):
+                    assert variable in in_scope, f"`{expression}` names `%{variable}`, which nothing binds"
+            _walk(rule.get("rule", []), in_scope)
+
+    for group in compiled["group"]:
+        _walk(group["rule"], frozenset(inp["name"] for inp in group["input"]))
+    assert len(expressions) == 6
+    assert all(expression.startswith("%") for expression in expressions)
 
 
 def test_the_contract_states_the_four_keys_dhis2_stores_a_data_value_under() -> None:

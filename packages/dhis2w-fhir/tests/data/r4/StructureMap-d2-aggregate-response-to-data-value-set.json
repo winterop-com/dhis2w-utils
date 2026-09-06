@@ -55,10 +55,7 @@
               "transform": "evaluate",
               "parameter": [
                 {
-                  "valueId": "questionnaire"
-                },
-                {
-                  "valueString": "resolve().identifier.where(system = 'http://dhis2.org/fhir/id/data-set').value"
+                  "valueString": "%questionnaire.resolve().identifier.where(system = 'http://dhis2.org/fhir/id/data-set').value"
                 }
               ]
             }
@@ -132,10 +129,7 @@
               "transform": "evaluate",
               "parameter": [
                 {
-                  "valueId": "subject"
-                },
-                {
-                  "valueString": "resolve().identifier.where(system = 'http://dhis2.org/fhir/id/org-unit').value"
+                  "valueString": "%subject.resolve().identifier.where(system = 'http://dhis2.org/fhir/id/org-unit').value"
                 }
               ]
             }
@@ -208,10 +202,7 @@
               "transform": "evaluate",
               "parameter": [
                 {
-                  "valueId": "authored"
-                },
-                {
-                  "valueString": "toString().substring(0, 10)"
+                  "valueString": "%authored.toString().substring(0, 10)"
                 }
               ]
             }
@@ -310,10 +301,7 @@
                   "transform": "evaluate",
                   "parameter": [
                     {
-                      "valueId": "linkId"
-                    },
-                    {
-                      "valueString": "substring(0, iif(contains('.'), indexOf('.'), length()))"
+                      "valueString": "%linkId.substring(0, iif(contains('.'), indexOf('.'), length()))"
                     }
                   ]
                 }
@@ -336,10 +324,7 @@
                   "transform": "evaluate",
                   "parameter": [
                     {
-                      "valueId": "linkId"
-                    },
-                    {
-                      "valueString": "iif(contains('.'), substring(indexOf('.') + 1), {})"
+                      "valueString": "%linkId.iif(contains('.'), substring(indexOf('.') + 1), {})"
                     }
                   ]
                 }
@@ -363,10 +348,7 @@
                   "transform": "evaluate",
                   "parameter": [
                     {
-                      "valueId": "answerValue"
-                    },
-                    {
-                      "valueString": "toString()"
+                      "valueString": "%answerValue.toString()"
                     }
                   ]
                 }

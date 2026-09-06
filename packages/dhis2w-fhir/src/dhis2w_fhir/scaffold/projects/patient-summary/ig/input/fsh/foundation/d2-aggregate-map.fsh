@@ -42,8 +42,7 @@ Usage: #definition
 * group[0].rule[0].target[0].contextType = #variable
 * group[0].rule[0].target[0].element = "dataSet"
 * group[0].rule[0].target[0].transform = #evaluate
-* group[0].rule[0].target[0].parameter[0].valueId = "questionnaire"
-* group[0].rule[0].target[0].parameter[1].valueString = "resolve().identifier.where(system = 'http://dhis2.org/fhir/id/data-set').value"
+* group[0].rule[0].target[0].parameter[0].valueString = "%questionnaire.resolve().identifier.where(system = 'http://dhis2.org/fhir/id/data-set').value"
 
 * group[0].rule[1].name = "period"
 * group[0].rule[1].documentation = "The DHIS2 ISO period is what the import is keyed by. The date range the same extension carries is a rendering of that period, and a range disagreeing with the ISO period is ignored rather than obeyed."
@@ -75,8 +74,7 @@ Usage: #definition
 * group[0].rule[2].target[0].contextType = #variable
 * group[0].rule[2].target[0].element = "orgUnit"
 * group[0].rule[2].target[0].transform = #evaluate
-* group[0].rule[2].target[0].parameter[0].valueId = "subject"
-* group[0].rule[2].target[0].parameter[1].valueString = "resolve().identifier.where(system = 'http://dhis2.org/fhir/id/org-unit').value"
+* group[0].rule[2].target[0].parameter[0].valueString = "%subject.resolve().identifier.where(system = 'http://dhis2.org/fhir/id/org-unit').value"
 
 * group[0].rule[3].name = "attributeOptionCombo"
 * group[0].rule[3].documentation = "The response names its attribute option combo as a coding of the vocabulary its own form declares. The code is the DHIS2 UID wherever the guide's concept codes are DHIS2 ids; where they are DHIS2 codes, the combo's own ConceptMap translates the code onto http://dhis2.org/fhir/id/category-option-combo and this rule is that translation's input. A data set on the default category combo names no combo at all, and DHIS2 fills the field itself."
@@ -107,8 +105,7 @@ Usage: #definition
 * group[0].rule[4].target[0].contextType = #variable
 * group[0].rule[4].target[0].element = "completeDate"
 * group[0].rule[4].target[0].transform = #evaluate
-* group[0].rule[4].target[0].parameter[0].valueId = "authored"
-* group[0].rule[4].target[0].parameter[1].valueString = "toString().substring(0, 10)"
+* group[0].rule[4].target[0].parameter[0].valueString = "%authored.toString().substring(0, 10)"
 
 * group[0].rule[5].name = "dataValues"
 * group[0].rule[5].source[0].context = "response"
@@ -155,8 +152,7 @@ Usage: #definition
 * group[1].rule[1].rule[0].target[0].contextType = #variable
 * group[1].rule[1].rule[0].target[0].element = "dataElement"
 * group[1].rule[1].rule[0].target[0].transform = #evaluate
-* group[1].rule[1].rule[0].target[0].parameter[0].valueId = "linkId"
-* group[1].rule[1].rule[0].target[0].parameter[1].valueString = "substring(0, iif(contains('.'), indexOf('.'), length()))"
+* group[1].rule[1].rule[0].target[0].parameter[0].valueString = "%linkId.substring(0, iif(contains('.'), indexOf('.'), length()))"
 
 * group[1].rule[1].rule[1].name = "categoryOptionCombo"
 * group[1].rule[1].rule[1].source[0].context = "item"
@@ -166,8 +162,7 @@ Usage: #definition
 * group[1].rule[1].rule[1].target[0].contextType = #variable
 * group[1].rule[1].rule[1].target[0].element = "categoryOptionCombo"
 * group[1].rule[1].rule[1].target[0].transform = #evaluate
-* group[1].rule[1].rule[1].target[0].parameter[0].valueId = "linkId"
-* group[1].rule[1].rule[1].target[0].parameter[1].valueString = "iif(contains('.'), substring(indexOf('.') + 1), {})"
+* group[1].rule[1].rule[1].target[0].parameter[0].valueString = "%linkId.iif(contains('.'), substring(indexOf('.') + 1), {})"
 
 * group[1].rule[1].rule[2].name = "value"
 * group[1].rule[1].rule[2].documentation = "Every DHIS2 data value is a string on the wire, and which string an answer becomes is the one part of this map a transform cannot state: a TRUE_ONLY question answered false drops the whole cell, a MULTI_TEXT answer is the comma-joined set of its codes, a decimal keeps the lexical form it was captured in, a coded answer is resolved through the question's own terminology, and a zoned timestamp is read to the wall clock DHIS2 stores. `dhis2w_fhir.conversion.values` is the reference implementation of that table."
@@ -178,5 +173,4 @@ Usage: #definition
 * group[1].rule[1].rule[2].target[0].contextType = #variable
 * group[1].rule[1].rule[2].target[0].element = "value"
 * group[1].rule[1].rule[2].target[0].transform = #evaluate
-* group[1].rule[1].rule[2].target[0].parameter[0].valueId = "answerValue"
-* group[1].rule[1].rule[2].target[0].parameter[1].valueString = "toString()"
+* group[1].rule[1].rule[2].target[0].parameter[0].valueString = "%answerValue.toString()"
