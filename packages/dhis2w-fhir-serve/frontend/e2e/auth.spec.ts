@@ -3,10 +3,10 @@ import { expect, test, type Page } from '@playwright/test'
 /**
  * The DHIS2 posture, end to end in a browser: refused before signing in, served after.
  *
- * WHAT IS REAL HERE AND WHAT IS FULFILLED. The bundle, the shell, the sign-in panel,
- * `sessionStorage`, and every header the browser sends are the real thing, against the real
- * `d2w fhir serve --ui` this suite drives. Three answers are fulfilled: `rest.security` on
- * `/metadata`, `GET /facade/whoami`, and the 401 the create route gives an unsigned caller.
+ * WHAT IS REAL HERE AND WHAT IS FULFILLED. The bundle, the shell, the sign-in panel, and every
+ * header the browser sends are the real thing, against the real `d2w fhir serve --ui` this suite
+ * drives. Three answers are fulfilled: `rest.security` on `/metadata`, `GET /facade/whoami`, and
+ * the 401 the create route gives an unsigned caller.
  *
  * WHY THOSE TWO. `uiconfig.spec.ts` argues this in full and this file inherits it: the suite drives
  * ONE server process, and `[serve] auth` is a property of how a process was STARTED - one process
@@ -28,11 +28,12 @@ import { expect, test, type Page } from '@playwright/test'
  * `test_serve_auth_jwt.py`'s claim, made there against real keys and real signatures.
  *
  * THE CLAIM. A person opening this facade under the DHIS2 posture is asked who they are before any
- * page is drawn; what they type is checked against the server before this tab keeps it, so a wrong
+ * page is drawn; what they type is checked against the server before this page holds it, so a wrong
  * password is refused at the prompt rather than at the first submission; what they type is sent as
  * HTTP Basic on every request after that; the app is the app again once the server accepts it; and
- * signing out forgets the lot. Under the JWT posture they are told whose token to bring, and what
- * they paste is what leaves the tab.
+ * signing out - or reloading, which comes to the same thing for a credential held in the page -
+ * forgets the lot. Under the JWT posture they are told whose token to bring, and what they paste is
+ * what leaves the browser.
  */
 
 /** The aggregate form the fixture project publishes, which is what the gated capture answers. */
@@ -204,8 +205,8 @@ test('a DHIS2-posture facade asks who this is, and is the app again once it know
     // there is the listing, because the read that would fill it was never made.
     await expect(page.getByRole('link').filter({ hasText: 'Child Health' })).toHaveCount(0)
 
-    // What the panel keeps is a tab's credential, and it says so where a person can read it.
-    await expect(page.getByText('this browser tab only')).toBeVisible()
+    // What the panel holds is the page's credential, and it says so where a person can read it.
+    await expect(page.getByText('held in this page only')).toBeVisible()
 
     await page.getByLabel('DHIS2 username').fill(USERNAME)
     await page.getByLabel('DHIS2 password').fill(PASSWORD)
@@ -236,11 +237,11 @@ test('a wrong password is refused at the prompt, before anything is filled in', 
     await page.getByLabel('DHIS2 password').fill('not-the-password')
     await page.getByRole('button', { name: 'Sign in' }).click()
 
-    // The refusal is on the panel, the fields are still there to try again with, and nothing was
-    // kept - which is the whole point of asking before storing.
+    // The refusal is on the panel, the fields are still there to try again with, and the prompt is
+    // still in place of the page - which is the whole point of asking before holding on to anything.
     await expect(page.getByText('This DHIS2 instance did not accept this username and password.')).toBeVisible()
     await expect(page.getByLabel('DHIS2 password')).toBeVisible()
-    expect(await page.evaluate(() => sessionStorage.getItem('d2w-fhir-serve-authorization'))).toBeNull()
+    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
 
     // And the right password gets through, on the same panel, with nothing reloaded.
     await page.getByLabel('DHIS2 password').fill(PASSWORD)
@@ -256,13 +257,16 @@ test('a credential this server refuses brings the prompt back, wherever the refu
     await nameTheCaller(page, EXPECTED_AUTHORIZATION, { posture: 'dhis2', username: USERNAME, name: USERNAME })
     await guardTheCapture(page, sent)
 
-    // A tab holding a credential the server no longer accepts - a password changed, an account
-    // disabled. The app opens as the app, because nothing has been refused yet: the check at the
-    // prompt cannot cover a credential that went stale after somebody signed in.
-    await page.addInitScript(() => {
-        sessionStorage.setItem('d2w-fhir-serve-authorization', 'Basic d3JvbmM6d3Jvbmc=')
-        sessionStorage.setItem('d2w-fhir-serve-identity', 'someone-else')
-    })
+    // Somebody signs in, and the credential goes stale behind them - a password changed, an account
+    // disabled - which the guarded create route is told to refuse from here on. The check at the
+    // prompt cannot cover that: it happened after the answer that let this page in.
+    await page.goto('/#/forms')
+    await page.getByLabel('DHIS2 username').fill(USERNAME)
+    await page.getByLabel('DHIS2 password').fill(PASSWORD)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByText(USERNAME)).toBeVisible()
+    await guardTheCapture(page, sent, 'Basic a-credential-nobody-holds')
+
     await page.goto(`/#/forms/${AGGREGATE_FORM}`)
     await expect(page.getByRole('button', { name: 'Fill with test data' })).toBeVisible()
 
@@ -275,7 +279,7 @@ test('a credential this server refuses brings the prompt back, wherever the refu
     // challenge names a scheme the browser hands back instead of intercepting.
     await expect(page.getByText('This DHIS2 instance did not accept this username and password.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
-    expect(sent.at(-1)).toBe('Basic d3JvbmM6d3Jvbmc=')
+    expect(sent.at(-1)).toBe(EXPECTED_AUTHORIZATION)
 })
 
 test('signing out forgets the credential and asks again', async ({ page }) => {
@@ -294,8 +298,29 @@ test('signing out forgets the credential and asks again', async ({ page }) => {
 
     await expect(page.getByText('This server takes your DHIS2 credentials')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0)
-    expect(await page.evaluate(() => sessionStorage.getItem('d2w-fhir-serve-authorization'))).toBeNull()
-    expect(await page.evaluate(() => sessionStorage.getItem('d2w-fhir-serve-identity'))).toBeNull()
+    await expect(page.getByText(USERNAME)).toHaveCount(0)
+})
+
+test('a reload asks who this is again, because the credential lived in the page', async ({ page }) => {
+    const sent: string[] = []
+    await serveDhis2Posture(page)
+    await nameTheCaller(page, EXPECTED_AUTHORIZATION, { posture: 'dhis2', username: USERNAME, name: USERNAME })
+    await guardTheCapture(page, sent)
+
+    await page.goto('/#/forms')
+    await page.getByLabel('DHIS2 username').fill(USERNAME)
+    await page.getByLabel('DHIS2 password').fill(PASSWORD)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByText(USERNAME)).toBeVisible()
+
+    // A reload is a new page, and the credential belonged to the one before it. Nothing was written
+    // to a store for this one to find - which is the claim, made where a browser can contradict it.
+    await page.reload()
+
+    await expect(page.getByText('This server takes your DHIS2 credentials')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0)
+    const keptKeys = await page.evaluate(() => [...Object.keys(sessionStorage), ...Object.keys(localStorage)])
+    expect(keptKeys).not.toContain('d2w-fhir-serve-authorization')
 })
 
 
@@ -312,9 +337,9 @@ test('a JWT-posture facade names the issuer to get a token from, and sends what 
     await expect(page.getByLabel('Token')).toBeVisible()
     await expect(page.getByLabel('DHIS2 username')).toHaveCount(0)
 
-    // And the panel says whose business getting one is, and how long this tab keeps it.
+    // And the panel says whose business getting one is, and how long this page holds it.
     await expect(page.getByText('identity provider')).toBeVisible()
-    await expect(page.getByText('this browser tab only')).toBeVisible()
+    await expect(page.getByText('held in this page only')).toBeVisible()
 
     await page.getByLabel('Token').fill(PASTED_TOKEN)
     await page.getByRole('button', { name: 'Sign in' }).click()

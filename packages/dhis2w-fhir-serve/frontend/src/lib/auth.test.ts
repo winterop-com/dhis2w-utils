@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
     authSnapshot,
@@ -6,8 +6,6 @@ import {
     bearerAuthorization,
     BASIC_SECURITY_CODE,
     BEARER_TOKEN_SECURITY_TEXT,
-    CREDENTIAL_STORAGE_KEY,
-    IDENTITY_STORAGE_KEY,
     issuerFromSecurity,
     JWT_BEARER_TOKEN_SECURITY_TEXT,
     JWT_ISSUER_EXTENSION_URL,
@@ -20,8 +18,6 @@ import {
     signInHeading,
     signInIsRequired,
     signOut,
-    storedAuthorization,
-    storedIdentity,
     subscribeToAuth,
     SIGN_IN_HEADINGS,
     SIGN_IN_NOTES,
@@ -119,40 +115,78 @@ describe('the issuer a JWT server names', () => {
     })
 })
 
-describe('the credential this tab holds', () => {
-    it('sends a username and a password as HTTP Basic', () => {
-        expect(basicAuthorization('clerk', 'secret')).toBe(`Basic ${btoa('clerk:secret')}`)
+describe('the credential this page holds', () => {
+    // The literals are what `base64.b64encode("<user>:<password>".encode())` answers in Python, so
+    // this asserts the browser builds the byte-for-byte header
+    // `dhis2w_client.v42.auth.basic.BasicAuth` builds. A `btoa` round trip here would assert only
+    // that the module agrees with itself, which is what let the two drift apart.
+    it('sends an ASCII username and password as HTTP Basic, as the Python client does', () => {
+        expect(basicAuthorization('admin', 'district')).toBe('Basic YWRtaW46ZGlzdHJpY3Q=')
+    })
+
+    it('sends a Latin name outside ASCII as its UTF-8 bytes, not as one byte per character', () => {
+        expect(basicAuthorization('søren', 'hemmelig')).toBe('Basic c8O4cmVuOmhlbW1lbGln')
+    })
+
+    it('sends characters no single byte can hold, which handing the pair to btoa would refuse', () => {
+        expect(basicAuthorization('李', '秘密')).toBe('Basic 5p2OOuenmOWvhg==')
+    })
+
+    it('sends a password far longer than any argument list, because the bytes go in chunks', () => {
+        const long = 'ø'.repeat(100000)
+
+        const header = basicAuthorization('clerk', long)
+
+        expect(atob(header.slice('Basic '.length))).toBe(`clerk:${long}`.replace(/ø/g, '\u00c3\u00b8'))
     })
 
     it('sends a deployment token as a bearer token', () => {
         expect(bearerAuthorization('a-token')).toBe('Bearer a-token')
     })
 
-    it('is held for this tab and read back from it', () => {
+    it('is held in the module the requests are signed from, and in no store the browser keeps', () => {
         signIn(basicAuthorization('clerk', 'secret'), 'clerk')
 
-        expect(sessionStorage.getItem(CREDENTIAL_STORAGE_KEY)).toBe(basicAuthorization('clerk', 'secret'))
-        expect(storedAuthorization()).toBe(basicAuthorization('clerk', 'secret'))
-        expect(storedIdentity()).toBe('clerk')
+        expect(authSnapshot().authorization).toBe(basicAuthorization('clerk', 'secret'))
+        expect(authSnapshot().identity).toBe('clerk')
+        expect(sessionStorage.length).toBe(0)
     })
 
     it('names nobody under the token posture, because a deployment token is not a person', () => {
         signIn(bearerAuthorization('a-token'), null)
 
-        expect(sessionStorage.getItem(IDENTITY_STORAGE_KEY)).toBeNull()
         expect(authSnapshot().identity).toBeNull()
     })
 
-    it('is gone once signed out, storage and snapshot alike', () => {
+    it('is gone once signed out, credential and name alike', () => {
         signIn(basicAuthorization('clerk', 'secret'), 'clerk')
         signOut()
 
-        expect(sessionStorage.getItem(CREDENTIAL_STORAGE_KEY)).toBeNull()
-        expect(sessionStorage.getItem(IDENTITY_STORAGE_KEY)).toBeNull()
-        expect(storedAuthorization()).toBeNull()
-        expect(storedIdentity()).toBeNull()
         expect(authSnapshot().authorization).toBeNull()
         expect(authSnapshot().identity).toBeNull()
+    })
+
+    /**
+     * A page that opens holds nothing, whatever a browser store happens to carry.
+     *
+     * The keys seeded here are the ones a credential would be written under if this module ever
+     * wrote one. Seeding them and loading the module fresh is what makes a read - a reload cache
+     * somebody reintroduces to survive a refresh - fail here rather than in a browser.
+     *
+     * The values are literals, and stand for nothing anybody could sign with: what is under test is
+     * that these keys are never read, so the byte-for-byte header the encoder builds has no business
+     * in a store even in a test.
+     */
+    it('opens holding nothing, whatever a browser store carries under those names', async () => {
+        sessionStorage.setItem('d2w-fhir-serve-authorization', 'Basic c3RhbGU6c3RhbGU=')
+        sessionStorage.setItem('d2w-fhir-serve-identity', 'stale-user')
+        vi.resetModules()
+
+        const freshlyLoaded = await import('@/lib/auth')
+
+        expect(freshlyLoaded.authSnapshot().authorization).toBeNull()
+        expect(freshlyLoaded.authSnapshot().identity).toBeNull()
+        sessionStorage.clear()
     })
 
     it('asks who this is again the moment it is signed out, which is what the control is for', () => {
@@ -190,7 +224,7 @@ describe('the credential this tab holds', () => {
         signIn(basicAuthorization('clerk', 'wrong'), 'clerk')
         reportUnauthenticated()
 
-        expect(storedAuthorization()).toBeNull()
+        expect(authSnapshot().authorization).toBeNull()
         expect(authSnapshot().refused).toBe(true)
     })
 
@@ -211,12 +245,12 @@ describe('when the shell asks who this is', () => {
         expect(signInIsRequired(stateWith({ posture: null }))).toBe(false)
     })
 
-    it('asks whenever a posture is named and this tab holds nothing', () => {
+    it('asks whenever a posture is named and this page holds nothing', () => {
         expect(signInIsRequired(stateWith({ posture: 'token' }))).toBe(true)
         expect(signInIsRequired(stateWith({ posture: 'dhis2' }))).toBe(true)
     })
 
-    it('stops asking once this tab holds a credential', () => {
+    it('stops asking once this page holds a credential', () => {
         expect(signInIsRequired(stateWith({ posture: 'dhis2', authorization: 'Basic x' }))).toBe(false)
     })
 })
@@ -228,8 +262,8 @@ describe('what the prompt says', () => {
     })
 
     it('says where the credential goes and how long it is kept', () => {
-        expect(SIGN_IN_NOTES.token).toContain('this browser tab only')
-        expect(SIGN_IN_NOTES.dhis2).toContain('this browser tab only')
+        expect(SIGN_IN_NOTES.token).toContain('held in this page only')
+        expect(SIGN_IN_NOTES.dhis2).toContain('held in this page only')
         expect(SIGN_IN_NOTES.dhis2).toContain('records your username')
     })
 
@@ -248,7 +282,7 @@ describe('what the prompt says', () => {
 
     it('says getting the token is the provider\'s business, not this server\'s', () => {
         expect(SIGN_IN_NOTES.jwt).toContain('identity provider')
-        expect(SIGN_IN_NOTES.jwt).toContain('this browser tab only')
+        expect(SIGN_IN_NOTES.jwt).toContain('held in this page only')
         expect(SIGN_IN_NOTES.jwt).toContain('records your username')
     })
 
@@ -267,8 +301,8 @@ describe('what the prompt says', () => {
     })
 })
 
-describe('what a JWT server asks of a tab', () => {
-    it('asks for a token whenever this tab holds none', () => {
+describe('what a JWT server asks of a page', () => {
+    it('asks for a token whenever this page holds none', () => {
         expect(signInIsRequired(stateWith({ posture: 'jwt' }))).toBe(true)
         expect(signInIsRequired(stateWith({ posture: 'jwt', authorization: 'Bearer x' }))).toBe(false)
     })
@@ -283,7 +317,7 @@ describe('what a JWT server asks of a tab', () => {
     it('sends a pasted token as a bearer token, naming nobody until the server reads the claim', () => {
         signIn(bearerAuthorization('a.b.c'), null)
 
-        expect(storedAuthorization()).toBe('Bearer a.b.c')
+        expect(authSnapshot().authorization).toBe('Bearer a.b.c')
         expect(authSnapshot().identity).toBeNull()
     })
 })

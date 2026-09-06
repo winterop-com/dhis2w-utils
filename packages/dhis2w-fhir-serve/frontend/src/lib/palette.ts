@@ -416,7 +416,7 @@ function sessionActions(signedIn: boolean): PaletteAction[] {
             id: 'session:sign-out',
             group: SESSION_GROUP,
             label: SIGN_OUT_ACTION_LABEL,
-            hint: 'Forgets the credential this browser tab holds',
+            hint: 'Forgets the credential this page holds',
             kind: SESSION_KIND,
             keywords: ['sign out', 'log out', 'session'],
             identifier: null,

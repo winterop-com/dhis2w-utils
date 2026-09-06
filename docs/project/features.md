@@ -2401,7 +2401,7 @@ shipped inside the wheel.
   DHIS2 username and password, in place of the page rather than over it - so the
   app never sends a request this server would answer 401 to, and a browser never
   gets the chance to open a credential dialog of its own over ours.
-- **Submitting the panel asks `GET /facade/whoami` with what was typed, and stores
+- **Submitting the panel asks `GET /facade/whoami` with what was typed, and holds
   nothing until the server names the caller.** A wrong password is refused at the
   prompt - "DHIS2 did not accept this username and password." under the DHIS2
   posture, "This server did not accept this token." under the other two - with
@@ -2414,8 +2414,11 @@ shipped inside the wheel.
   answers the DHIS2 instance's own spelling of the username under `dhis2` and the
   claim the server read out of the token under `jwt`; the token posture names
   nobody, and the header names nobody for it.
-- **The credential is the whole `Authorization` value, in `sessionStorage`**, per
-  tab: closing the tab ends the session and a second tab signs in on its own. The
+- **The credential is the whole `Authorization` value, held in the page and in no
+  browser store**: neither `sessionStorage` nor `localStorage` sees it, so a
+  reload asks who this is again and a second tab signs in on its own. Under the
+  DHIS2 posture it is a password anything can decode, and a page load is the
+  longest it is held for; a deployment token and a JWT are held the same way. The
   one function in the app that reaches the network attaches it and records any
   401 that comes back, so a credential that goes stale after signing in - a
   password changed, an account disabled - is refused at the next read, listing, or

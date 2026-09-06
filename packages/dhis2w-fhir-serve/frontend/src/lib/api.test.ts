@@ -16,7 +16,7 @@ import {
     searchRegister,
     translateCode,
 } from '@/lib/api'
-import { authSnapshot, basicAuthorization, bearerAuthorization, signIn, signOut, storedAuthorization } from '@/lib/auth'
+import { authSnapshot, basicAuthorization, bearerAuthorization, signIn, signOut } from '@/lib/auth'
 
 /**
  * The wire layer, tested against a stubbed `fetch`.
@@ -29,14 +29,12 @@ import { authSnapshot, basicAuthorization, bearerAuthorization, signIn, signOut,
 const originalFetch = globalThis.fetch
 
 beforeEach(() => {
-    sessionStorage.clear()
     signOut()
 })
 
 afterEach(() => {
     globalThis.fetch = originalFetch
     configureApi({ baseUrl: '', token: null })
-    sessionStorage.clear()
     signOut()
     vi.restoreAllMocks()
 })
@@ -158,14 +156,14 @@ describe('apiFetch', () => {
         expect(new Headers(calls[0].init.headers).get('Accept')).toBe('application/json')
     })
 
-    it('signs with what this tab holds, and drops it the moment the server refuses it', async () => {
+    it('signs with what this page holds, and drops it the moment the server refuses it', async () => {
         signIn(basicAuthorization('clerk', 'secret'), 'clerk')
         const { calls } = stubFetch(fhirResponse({ resourceType: 'OperationOutcome' }, 401))
 
         await apiFetch('/QuestionnaireResponse', { method: 'POST' })
 
         expect(new Headers(calls[0].init.headers).get('Authorization')).toBe(basicAuthorization('clerk', 'secret'))
-        expect(storedAuthorization()).toBeNull()
+        expect(authSnapshot().authorization).toBeNull()
         expect(authSnapshot().refused).toBe(true)
     })
 
@@ -175,12 +173,87 @@ describe('apiFetch', () => {
 
         await apiFetch('/metadata')
 
-        expect(storedAuthorization()).toBe(basicAuthorization('clerk', 'secret'))
+        expect(authSnapshot().authorization).toBe(basicAuthorization('clerk', 'secret'))
+    })
+})
+
+/**
+ * A storage that records what is put in it, standing in for both of a browser's.
+ *
+ * Node keeps no `localStorage` of its own, and what is under test is not a store's behaviour but
+ * whether this app reaches one at all - so both globals are a Map that remembers every write,
+ * and the assertion is that neither Map was written to.
+ */
+function recordingStorage(written: string[]): Storage {
+    const entries = new Map<string, string>()
+    return {
+        getItem: (key: string) => entries.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+            written.push(value)
+            entries.set(key, value)
+        },
+        removeItem: (key: string) => {
+            entries.delete(key)
+        },
+        clear: () => {
+            entries.clear()
+        },
+        key: (index: number) => [...entries.keys()][index] ?? null,
+        get length() {
+            return entries.size
+        },
+    }
+}
+
+describe('the credential the browser signs with', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals()
+    })
+
+    it('lives in the auth state alone, and reaches no browser store on the way', async () => {
+        const writtenToSession: string[] = []
+        const writtenToLocal: string[] = []
+        vi.stubGlobal('sessionStorage', recordingStorage(writtenToSession))
+        vi.stubGlobal('localStorage', recordingStorage(writtenToLocal))
+        const credential = basicAuthorization('clerk', 'secret')
+
+        // Signing in holds it, and the next request is signed with it.
+        signIn(credential, 'clerk')
+        expect(authSnapshot().authorization).toBe(credential)
+        const served = stubFetch(fhirResponse({}))
+        await apiFetch('/metadata')
+        expect(new Headers(served.calls[0].init.headers).get('Authorization')).toBe(credential)
+
+        // A 401 drops it, and the request that met the 401 still carried it.
+        const refused = stubFetch(fhirResponse({ resourceType: 'OperationOutcome' }, 401))
+        await apiFetch('/QuestionnaireResponse', { method: 'POST' })
+        expect(new Headers(refused.calls[0].init.headers).get('Authorization')).toBe(credential)
+        expect(authSnapshot().authorization).toBeNull()
+        expect(authSnapshot().refused).toBe(true)
+
+        // Which leaves the next request unsigned.
+        const unsigned = stubFetch(fhirResponse({}))
+        await apiFetch('/metadata')
+        expect(new Headers(unsigned.calls[0].init.headers).has('Authorization')).toBe(false)
+
+        // And signing out leaves it that way, with nobody named.
+        signIn(credential, 'clerk')
+        signOut()
+        const afterSignOut = stubFetch(fhirResponse({}))
+        await apiFetch('/metadata')
+        expect(new Headers(afterSignOut.calls[0].init.headers).has('Authorization')).toBe(false)
+        expect(authSnapshot().identity).toBeNull()
+
+        // Nothing along that path was written down: the credential is a decodable password, and the
+        // name beside it says whose. A store either browser keeps would outlive the person reading
+        // the screen.
+        expect(writtenToSession).toEqual([])
+        expect(writtenToLocal).toEqual([])
     })
 })
 
 describe('checkCredential', () => {
-    it('asks who a credential belongs to, signing with that credential and not with this tabs', async () => {
+    it('asks who a credential belongs to, signing with it rather than with what this page holds', async () => {
         signIn(bearerAuthorization('an-old-token'), null)
         const { calls } = stubFetch(fhirResponse({ posture: 'dhis2', username: 'clerk', name: 'clerk' }))
 
@@ -212,13 +285,13 @@ describe('checkCredential', () => {
         expect(await checkCredential(basicAuthorization('clerk', 'wrong'))).toEqual({ outcome: 'refused' })
     })
 
-    it('leaves the session this tab already holds alone, because the panel is asking about another', async () => {
+    it('leaves the session this page already holds alone, because the panel is asking about another', async () => {
         signIn(basicAuthorization('clerk', 'secret'), 'clerk')
         stubFetch(fhirResponse({ resourceType: 'OperationOutcome' }, 401))
 
         await checkCredential(basicAuthorization('someone', 'else'))
 
-        expect(storedAuthorization()).toBe(basicAuthorization('clerk', 'secret'))
+        expect(authSnapshot().authorization).toBe(basicAuthorization('clerk', 'secret'))
         expect(authSnapshot().refused).toBe(false)
     })
 

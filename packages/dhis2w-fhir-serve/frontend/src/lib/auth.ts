@@ -1,5 +1,5 @@
 /**
- * Who this server asks the browser to be, and the credential this tab holds.
+ * Who this server asks the browser to be, and the credential this page holds.
  *
  * WHERE THE POSTURE COMES FROM. `/metadata` is the only document that is open under every posture -
  * a server that refused to say how to authenticate to it would be one nobody could authenticate to -
@@ -19,17 +19,19 @@
  * not a scheme - so the server puts it in an extension on `security`, and `issuerFromSecurity` is
  * what reads it back. Never a key, never an audience: the issuer alone.
  *
- * WHERE THE CREDENTIAL LIVES. `sessionStorage`, under one key, as the whole `Authorization` value.
- * A tab, not a browser: closing the tab ends the session, and a second tab signs in on its own.
- * Nothing here is written to `localStorage`, which would outlive the person at the keyboard.
+ * WHERE THE CREDENTIAL LIVES. In this module, as the whole `Authorization` value, for as long as
+ * this page is loaded, and that state is the one thing a request is signed with. It is written to
+ * no browser storage at all - not `sessionStorage`, not `localStorage` - so a reload asks who this
+ * is again, and so does a second tab. Every posture is held the same way: a password, a deployment
+ * token, and a JWT are one credential each as far as this module is concerned.
  *
- * WHAT IS STORED IS THE HEADER. Under the DHIS2 posture that is `Basic <base64 of user:password>`,
- * which is the password in a form anything can decode - that is what HTTP Basic is, and it is why
- * this is a per-tab store rather than a durable one. The alternative is a token exchange the DHIS2
- * instance behind this facade cannot yet offer (BUGS.md 96).
+ * WHAT THE CREDENTIAL IS. Under the DHIS2 posture, `Basic <base64 of user:password>` - the password
+ * in a form anything can decode, which is what HTTP Basic is, and the reason a page load is the
+ * longest this app keeps one. The alternative is a token exchange the DHIS2 instance behind this
+ * facade cannot yet offer (BUGS.md 96).
  *
- * NOTHING IS STORED UNTIL THE SERVER HAS NAMED THE CALLER. The panel asks `GET /facade/whoami` with what
- * was typed, and only an answer naming somebody reaches `signIn`. Storing first and finding out
+ * NOTHING IS HELD UNTIL THE SERVER HAS NAMED THE CALLER. The panel asks `GET /facade/whoami` with what
+ * was typed, and only an answer naming somebody reaches `signIn`. Holding first and finding out
  * later is what a scope of `write` makes unbearable: every read is open, so the first thing that
  * would have refused a wrong password is a submission somebody spent minutes filling in. The
  * username this app shows is the server's answer rather than what was typed into the box, which is
@@ -54,12 +56,6 @@ export const JWT_BEARER_TOKEN_SECURITY_TEXT = 'JWT bearer token'
 /** Where the JWT posture states which issuer it takes tokens from - see this module's own note. */
 export const JWT_ISSUER_EXTENSION_URL =
     'https://winterop-com.github.io/dhis2w-utils/fhir/StructureDefinition/serve-jwt-issuer'
-
-/** Where this tab keeps the `Authorization` value it signs its requests with. */
-export const CREDENTIAL_STORAGE_KEY = 'd2w-fhir-serve-authorization'
-
-/** Where it keeps the name to show for whoever is signed in, which is the username under `dhis2`. */
-export const IDENTITY_STORAGE_KEY = 'd2w-fhir-serve-identity'
 
 /**
  * What `GET /facade/whoami` answers a caller this server accepts.
@@ -122,9 +118,38 @@ export function issuerFromSecurity(security: CapabilitySecurity | null | undefin
     return null
 }
 
-/** One username and password as HTTP Basic sends them. */
+/** How many bytes are turned into characters at a time, so no call carries a whole credential as arguments. */
+const BASE64_CHUNK_SIZE = 0x8000
+
+/**
+ * Base64 of arbitrary bytes, built a chunk at a time.
+ *
+ * `btoa` takes characters, one byte each, so the bytes are spelled as characters before it sees
+ * them. That is done in chunks and one character at a time rather than by spreading the whole array
+ * into a call, which a long password would overrun.
+ */
+function base64FromBytes(bytes: Uint8Array): string {
+    let characters = ''
+    for (let start = 0; start < bytes.length; start += BASE64_CHUNK_SIZE) {
+        const end = Math.min(start + BASE64_CHUNK_SIZE, bytes.length)
+        let chunk = ''
+        for (let index = start; index < end; index += 1) chunk += String.fromCharCode(bytes[index])
+        characters += chunk
+    }
+    return btoa(characters)
+}
+
+/**
+ * One username and password as HTTP Basic sends them.
+ *
+ * The pair is encoded to UTF-8 before it is base64ed, which is the same byte sequence
+ * `dhis2w_client.v42.auth.basic.BasicAuth` builds its header from, so a name with an o-slash or a
+ * password in Chinese reaches DHIS2 as the same bytes from a browser as from the client library.
+ * Handing the string to `btoa` directly would send different bytes for the first and raise for the
+ * second.
+ */
 export function basicAuthorization(username: string, password: string): string {
-    return `Basic ${btoa(`${username}:${password}`)}`
+    return `Basic ${base64FromBytes(new TextEncoder().encode(`${username}:${password}`))}`
 }
 
 /** One deployment token as this server's `token` posture takes it. */
@@ -132,31 +157,13 @@ export function bearerAuthorization(token: string): string {
     return `Bearer ${token}`
 }
 
-/** What this tab is currently signing its requests with, or null when it holds nothing. */
-export function storedAuthorization(): string | null {
-    try {
-        return sessionStorage.getItem(CREDENTIAL_STORAGE_KEY)
-    } catch {
-        return null
-    }
-}
-
-/** Who this tab is signed in as, for the header to name - the DHIS2 username, or null. */
-export function storedIdentity(): string | null {
-    try {
-        return sessionStorage.getItem(IDENTITY_STORAGE_KEY)
-    } catch {
-        return null
-    }
-}
-
-/** What the shell knows about who this server serves and who this tab is. */
+/** What the shell knows about who this server serves and who this page is signed in as. */
 export interface AuthState {
     /** The posture read off `/metadata`, or null until that read lands. */
     posture: AuthPosture | null
     /** The issuer that same document named, under the JWT posture, and null under every other. */
     issuer: string | null
-    /** The `Authorization` value this tab holds, or null. */
+    /** The `Authorization` value this page holds, or null. */
     authorization: string | null
     /** Who that credential is, where the credential names anybody. */
     identity: string | null
@@ -167,8 +174,8 @@ export interface AuthState {
 let state: AuthState = {
     posture: null,
     issuer: null,
-    authorization: storedAuthorization(),
-    identity: storedIdentity(),
+    authorization: null,
+    identity: null,
     refused: false,
 }
 const listeners = new Set<() => void>()
@@ -197,32 +204,18 @@ export function setAuthPosture(posture: AuthPosture, issuer: string | null = nul
 }
 
 /**
- * Record that this tab signs its requests with one credential the server has already accepted.
+ * Record that this page signs its requests with one credential the server has already accepted.
  *
  * `identity` is what the header names, and is only ever a username the SERVER answered with: under
  * the token posture there is nobody to name, and a screen that invented one would be naming a
  * deployment secret's owner.
  */
 export function signIn(authorization: string, identity: string | null): void {
-    try {
-        sessionStorage.setItem(CREDENTIAL_STORAGE_KEY, authorization)
-        if (identity === null) sessionStorage.removeItem(IDENTITY_STORAGE_KEY)
-        else sessionStorage.setItem(IDENTITY_STORAGE_KEY, identity)
-    } catch {
-        // A tab with storage denied still works for as long as it is open; the credential lives in
-        // the module either way, and the only thing lost is surviving a reload.
-    }
     publish({ ...state, authorization, identity, refused: false })
 }
 
-/** Forget the credential this tab held, which is what signing out is. */
+/** Forget the credential this page held, which is what signing out is. */
 export function signOut(): void {
-    try {
-        sessionStorage.removeItem(CREDENTIAL_STORAGE_KEY)
-        sessionStorage.removeItem(IDENTITY_STORAGE_KEY)
-    } catch {
-        // Nothing to clear that anything else can read.
-    }
     publish({ ...state, authorization: null, identity: null, refused: false })
 }
 
@@ -230,23 +223,17 @@ export function signOut(): void {
  * Record that this server refused a request for want of a credential it accepts.
  *
  * Called by the one function in this app that reaches the network, so a 401 raised anywhere - a
- * read, a submission, a listing - is what opens the prompt. The credential this tab was holding is
+ * read, a submission, a listing - is what opens the prompt. The credential this page was holding is
  * dropped with it: a credential the server has just refused is not one to keep signing with.
  */
 export function reportUnauthenticated(): void {
-    try {
-        sessionStorage.removeItem(CREDENTIAL_STORAGE_KEY)
-        sessionStorage.removeItem(IDENTITY_STORAGE_KEY)
-    } catch {
-        // As above.
-    }
     publish({ ...state, authorization: null, identity: null, refused: true })
 }
 
 /**
  * Whether the shell asks who this is before it draws a page.
  *
- * True when the server named a posture and this tab holds nothing. The alternative - browsing until
+ * True when the server named a posture and this page holds nothing. The alternative - browsing until
  * something is refused - would mean sending a request this server answers 401 to, and a browser
  * meeting a 401 on a request it made itself may open a credential dialog of its own over ours. So
  * the app asks first and reaches nothing until it has an answer.
@@ -278,16 +265,18 @@ export function signInHeading(posture: Exclude<AuthPosture, 'none'>, issuer: str
 
 /** What it says under that heading, per posture. */
 export const SIGN_IN_NOTES: Record<Exclude<AuthPosture, 'none'>, string> = {
-    token: 'The token is the one this deployment issued you. It is held for this browser tab only.',
+    token:
+        'The token is the one this deployment issued you. It is held in this page only, so a reload ' +
+        'asks for it again.',
     dhis2:
         'The username and password are the ones you sign in to DHIS2 with. This server checks them ' +
         'against the instance and records your username on everything you capture. They are held ' +
-        'for this browser tab only.',
+        'in this page only, so a reload asks for them again.',
     jwt:
         "Getting a token is the identity provider's business, not this server's: sign in " +
         'there the way you normally do and paste the token it gives you. This server checks the ' +
         'signature against the keys that provider publishes and records your username on everything ' +
-        'you capture. The token is held for this browser tab only.',
+        'you capture. The token is held in this page only, so a reload asks for it again.',
 }
 
 /** What the control that ends a session is called, and what the one that starts it is called. */
@@ -320,3 +309,13 @@ export const SIGN_IN_REFUSALS: Record<Exclude<AuthPosture, 'none'>, string> = {
  * told the wrong one of those retypes a password that was right all along.
  */
 export const SIGN_IN_UNREACHABLE = 'This server could not be reached, so nothing was checked.'
+
+/**
+ * What the panel says when what was typed could not be turned into a credential at all.
+ *
+ * A third thing that is neither a refusal nor an unreachable server: nothing was sent, because
+ * nothing could be built to send. Any text a person can type encodes, so this is what a browser
+ * without the encoder the header is built with reads as, and saying the password was wrong would
+ * send somebody after a password that is right.
+ */
+export const SIGN_IN_UNENCODABLE = 'This username or password contains characters that cannot be sent.'
