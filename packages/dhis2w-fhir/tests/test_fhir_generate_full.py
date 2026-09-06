@@ -566,10 +566,11 @@ async def test_the_organisation_unit_target_counts_units_apart_from_the_files_th
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """One organisation unit ships as an Organization and a Location, so the subject is half the files."""
-    _mock_instance(mock_system_info, mock_attributes)
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
     await _scaffold_project(tmp_path)
 
     report = await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
