@@ -172,10 +172,14 @@ describe('the credential this page holds', () => {
      * The keys seeded here are the ones a credential would be written under if this module ever
      * wrote one. Seeding them and loading the module fresh is what makes a read - a reload cache
      * somebody reintroduces to survive a refresh - fail here rather than in a browser.
+     *
+     * The values are literals, and stand for nothing anybody could sign with: what is under test is
+     * that these keys are never read, so the byte-for-byte header the encoder builds has no business
+     * in a store even in a test.
      */
     it('opens holding nothing, whatever a browser store carries under those names', async () => {
-        sessionStorage.setItem('d2w-fhir-serve-authorization', basicAuthorization('clerk', 'secret'))
-        sessionStorage.setItem('d2w-fhir-serve-identity', 'clerk')
+        sessionStorage.setItem('d2w-fhir-serve-authorization', 'Basic c3RhbGU6c3RhbGU=')
+        sessionStorage.setItem('d2w-fhir-serve-identity', 'stale-user')
         vi.resetModules()
 
         const freshlyLoaded = await import('@/lib/auth')
