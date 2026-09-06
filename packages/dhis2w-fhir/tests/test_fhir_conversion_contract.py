@@ -19,7 +19,11 @@ What the gate proves:
   differential is asserted equal to `DATA_VALUE_SET_ELEMENTS`, the declaration the FSH template is
   rendered from, so an edit to either without the other fails here.
 - Every `evaluate` transform of the compiled map carries one parameter, the FHIRPath expression the
-  publisher's validator holds it to, and names its variables inside that expression.
+  publisher's validator holds it to, names its variables inside that expression, and roots every
+  call it makes - arguments included - at one of those variables rather than at the focus an engine
+  happens to hand it.
+- The data value's own value is written one answered `value[x]` type at a time, and the branches are
+  the elements `dhis2w_fhir.conversion.values` serialises.
 
 What the gate does NOT prove:
 
@@ -43,6 +47,7 @@ from typing import Any
 
 import pytest
 from conversion_corpus import AGGREGATE_IDS, aggregate_payloads
+from dhis2w_fhir.conversion.values import ANSWER_VALUE_ELEMENTS
 from dhis2w_fhir.foundation import DATA_VALUE_SET_ELEMENTS
 from pydantic import BaseModel, ConfigDict
 
@@ -54,6 +59,12 @@ _FHIR_DATE = re.compile(r"^\d{4}(-\d{2}(-\d{2})?)?$")
 
 #: A variable reference inside a FHIRPath expression, which is how an `evaluate` transform reaches its source.
 _VARIABLE = re.compile(r"%([A-Za-z][A-Za-z0-9]*)")
+
+#: A function call inside a FHIRPath expression, with whatever character carries the focus into it.
+_CALL = re.compile(r"(.?)([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+
+#: The `value[x]` element an answer carries an attachment under, which is the one type no data value states.
+_ATTACHMENT_ANSWER = "valueAttachment"
 
 #: The FHIR type a nested group of elements carries; its value on the wire is a list of objects.
 _BACKBONE = "BackboneElement"
@@ -209,8 +220,78 @@ def test_every_evaluate_transform_carries_the_expression_alone() -> None:
 
     for group in compiled["group"]:
         _walk(group["rule"], frozenset(inp["name"] for inp in group["input"]))
-    assert len(expressions) == 6
+    assert len(expressions) == 15
     assert all(expression.startswith("%") for expression in expressions)
+
+
+def test_no_evaluate_expression_leans_on_the_focus_an_engine_hands_its_arguments() -> None:
+    """Every call inside an expression is rooted at the variable it reads, arguments included.
+
+    The publisher's validator types a call in an argument against the expression's outer focus - the
+    rule's target - rather than against the value the enclosing call is walking, so a bare
+    `contains('.')` beside `%linkId` is read as a call on the data value being written. Naming the
+    variable in front of every call states the focus outright and leaves nothing to that reading.
+    """
+    for expression in _evaluate_expressions():
+        for carrier, call in _CALL.findall(expression):
+            assert carrier == ".", f"`{expression}` calls `{call}()` on whatever focus it is handed"
+
+
+def test_the_value_rules_read_one_answer_type_each_and_cover_what_the_python_serialises() -> None:
+    """One typed branch per `value[x]` the conversion reads, each expression rooted at its own variable.
+
+    `%answerValue.toString()` over the whole choice is untypeable - the validator sees the union
+    rather than a primitive - so the value of a data value is written one answered type at a time.
+    The branches are exactly the elements `dhis2w_fhir.conversion.values` serialises: every
+    `value[x]` R4 declares for an answer bar the attachment, which DHIS2 stores as a file resource
+    through a separate upload rather than as a data value.
+    """
+    branches = _value_rules()
+    read = {f"value{_source(rule)['type'][:1].upper()}{_source(rule)['type'][1:]}" for rule in branches}
+    assert read == set(ANSWER_VALUE_ELEMENTS) - {_ATTACHMENT_ANSWER}
+    for rule in branches:
+        source = _source(rule)
+        expression = rule["target"][0]["parameter"][0]["valueString"]
+        assert expression.startswith(f"%{source['variable']}"), f"`{expression}` reads no `%{source['variable']}`"
+        assert source["variable"] == f"answer{source['type'][:1].upper()}{source['type'][1:]}"
+
+
+def _compiled_map() -> dict[str, Any]:
+    """The StructureMap SUSHI compiled out of the FSH the foundation target emits."""
+    compiled: dict[str, Any] = json.loads(_MAP_GOLDEN.read_text(encoding="utf-8"))
+    return compiled
+
+
+def _evaluate_expressions() -> list[str]:
+    """Every FHIRPath expression an `evaluate` transform of the compiled map carries."""
+    found: list[str] = []
+
+    def _walk(rules: list[dict[str, Any]]) -> None:
+        for rule in rules:
+            found.extend(
+                target["parameter"][0]["valueString"]
+                for target in rule.get("target", [])
+                if target.get("transform") == "evaluate"
+            )
+            _walk(rule.get("rule", []))
+
+    for group in _compiled_map()["group"]:
+        _walk(group["rule"])
+    return found
+
+
+def _value_rules() -> list[dict[str, Any]]:
+    """The rules of the compiled map that write one answer into the data value's `value`."""
+    answered = _compiled_map()["group"][1]["rule"][1]
+    return [
+        rule for rule in answered["rule"] if any(target.get("element") == "value" for target in rule.get("target", []))
+    ]
+
+
+def _source(rule: dict[str, Any]) -> dict[str, Any]:
+    """The single source one rule reads, which is what its typed branch is about."""
+    source: dict[str, Any] = rule["source"][0]
+    return source
 
 
 def test_the_contract_states_the_four_keys_dhis2_stores_a_data_value_under() -> None:

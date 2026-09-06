@@ -970,11 +970,14 @@ Published as two FHIR-native artifacts:
   walk of the item tree splitting `<dataElement>.<categoryOptionCombo>` out of
   each answered link id. Authored as an `Instance:` of StructureMap because
   SUSHI compiles no FHIR Mapping Language.
-- **Four rules whose meaning exceeds what a transform states** carry that on
+- **The rules whose meaning exceeds what a transform states** carry that on
   their own `documentation`: the data set is the form's identifier rather than
   the response's, the organisation unit needs the Location registry resolved,
   the attribute option combo is a ConceptMap translation under code-mode
   naming, and the wire value is the whole serialisation table.
+- **One value rule per answered `value[x]` type**, each naming its type on
+  `source.type` and reading its own variable, because the publisher's validator
+  types an expression over the whole choice as no primitive.
 - **Gated in CI** by `test_fhir_conversion_contract.py`, which reads the
   SUSHI-compiled model and holds every data value set the Python forwarder
   produces against its cardinalities and types - the model judging the

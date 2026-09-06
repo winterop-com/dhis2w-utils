@@ -55,7 +55,7 @@
               "transform": "evaluate",
               "parameter": [
                 {
-                  "valueString": "%questionnaire.resolve().identifier.where(system = 'http://dhis2.org/fhir/id/data-set').value"
+                  "valueString": "%questionnaire.resolve().identifier.where($this.system = 'http://dhis2.org/fhir/id/data-set').value"
                 }
               ]
             }
@@ -129,7 +129,7 @@
               "transform": "evaluate",
               "parameter": [
                 {
-                  "valueString": "%subject.resolve().identifier.where(system = 'http://dhis2.org/fhir/id/org-unit').value"
+                  "valueString": "%subject.resolve().identifier.where($this.system = 'http://dhis2.org/fhir/id/org-unit').value"
                 }
               ]
             }
@@ -301,7 +301,7 @@
                   "transform": "evaluate",
                   "parameter": [
                     {
-                      "valueString": "%linkId.substring(0, iif(contains('.'), indexOf('.'), length()))"
+                      "valueString": "%linkId.substring(0, %linkId.iif(%linkId.contains('.'), %linkId.indexOf('.'), %linkId.length()))"
                     }
                   ]
                 }
@@ -324,20 +324,21 @@
                   "transform": "evaluate",
                   "parameter": [
                     {
-                      "valueString": "%linkId.iif(contains('.'), substring(indexOf('.') + 1), {})"
+                      "valueString": "%linkId.iif(%linkId.contains('.'), %linkId.substring(%linkId.indexOf('.') + 1), {})"
                     }
                   ]
                 }
               ]
             },
             {
-              "name": "value",
-              "documentation": "Every DHIS2 data value is a string on the wire, and which string an answer becomes is the one part of this map a transform cannot state: a TRUE_ONLY question answered false drops the whole cell, a MULTI_TEXT answer is the comma-joined set of its codes, a decimal keeps the lexical form it was captured in, a coded answer is resolved through the question's own terminology, and a zoned timestamp is read to the wall clock DHIS2 stores. `dhis2w_fhir.conversion.values` is the reference implementation of that table.",
+              "name": "booleanValue",
+              "documentation": "Every DHIS2 data value is a string on the wire, and one rule per answered `value[x]` type is what states that string: the validator types an evaluate expression against the element it reads, so a branch naming its own type is the form an expression over a choice can take. What no transform can state stays in prose: a TRUE_ONLY question answered false drops the whole cell, a MULTI_TEXT answer is the comma-joined set of its codes, a decimal keeps the lexical form it was captured in, a coded answer is resolved through the question's own terminology, and a zoned timestamp is read to the wall clock DHIS2 stores. `dhis2w_fhir.conversion.values` is the reference implementation of that table. An attachment answers no data value at all - DHIS2 stores a file resource through a separate upload - so no branch reads one.",
               "source": [
                 {
                   "context": "answer",
                   "element": "value",
-                  "variable": "answerValue"
+                  "type": "boolean",
+                  "variable": "answerBoolean"
                 }
               ],
               "target": [
@@ -348,7 +349,227 @@
                   "transform": "evaluate",
                   "parameter": [
                     {
-                      "valueString": "%answerValue.toString()"
+                      "valueString": "%answerBoolean.toString()"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "decimalValue",
+              "documentation": "A decimal keeps the lexical form the answer was captured in, so a whole number stays whole.",
+              "source": [
+                {
+                  "context": "answer",
+                  "element": "value",
+                  "type": "decimal",
+                  "variable": "answerDecimal"
+                }
+              ],
+              "target": [
+                {
+                  "context": "dataValue",
+                  "contextType": "variable",
+                  "element": "value",
+                  "transform": "evaluate",
+                  "parameter": [
+                    {
+                      "valueString": "%answerDecimal.toString()"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "integerValue",
+              "source": [
+                {
+                  "context": "answer",
+                  "element": "value",
+                  "type": "integer",
+                  "variable": "answerInteger"
+                }
+              ],
+              "target": [
+                {
+                  "context": "dataValue",
+                  "contextType": "variable",
+                  "element": "value",
+                  "transform": "evaluate",
+                  "parameter": [
+                    {
+                      "valueString": "%answerInteger.toString()"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "dateValue",
+              "source": [
+                {
+                  "context": "answer",
+                  "element": "value",
+                  "type": "date",
+                  "variable": "answerDate"
+                }
+              ],
+              "target": [
+                {
+                  "context": "dataValue",
+                  "contextType": "variable",
+                  "element": "value",
+                  "transform": "evaluate",
+                  "parameter": [
+                    {
+                      "valueString": "%answerDate.toString()"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "dateTimeValue",
+              "documentation": "A zoned timestamp is read back to the zone-less wall clock DHIS2 stores before it is written; the copy below is the structural claim, not the zone arithmetic.",
+              "source": [
+                {
+                  "context": "answer",
+                  "element": "value",
+                  "type": "dateTime",
+                  "variable": "answerDateTime"
+                }
+              ],
+              "target": [
+                {
+                  "context": "dataValue",
+                  "contextType": "variable",
+                  "element": "value",
+                  "transform": "evaluate",
+                  "parameter": [
+                    {
+                      "valueString": "%answerDateTime.toString()"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "timeValue",
+              "source": [
+                {
+                  "context": "answer",
+                  "element": "value",
+                  "type": "time",
+                  "variable": "answerTime"
+                }
+              ],
+              "target": [
+                {
+                  "context": "dataValue",
+                  "contextType": "variable",
+                  "element": "value",
+                  "transform": "evaluate",
+                  "parameter": [
+                    {
+                      "valueString": "%answerTime.toString()"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "stringValue",
+              "source": [
+                {
+                  "context": "answer",
+                  "element": "value",
+                  "type": "string",
+                  "variable": "answerString"
+                }
+              ],
+              "target": [
+                {
+                  "context": "dataValue",
+                  "contextType": "variable",
+                  "element": "value",
+                  "transform": "evaluate",
+                  "parameter": [
+                    {
+                      "valueString": "%answerString.toString()"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "uriValue",
+              "source": [
+                {
+                  "context": "answer",
+                  "element": "value",
+                  "type": "uri",
+                  "variable": "answerUri"
+                }
+              ],
+              "target": [
+                {
+                  "context": "dataValue",
+                  "contextType": "variable",
+                  "element": "value",
+                  "transform": "evaluate",
+                  "parameter": [
+                    {
+                      "valueString": "%answerUri.toString()"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "codedValue",
+              "documentation": "A coded answer is stored as the code of the option it names, which is the DHIS2 option code wherever the guide's concept codes are DHIS2 codes.",
+              "source": [
+                {
+                  "context": "answer",
+                  "element": "value",
+                  "type": "Coding",
+                  "variable": "answerCoding"
+                }
+              ],
+              "target": [
+                {
+                  "context": "dataValue",
+                  "contextType": "variable",
+                  "element": "value",
+                  "transform": "evaluate",
+                  "parameter": [
+                    {
+                      "valueString": "%answerCoding.code"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "organisationUnitValue",
+              "documentation": "An organisation-unit answer references a published Location, and the data value is that Location's http://dhis2.org/fhir/id/org-unit identifier.",
+              "source": [
+                {
+                  "context": "answer",
+                  "element": "value",
+                  "type": "Reference",
+                  "variable": "answerReference"
+                }
+              ],
+              "target": [
+                {
+                  "context": "dataValue",
+                  "contextType": "variable",
+                  "element": "value",
+                  "transform": "evaluate",
+                  "parameter": [
+                    {
+                      "valueString": "%answerReference.resolve().identifier.where($this.system = 'http://dhis2.org/fhir/id/org-unit').value"
                     }
                   ]
                 }
