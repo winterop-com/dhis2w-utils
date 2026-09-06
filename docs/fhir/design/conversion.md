@@ -281,6 +281,14 @@ anywhere - and only `.fsh` under `input/fsh` is read. So the map is authored as 
 the same resource an FML compiler would have produced. The contract a consumer reads is the
 StructureMap resource either way; the syntax it was written in is not part of it.
 
+**`evaluate` takes one parameter: the expression.** The IG publisher's validator holds the
+transform to a single parameter and reports `Transform evaluate takes 1 parameter(s) but 2 were
+found` on the two-parameter form, even though R4's mapping-language page describes a focus
+parameter beside the expression. The six evaluate transforms therefore carry the FHIRPath alone,
+and an expression reaching for its rule's source names that variable inside the path -
+`%questionnaire.resolve().identifier.where(system = '$DHIS2-DS').value`, `%answerValue.toString()` -
+so the expression stands on its own whatever focus an engine hands it.
+
 **Four rules carry documentation because their meaning exceeds what a transform states.**
 This is the FML residue the plan predicted, and it is recorded on the artifact rather than
 in prose beside it:
@@ -312,7 +320,9 @@ corpus - 142 cells across the two aggregate examples - against them.
 declare and omits none it declares required; nothing typed single arrives as a list and
 nothing typed repeating arrives as a scalar; every value's JSON type is the one the contract
 states. And the emitted FSH and the compiled artifact are one thing, because the differential
-is asserted equal to the declaration the template renders.
+is asserted equal to the declaration the template renders. It also reads the compiled map: every
+`evaluate` transform carries one parameter, and every variable an expression names is one an
+enclosing rule or the group's input binds.
 
 **What the gate does not prove.** It does not execute the StructureMap: no FML engine runs
 here, the map is a contract rather than a runtime, and a full engine execution against these
