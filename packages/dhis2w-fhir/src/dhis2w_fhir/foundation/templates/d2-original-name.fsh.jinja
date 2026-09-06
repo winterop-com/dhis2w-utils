@@ -1,0 +1,12 @@
+Extension: {{ names.original_name_extension }}
+Id: {{ names.original_name_extension_id }}
+Title: "DHIS2 original name"
+Description: "The name the DHIS2 instance holds for the object this resource publishes, stated where the run published that name in rewritten wording. A run under the substitute posture rewrites a name carrying a comparison character into the words it stands for, and this states the instance's own spelling beside it, so a consumer reading a rewritten name can search the instance on the name the instance answers to."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+{% for resource_type in context_resource_types %}
+* ^context[+].type = #element
+* ^context[=].expression = "{{ resource_type }}"
+{% endfor %}
+* value[x] only string
+* valueString 1..1

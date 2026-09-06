@@ -984,6 +984,18 @@ async def test_the_refuse_posture_publishes_the_space_carrying_code_byte_true(
     assert _property_value(concepts["Pre eclampsia"], "dhis2-code") is None
 
 
+#: The extension a published resource states the DHIS2 code of its object under.
+_ORIGINAL_CODE_EXTENSION = "http://example.org/fhir/StructureDefinition/d2-original-code"
+
+#: The extension a published resource states the DHIS2 name of its object under.
+_ORIGINAL_NAME_EXTENSION = "http://example.org/fhir/StructureDefinition/d2-original-name"
+
+
+def _extension_urls(document: dict[str, Any]) -> list[str]:
+    """Every extension URL one resource carries, in the order it states them."""
+    return [entry["url"] for entry in document.get("extension", [])]
+
+
 def _extension_value(document: dict[str, Any], url: str) -> str | None:
     """The `valueString` one resource carries under a named extension URL, or None when it carries none."""
     for entry in document.get("extension", []):
@@ -1073,8 +1085,29 @@ async def test_the_option_set_code_identifier_states_the_dhis2_spelling_as_an_ex
     identifiers = {entry["system"]: entry["value"] for entry in code_system["identifier"]}
 
     assert identifiers["http://dhis2.org/fhir/id/option-set-code"] == "Distance-(in-km)"
-    assert _extension_value(code_system, "http://dhis2.org/fhir/property/dhis2-code") == "Distance (in km)"
-    assert _extension_value(value_set, "http://dhis2.org/fhir/property/dhis2-code") == "Distance (in km)"
+    assert _extension_value(code_system, _ORIGINAL_CODE_EXTENSION) == "Distance (in km)"
+    assert _extension_value(value_set, _ORIGINAL_CODE_EXTENSION) == "Distance (in km)"
+    assert _extension_urls(code_system) == [_ORIGINAL_CODE_EXTENSION]
+    assert _extension_urls(value_set) == [_ORIGINAL_CODE_EXTENSION]
+
+
+@respx.mock
+async def test_a_set_the_run_published_byte_true_carries_no_original_spelling_extension(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The two extensions state a rewrite, so a set published as DHIS2 holds it carries neither."""
+    mock_system_info("v42")
+    instance = _whitespace_code_instance()
+    instance["optionSets"][0]["code"] = "Distance-in-km"
+    directory = await _generate_option_sets(tmp_path, instance, code_source="id", gate=_substituting_gate())
+
+    code_system = _read(directory, "CodeSystem-d2-os-OsWsp000001-cs.json")
+    value_set = _read(directory, "ValueSet-d2-os-OsWsp000001-vs.json")
+
+    assert _extension_urls(code_system) == []
+    assert _extension_urls(value_set) == []
 
 
 @respx.mock
@@ -1094,7 +1127,8 @@ async def test_a_rewritten_display_states_the_dhis2_name_as_a_concept_property(
     concepts = _concepts_by_code(code_system)
 
     assert code_system["title"] == "Distance under 1km"
-    assert _extension_value(code_system, "http://dhis2.org/fhir/property/dhis2-name") == "Distance &lt; 1km"
+    assert _extension_value(code_system, _ORIGINAL_NAME_EXTENSION) == "Distance &lt; 1km"
+    assert _extension_urls(code_system) == [_ORIGINAL_CODE_EXTENSION, _ORIGINAL_NAME_EXTENSION]
     assert concepts["OpWsp000001"]["display"] == "over 5km"
     assert _property_value(concepts["OpWsp000001"], "dhis2-name") == "&gt;5km"
     assert {entry["code"] for entry in code_system["property"]} == {"dhis2-code", "dhis2-name"}

@@ -157,6 +157,13 @@ that would land on one published code - `Pre eclampsia` beside a literal
 capture path reads the `dhis2-code` property, so a QuestionnaireResponse
 answering with a published code still writes the DHIS2 code to DHIS2.
 
+An option set's own CodeSystem and ValueSet have no concept to hang a property
+on, so each states the DHIS2 code under the guide's `D2OriginalCode` extension
+and the DHIS2 name under `D2OriginalName` - two `string` extensions the
+`foundation` target defines, listed in [the extension
+registry](401-identifiers-and-extensions.md#the-extension-registry). A resource
+the run published byte-true carries neither.
+
 **What a live serve does with it.** `d2w fhir serve --live` reads this key too,
 so one project means one set of names whichever way it is served: under
 `"substitute"` a form is served under the name the compiled guide publishes it

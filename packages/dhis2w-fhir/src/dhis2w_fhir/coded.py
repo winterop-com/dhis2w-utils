@@ -38,6 +38,7 @@ __all__ = [
     "DHIS2_NAME_PROPERTY",
     "CodeSubstitutions",
     "CodedProjectionIn",
+    "OriginalSpellingExtensionUrls",
     "carries_substitutable_code",
     "code_substitutions",
     "original_spelling_extensions",
@@ -91,16 +92,29 @@ class CodedProjectionIn(BaseModel):
         return self.original_form_name
 
 
-def original_spelling_extensions(property_base: str, projection: CodedProjectionIn) -> list[Extension]:
-    """The `dhis2-code`/`dhis2-name` extensions one resource carries when the run rewrote its code or name.
+class OriginalSpellingExtensionUrls(BaseModel):
+    """The two extension definitions a resource states the DHIS2 spellings of its code and name under."""
+
+    model_config = ConfigDict(frozen=True)
+
+    code_url: str
+    """Canonical URL of the `D2OriginalCode` StructureDefinition the guide defines."""
+
+    name_url: str
+    """Canonical URL of the `D2OriginalName` StructureDefinition the guide defines."""
+
+
+def original_spelling_extensions(urls: OriginalSpellingExtensionUrls, projection: CodedProjectionIn) -> list[Extension]:
+    """The `D2OriginalCode`/`D2OriginalName` extensions one resource carries where the run rewrote its spelling.
 
     A concept states its instance spellings as concept properties; a resource whose whole identity
-    is one DHIS2 object states them as extensions on the same URLs those properties declare, so one
-    reader learns the contract once. Empty when the run published both spellings byte-true, which is
-    every run under the `refuse` posture and most objects under `substitute`.
+    is one DHIS2 object states them as the two extensions the guide's foundation layer defines for
+    exactly that, so every extension a published resource carries resolves to a definition the guide
+    ships. Empty when the run published both spellings byte-true, which is every run under the
+    `refuse` posture and most objects under `substitute`.
     """
-    stated = ((DHIS2_CODE_PROPERTY, projection.original_code), (DHIS2_NAME_PROPERTY, projection.original_name))
-    return [Extension(url=f"{property_base}/{code}", valueString=value) for code, value in stated if value is not None]
+    stated = ((urls.code_url, projection.original_code), (urls.name_url, projection.original_name))
+    return [Extension(url=url, valueString=value) for url, value in stated if value is not None]
 
 
 def carries_substitutable_code(value: str | None) -> bool:

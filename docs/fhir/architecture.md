@@ -296,6 +296,8 @@ carrying one.
 | `D2Description` | Questionnaire.item | the DHIS2 free text guiding the person filling it |
 | `D2EntityLevel` | Questionnaire.item | tracked entity or enrollment, per question |
 | `D2AttributeValue` | Organization, Location, CodeSystem, ValueSet, Questionnaire | a DHIS2 metadata attribute value |
+| `D2OriginalName` | CodeSystem, ValueSet | the name DHIS2 holds, where the run published it rewritten |
+| `D2OriginalCode` | CodeSystem, ValueSet | the code DHIS2 holds, where the run published it rewritten |
 | `D2TrackedEntityAttributeValue` | the register's projected subject | a non-unique attribute value |
 | `D2OrganisationUnit` | QuestionnaireResponse | where a tracker response was captured |
 | `D2OrganisationUnitAssignment` | Questionnaire | the List of Locations a form admits |

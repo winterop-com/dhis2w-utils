@@ -10,6 +10,8 @@ binding and the Extension an aggregate form states its own period type on;
 enrollment, incident, and event dates; `d2-repeatable.fsh` the Extension stating whether one
 enrollment may capture a tracker program stage more than once; `d2-description.fsh` the
 item-level Extension carrying the DHIS2 free text about the object a question is asked from;
+`d2-original-name.fsh` and `d2-original-code.fsh` the two Extensions a CodeSystem or ValueSet
+states the instance's own name and code under wherever the run published either rewritten;
 `d2-form-type.fsh` defines the form-type Extension every generated Questionnaire
 carries, plus its own CodeSystem/ValueSet pair; `d2-attribute-value.fsh` defines the complex
 Extension that carries a DHIS2 attribute value onto every resource that can hold one;
@@ -71,6 +73,10 @@ from dhis2w_fhir.foundation.documents import (
     TerminologyPair,
     build_foundation_terminology_documents,
     build_terminology_pair,
+)
+from dhis2w_fhir.foundation.original_spelling import (
+    ORIGINAL_SPELLING_CONTEXT_RESOURCE_TYPES,
+    original_spelling_extension_urls,
 )
 from dhis2w_fhir.foundation.schemas import (
     AGGREGATE_CONVERSION_MAP,
@@ -147,6 +153,7 @@ __all__ = [
     "PERIOD_ISO_SUB_EXTENSION",
     "PERIOD_RANGE_SUB_EXTENSION",
     "PERIOD_TYPE_SUB_EXTENSION",
+    "ORIGINAL_SPELLING_CONTEXT_RESOURCE_TYPES",
     "PERIOD_TYPE_TERMINOLOGY",
     "TRACKED_ENTITY_ATTRIBUTE_CODE_SUB_EXTENSION",
     "TRACKED_ENTITY_ATTRIBUTE_ID_SUB_EXTENSION",
@@ -171,6 +178,7 @@ __all__ = [
     "build_foundation_terminology_documents",
     "build_response_profile_declarations",
     "build_terminology_pair",
+    "original_spelling_extension_urls",
     "tracked_entity_attribute_identifier_system",
     "tracked_entity_attribute_identifiers",
     "tracked_entity_attribute_value_extension_url",
@@ -295,6 +303,18 @@ def build_foundation_artifacts(config: GenerateConfig, canonical: str, *, ig_sta
     )
     description = _ENVIRONMENT.get_template("d2-description.fsh.jinja").render(
         names=names,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
+    original_name = _ENVIRONMENT.get_template("d2-original-name.fsh.jinja").render(
+        names=names,
+        context_resource_types=ORIGINAL_SPELLING_CONTEXT_RESOURCE_TYPES,
+        ig_status=ig_status,
+        experimental=experimental,
+    )
+    original_code = _ENVIRONMENT.get_template("d2-original-code.fsh.jinja").render(
+        names=names,
+        context_resource_types=ORIGINAL_SPELLING_CONTEXT_RESOURCE_TYPES,
         ig_status=ig_status,
         experimental=experimental,
     )
@@ -472,6 +492,18 @@ def build_foundation_artifacts(config: GenerateConfig, canonical: str, *, ig_sta
             kind="extension",
             fsh_name=names.description_extension,
             content=description,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-original-name.fsh",
+            kind="extension",
+            fsh_name=names.original_name_extension,
+            content=original_name,
+        ),
+        FshArtifact(
+            relative_path="foundation/d2-original-code.fsh",
+            kind="extension",
+            fsh_name=names.original_code_extension,
+            content=original_code,
         ),
         FshArtifact(
             relative_path="foundation/d2-form-type.fsh",

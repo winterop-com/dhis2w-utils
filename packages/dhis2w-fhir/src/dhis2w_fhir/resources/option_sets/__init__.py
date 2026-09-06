@@ -45,6 +45,7 @@ from dhis2w_fhir.coded import (
     DHIS2_CODE_PROPERTY,
     DHIS2_ID_PROPERTY,
     DHIS2_NAME_PROPERTY,
+    OriginalSpellingExtensionUrls,
     code_substitutions,
     original_spelling_extensions,
 )
@@ -53,6 +54,7 @@ from dhis2w_fhir.foundation.attribute_values import (
     attribute_value_extensions,
     attribute_value_identifiers,
 )
+from dhis2w_fhir.foundation.original_spelling import original_spelling_extension_urls
 from dhis2w_fhir.i18n import name_translations, translated_element
 from dhis2w_fhir.names import (
     FHIR_ID_MAX_LENGTH,
@@ -170,6 +172,7 @@ class _OptionSetSystems(BaseModel):
     option_identifier_system: str
     option_code_identifier_system: str
     property_base: str
+    original_spelling: OriginalSpellingExtensionUrls
 
     @classmethod
     def from_config(cls, config: GenerateConfig, canonical: str) -> _OptionSetSystems:
@@ -182,6 +185,7 @@ class _OptionSetSystems(BaseModel):
             option_identifier_system=f"{identifier_base}/id/option",
             option_code_identifier_system=f"{identifier_base}/id/option-code",
             property_base=f"{identifier_base}/property",
+            original_spelling=original_spelling_extension_urls(config, canonical),
         )
 
     def code_system_url(self, code_system_id: str) -> str:
@@ -636,9 +640,9 @@ def _narrative(
     The `option-set-code` identifier carries the spelling the guide publishes, which under the
     substitute posture is the code with its spaces hyphenated - an identifier value is joined on and
     slugged, so it takes the substituted spelling the rest of the guide resolves by. The instance's
-    own spelling is not lost to that: `original_spelling_extensions` states it as a `dhis2-code`
-    extension on the same URL the concept property declares, and states the DHIS2 name beside it
-    wherever the run rewrote the title too.
+    own spelling is not lost to that: `original_spelling_extensions` states it under the guide's own
+    `D2OriginalCode` extension, and states the DHIS2 name under `D2OriginalName` beside it wherever
+    the run rewrote the title too.
     """
     code_kind = "option codes" if config.concept_code_source == "code" else "option UIDs"
     return _OptionSetNarrative(
@@ -651,7 +655,7 @@ def _narrative(
             *attribute_value_identifiers(option_set.attribute_values, attribute_codes, config.identifier_system_base),
         ],
         extensions=[
-            *original_spelling_extensions(systems.property_base, option_set),
+            *original_spelling_extensions(systems.original_spelling, option_set),
             *attribute_value_extensions(option_set.attribute_values, attribute_codes, extension_url),
         ],
         title=flatten_whitespace(option_set.name),

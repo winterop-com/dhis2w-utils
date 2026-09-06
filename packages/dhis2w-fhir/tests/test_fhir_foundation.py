@@ -37,6 +37,8 @@ def test_foundation_covers_expected_files() -> None:
         "foundation/d2-date-labels.fsh",
         "foundation/d2-repeatable.fsh",
         "foundation/d2-description.fsh",
+        "foundation/d2-original-name.fsh",
+        "foundation/d2-original-code.fsh",
         "foundation/d2-form-type.fsh",
         "foundation/d2-program-rule.fsh",
         "foundation/d2-attribute-value.fsh",
@@ -78,6 +80,37 @@ def test_the_generate_operation_follows_the_configured_prefix() -> None:
 
     assert "Instance: LAOGenerateOperation" in content
     assert '* id = "lao-generate"' in content
+
+
+def test_the_original_spelling_extensions_are_defined_for_terminology_resources() -> None:
+    """The two extensions a rewritten set states its DHIS2 name and code under, contexted where they ride."""
+    files = _by_path(GenerateConfig())
+
+    name = files["foundation/d2-original-name.fsh"]
+    assert "Extension: D2OriginalName" in name
+    assert "Id: d2-original-name" in name
+    assert '* ^context[=].expression = "CodeSystem"' in name
+    assert '* ^context[=].expression = "ValueSet"' in name
+    assert "* value[x] only string" in name
+    assert "* valueString 1..1" in name
+
+    code = files["foundation/d2-original-code.fsh"]
+    assert "Extension: D2OriginalCode" in code
+    assert "Id: d2-original-code" in code
+    assert '* ^context[=].expression = "CodeSystem"' in code
+    assert '* ^context[=].expression = "ValueSet"' in code
+    assert "* value[x] only string" in code
+    assert "* valueString 1..1" in code
+
+
+def test_the_original_spelling_extensions_follow_the_configured_prefix() -> None:
+    """Both ride the naming token every other foundation definition does."""
+    files = _by_path(GenerateConfig(naming=NamingConfig(prefix="LAO")))
+
+    assert "Extension: LAOOriginalName" in files["foundation/d2-original-name.fsh"]
+    assert "Id: lao-original-name" in files["foundation/d2-original-name.fsh"]
+    assert "Extension: LAOOriginalCode" in files["foundation/d2-original-code.fsh"]
+    assert "Id: lao-original-code" in files["foundation/d2-original-code.fsh"]
 
 
 def test_aliases_come_from_the_configured_identifier_base() -> None:
