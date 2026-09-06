@@ -116,3 +116,6 @@ dhis2-security-*/
 # Committed capture UI documentation screenshots — re-shot on demand by
 # packages/dhis2w-fhir-serve/frontend/e2e/docs-screenshots.spec.ts
 !docs/img/fhir/*.png
+
+# Run output: d2w fhir doctor, validate, and generate write their reports here.
+reports/
