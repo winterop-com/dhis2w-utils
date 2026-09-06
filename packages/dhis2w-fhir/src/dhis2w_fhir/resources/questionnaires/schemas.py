@@ -222,10 +222,16 @@ class TargetSelection(BaseModel):
     instance: it is the tracked entity types the selected tracker programs already track, so a
     project selecting programs gets a person-only form for each kind of person those programs
     register and nothing else.
+
+    `enabled` is the table's off switch. `false` publishes no form of that kind and costs no
+    request for one, whatever `include_ids` says - the list stays as it is, so turning the table
+    back on restores the selection it named. A guide about programs alone sets
+    `[generate.data_sets] enabled = false` rather than listing a data set UID that matches nothing.
     """
 
     model_config = ConfigDict(extra="forbid")
 
+    enabled: bool = True
     include_ids: list[str] = Field(default_factory=list)
 
 

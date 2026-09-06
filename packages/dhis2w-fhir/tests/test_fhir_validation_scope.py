@@ -395,6 +395,46 @@ async def test_scope_resolution_mirrors_the_generate_selection(
 
 
 @respx.mock
+async def test_a_switched_off_table_leaves_the_scope_and_costs_no_read(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+) -> None:
+    """A table with `enabled = false` contributes nothing to the scope, and the endpoint it would read is never hit."""
+    mock_system_info("v42")
+    programs: list[dict[str, object]] = [
+        {"id": "Pr1aaaaaaaa", "programType": "WITHOUT_REGISTRATION", "programStages": [{"id": "Ps1aaaaaaaa"}]},
+        {"id": "Pr2aaaaaaaa", "programType": "WITH_REGISTRATION", "programStages": [{"id": "Ps2aaaaaaaa"}]},
+    ]
+    routes = _mock_scope_endpoints(data_sets=[{"id": "Ds1aaaaaaaa"}], programs=programs)
+
+    async with open_client(resolve_profile("probe")) as client:
+        no_data_sets = await service.resolve_validation_scope(
+            client, GenerateConfig.model_validate({"data_sets": {"enabled": False, "include_ids": ["Ds1aaaaaaaa"]}})
+        )
+        data_sets_calls = len(routes["dataSets"].calls)
+        no_events = await service.resolve_validation_scope(
+            client, GenerateConfig.model_validate({"event_programs": {"enabled": False}})
+        )
+        program_calls = len(routes["programs"].calls)
+        no_programs = await service.resolve_validation_scope(
+            client,
+            GenerateConfig.model_validate(
+                {"event_programs": {"enabled": False}, "tracker_programs": {"enabled": False}}
+            ),
+        )
+
+    assert data_sets_calls == 0
+    assert no_data_sets.data_sets == frozenset()
+    assert no_data_sets.programs == frozenset({"Pr1aaaaaaaa", "Pr2aaaaaaaa"})
+    assert no_events.programs == frozenset({"Pr2aaaaaaaa"})
+    assert no_events.program_stages == frozenset({"Ps2aaaaaaaa"})
+    assert len(routes["programs"].calls) == program_calls
+    assert no_programs.data_sets == frozenset({"Ds1aaaaaaaa"})
+    assert no_programs.programs == frozenset()
+    assert no_programs.program_stages == frozenset()
+
+
+@respx.mock
 async def test_the_default_category_leaves_the_scope_unless_asked_back(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
