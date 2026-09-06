@@ -8,7 +8,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from dhis2w_cli.main import build_app
-from dhis2w_fhir import FhirValidationReport, GenerateFullReport, GenerateReport, LoadSetReport
+from dhis2w_fhir import (
+    FhirValidationReport,
+    GenerateFullReport,
+    GenerateReport,
+    GenerateSubject,
+    LoadSetReport,
+)
 from dhis2w_fhir.config import HostileNamePosture
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory
 from dhis2w_fhir.validation.schemas import CodeCoverage, SurfaceCodeCoverage, ValidationFinding
@@ -163,6 +169,34 @@ def test_bare_generate_renders_one_consolidated_table(fhir_project: Path) -> Non
     targets = ["foundation", "option-sets", "categories", "questionnaires", "examples", "org-units", "pages"]
     positions = [result.stderr.index(target) for target in targets]
     assert positions == sorted(positions)
+
+
+def test_the_full_table_names_what_each_target_covers_beside_its_file_counts(
+    fhir_project: Path,  # noqa: ARG001
+) -> None:
+    """Subject and files are two numbers: three organisation units ship as six files, and the row says both."""
+    report = _full_report()
+    report.organisation_units = _report(
+        "organization",
+        organisation_unit_count=3,
+        subject=GenerateSubject(count=3, noun="organisation unit"),
+        written_files=[f"organization/file-{index}.json" for index in range(6)],
+    )
+    mock = AsyncMock(return_value=report)
+    with patch("dhis2w_fhir.service.generate_full", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate"])
+    assert result.exit_code == 0, result.output
+    assert "3 organisation units" in result.stderr
+
+
+def test_the_organisation_unit_table_spells_organisation_units_out(fhir_project: Path) -> None:  # noqa: ARG001
+    """The detail table names the objects in full, because a reader is owed the term the instance uses."""
+    mock = AsyncMock(return_value=_report("organization", organisation_unit_count=7))
+    with patch("dhis2w_fhir.service.generate_organisation_units", new=mock):
+        result = _runner.invoke(build_app(), ["fhir", "generate", "org-units"])
+    assert result.exit_code == 0, result.output
+    assert "organisation units" in result.stderr
+    assert "org units" not in result.stderr
 
 
 def _noted_report(project_root: Path) -> GenerateFullReport:

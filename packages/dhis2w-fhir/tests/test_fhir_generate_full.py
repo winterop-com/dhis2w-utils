@@ -14,6 +14,7 @@ import respx
 from dhis2w_core.profile import resolve_profile
 from dhis2w_fhir import GenerateFullReport, GenerateReport, InitOptions, UnsupportedProgramError, load_project, service
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory
+from dhis2w_fhir.service import GenerateSubject, _target_counts
 
 _HOST = "https://dhis2.example"
 
@@ -265,7 +266,7 @@ async def test_generate_full_announces_the_fetch_and_one_step_per_target(
         "7/8 organisation units",
         "8/8 pages",
     ]
-    assert reporter.completions[1].endswith(" written, 0 unchanged")
+    assert reporter.completions[1].endswith(" files written, 0 files unchanged")
     # The live captions say what each step is doing while it runs; the shared fetch narrates
     # itself with ticks that neither advance the counter nor print a line of their own.
     assert reporter.captions[0] == "1/8 fetching instance metadata"
@@ -298,7 +299,7 @@ async def test_generate_option_sets_announces_a_fetch_and_an_emit_step(
     ]
     assert reporter.completions == [
         "1/2 instance metadata: 1 option set(s)",
-        "2/2 option sets: 5 written, 0 unchanged",
+        "2/2 option sets: 1 option set, 5 files written, 0 files unchanged",
     ]
 
 
@@ -541,3 +542,69 @@ async def test_a_project_whose_two_files_agree_raises_no_scaffold_drift(tmp_path
     report = await service.generate_foundation(load_project(tmp_path))
 
     assert _scaffold_drift_notes(report) == []
+
+
+@respx.mock
+async def test_the_organisation_unit_target_counts_units_apart_from_the_files_they_ship_as(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """One organisation unit ships as an Organization and a Location, so the subject is half the files."""
+    _mock_instance(mock_system_info, mock_attributes)
+    await _scaffold_project(tmp_path)
+
+    report = await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
+
+    organisation_units = report.organisation_units
+    assert organisation_units.organisation_unit_count == 2
+    assert organisation_units.subject is not None
+    assert organisation_units.subject.label() == "2 organisation units"
+    registry_files = [name for name in organisation_units.written_files if name.startswith("registry/")]
+    assert len(registry_files) == 2 * organisation_units.organisation_unit_count
+    assert len(organisation_units.written_files) > organisation_units.organisation_unit_count
+
+
+def test_a_target_completion_leads_with_the_subject_it_covers() -> None:
+    """A target that knows what it covers says so first, then counts the files it took to publish it."""
+    report = GenerateReport(
+        project_root=Path("/project"),
+        target_directory="organization",
+        written_files=["organization/a.fsh", "organization/b.fsh"],
+        unchanged_count=1,
+        organisation_unit_count=1,
+        subject=GenerateSubject(count=1696, noun="organisation unit"),
+    )
+
+    assert _target_counts(report) == "1,696 organisation units, 2 files written, 1 file unchanged"
+
+
+def test_a_target_with_no_subject_reports_files_alone() -> None:
+    """The foundation publishes no instance objects, so its line is a file count and nothing else."""
+    report = GenerateReport(
+        project_root=Path("/project"),
+        target_directory="foundation",
+        written_files=[f"foundation/{index}.fsh" for index in range(24)],
+    )
+
+    assert _target_counts(report) == "24 files written, 0 files unchanged"
+
+
+def test_every_count_on_one_line_is_grouped_the_same_way() -> None:
+    """Subject and files sit on one line, so they are read in one number style."""
+    report = GenerateReport(
+        project_root=Path("/project"),
+        target_directory="organization",
+        written_files=[f"registry/{index}.json" for index in range(2667)],
+        unchanged_count=1332,
+        subject=GenerateSubject(count=1332, noun="organisation unit"),
+    )
+
+    assert _target_counts(report) == "1,332 organisation units, 2,667 files written, 1,332 files unchanged"
+
+
+def test_an_irregular_plural_is_spelled_out() -> None:
+    """A subject whose plural an `s` would misspell carries the spelling it is read by."""
+    assert GenerateSubject(count=150, noun="category", plural="categories").label() == "150 categories"
+    assert GenerateSubject(count=1, noun="category", plural="categories").label() == "1 category"

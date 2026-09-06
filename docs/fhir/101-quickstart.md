@@ -281,23 +281,25 @@ facility names, and generation is no longer refused:
 $ uv run d2w fhir generate
 running 8 step(s)
 [1/8] instance metadata: 9 questionnaire target(s), 11 option set(s), 1 category, 1,332 organisation unit(s)
-[2/8] foundation: 24 written, 0 unchanged
-[3/8] option sets: 33 written, 0 unchanged, 1 note
-[4/8] categories: 3 written, 0 unchanged
-[5/8] questionnaires: 21 written, 0 unchanged, 1 note
-[6/8] examples: 9 written, 0 unchanged, 1 note
-[7/8] organisation units: 2667 written, 0 unchanged, 1 note
-[8/8] pages: 15 written, 0 unchanged, 1 note
+[2/8] foundation: 24 files written, 0 files unchanged
+[3/8] option sets: 11 option sets, 33 files written, 0 files unchanged, 1 note
+[4/8] categories: 1 category, 3 files written, 0 files unchanged
+[5/8] questionnaires: 9 questionnaires, 21 files written, 0 files unchanged, 1 note
+[6/8] examples: 9 examples, 9 files written, 0 files unchanged, 1 note
+[7/8] organisation units: 1,332 organisation units, 2,667 files written, 0 files unchanged, 1 note
+[8/8] pages: 6 pages, 15 files written, 0 files unchanged, 1 note
 full pipeline: 2,772 file(s) written across 7 target(s)
 ...
 note: 4 note(s) across 4 target(s); full list in /home/you/my-ig/reports/fhir-generate-notes.md (--details to print)
 ```
 
-One of the quick steps. The `...` hides a per-target table naming each output
-directory. Note the shape of it: one data set and four programs produced nine
-forms, while 1,332 organisation units produced 2,667 files - the registry is
-almost always the bulk of an IG, because every unit emits both an `Organization`
-and a `Location`.
+One of the quick steps. The `...` hides a per-target table naming each target's
+subject and output directory. Note the shape of it: one data set and four
+programs produced nine forms, while 1,332 organisation units produced 2,667
+files - the registry is almost always the bulk of an IG, because every unit
+emits both an `Organization` and a `Location`. That is why each line names its
+subject before its files: the subject is the count to compare with the
+instance, and the files are what publishing it took.
 
 ## 6. Compile it
 
