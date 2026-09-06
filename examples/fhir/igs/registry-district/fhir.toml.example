@@ -25,6 +25,7 @@ status = "draft"
 
 [generate]
 # Web-address stem of the DHIS2 identifiers every published entry carries. -> 301-generation#identifier_system_base
+# The default is a label nobody publishes at; set a stem under a domain you control before the first real publish.
 identifier_system_base = "http://dhis2.org/fhir"
 # Whether a published concept's code is its DHIS2 id or its DHIS2 code; reaches option sets,
 # categories, and category option combinations. `d2w fhir validate --code-source code` reports what

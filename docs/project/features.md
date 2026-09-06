@@ -747,6 +747,12 @@ finding apart; `--details` prints them inline.
 The `foundation` target emits the DHIS2 identifier aliases and the
 NamingSystems declaring them, plus these extensions:
 
+- **The identifier stem is a label, not an address.** Every system is
+  `[generate] identifier_system_base` plus a path, `http://dhis2.org/fhir` by
+  default, and nothing is published at that domain: the guide's own
+  NamingSystems are what a consumer resolves. A project sets a stem under a
+  domain it controls before its first real publish, and the six `special-url`
+  lines of `ig/sushi-config.yaml` follow it on refresh.
 - **`D2Period`** - contexted on QuestionnaireResponse and MeasureReport, with
   its period-type CodeSystem/ValueSet over all 23 DHIS2 period types, matched
   by a `parse_period` ISO parser and its `recent_periods` inverse.

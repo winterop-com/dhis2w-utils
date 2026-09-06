@@ -33,6 +33,8 @@ parameters:
 # under the IG's own canonical has to be declared here or the publisher calls it a mismatch, and the
 # parameter takes no patterns - one line per namespace, spelled out. These follow
 # `[generate] identifier_system_base`; change that in fhir.toml and these six change with it.
+# The default stem is a label nobody publishes at, and the guide's own NamingSystems are what a
+# consumer resolves; a project claims a stem of its own under a domain it controls.
   special-url:
     - {{ identifier_system_base }}/id/option
     - {{ identifier_system_base }}/id/option-code
