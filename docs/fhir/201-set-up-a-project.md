@@ -341,17 +341,21 @@ it outright. The IG identity comes off the project itself: `[ig]` and the
 selection tables from `fhir.toml`, the SUSHI timeout from `ig/fsh.ini`, and
 the publisher URL plus copyright year from `ig/sushi-config.yaml`.
 
-**The identity lines of `ig/sushi-config.yaml` are the one exception to the
-rule above.** `fhir.toml` declares them, so the refresh writes them: the
-guide's `id`, `canonical`, `name`, `title`, the one-line description built from
-the title, `status`, the publisher's name, and the six `special-url` lines that
-follow `[generate] identifier_system_base`. Change a title in `fhir.toml` and
-the next refresh puts it on the guide's cover, reporting the file as
-`refreshed`. Every other line of that file stays exactly as you wrote it -
+**The identity lines are the one exception to the rule above.** `fhir.toml`
+declares them, so the refresh writes them wherever they appear: in
+`ig/sushi-config.yaml` (the guide's `id`, `canonical`, `name`, `title`, the
+one-line description built from the title, `status`, the publisher's name, and
+the six `special-url` lines that follow `[generate] identifier_system_base`), in
+the `[ig]` table of `fhir.toml.example`, on the first line of the front page at
+`ig/input/pagecontent/index.md`, in the `ig = ` line of `ig/ig.ini`, and as the
+project name in `pyproject.toml`. Change a title in `fhir.toml` and one refresh
+puts it on the guide's cover and its front page, reporting each file as
+`refreshed`. Every other line of those files stays exactly as you wrote it -
 `releaseLabel`, `version`, the publisher's home page, `copyrightYear`, the
-parameters, the menu, the path-resource globs. Until the refresh runs,
-`d2w fhir generate` says so with a `scaffold-drift` note naming the keys the
-two files state differently.
+parameters, the menu, the path-resource globs, your own prose and headings, an
+option you uncommented in the example. Until the refresh runs, `d2w fhir
+generate` says so with a `scaffold-drift` note naming the keys `fhir.toml` and
+`ig/sushi-config.yaml` state differently.
 
 !!! warning "A scaffold line you deliberately deleted comes back"
     Deleting a line leaves every remaining line still present in the render,

@@ -10,11 +10,12 @@ scaffold line, and as diverged when lines are missing in both directions, becaus
 and a scaffold line that has since changed read identically to a line-preserving refresh.
 `fhir.toml` is the user's configuration and is never written at all.
 
-The identity lines of `ig/sushi-config.yaml` are the exception to line preservation, because
-`fhir.toml` declares them: the guide's id, canonical, name, title, description, status, publisher
-name, and the six `special-url` lines the `[generate] identifier_system_base` stem addresses are the
-scaffold's to write, so a refresh substitutes each of them into the file and reports it refreshed.
-Every other line of that file is the project's and survives byte-identical.
+The identity lines are the exception to line preservation, because `fhir.toml` declares them. Five
+files carry the identity - `ig/sushi-config.yaml`, `fhir.toml.example`, the front page at
+`ig/input/pagecontent/index.md`, `ig/ig.ini`, and `pyproject.toml` - and each owns the lines listed in
+`dhis2w_fhir.scaffold.identity`, so a refresh substitutes each of them into the file and reports it
+refreshed. Every other line of every one of those files is the project's and survives
+byte-identical.
 """
 
 from __future__ import annotations
@@ -103,11 +104,7 @@ def refresh_project(directory: Path) -> ScaffoldReport:
         if current is None:
             report.diverged_files.append(relative_path)
             continue
-        comparable = (
-            adopt_scaffold_owned_lines(current, scaffold_file.content)
-            if relative_path == SUSHI_CONFIG_RELATIVE_PATH
-            else current
-        )
+        comparable = adopt_scaffold_owned_lines(relative_path, current, scaffold_file.content)
         if current == scaffold_file.content:
             report.unchanged_files.append(relative_path)
         elif preserves_every_line(comparable, scaffold_file.content):

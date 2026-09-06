@@ -567,16 +567,20 @@ chain in one command.
   written; `--force` is rejected; any flag the refresh would ignore is refused.
   The accepted consequence is that a scaffold line deliberately deleted is
   restored, since a deletion leaves the file a subsequence of the render.
-- **The refresh writes the `ig/sushi-config.yaml` lines `fhir.toml` declares.**
-  The guide's `id`, `canonical`, `name`, `title`, the description built from
-  the title, `status`, the publisher name, and the six `special-url` lines the
-  `[generate] identifier_system_base` stem addresses are the scaffold's, so an
-  edit to `fhir.toml` lands on them at the next refresh and the file is
-  reported refreshed. Every other line of that file is the project's and
-  survives byte-identical - `releaseLabel`, `version`, the publisher home page,
-  `copyrightYear`, the parameters, the menu, the path-resource globs. Until the
-  refresh runs, `d2w fhir generate` raises a `scaffold-drift` note naming the
-  keys the two files state differently.
+- **The refresh writes the scaffold lines `fhir.toml` declares.** Five files
+  carry the guide's identity, and one refresh lands an `[ig]` edit in all of
+  them: `ig/sushi-config.yaml` (`id`, `canonical`, `name`, `title`, the
+  description built from the title, `status`, the publisher name, and the six
+  `special-url` lines the `[generate] identifier_system_base` stem addresses),
+  the `[ig]` table of `fhir.toml.example`, the first-line heading of
+  `ig/input/pagecontent/index.md`, the `ig = ` line of `ig/ig.ini`, and the
+  `[project] name` of `pyproject.toml`. Each is reported refreshed. Every other
+  line of those files is the project's and survives byte-identical -
+  `releaseLabel`, `version`, the publisher home page, `copyrightYear`, the
+  parameters, the menu, the path-resource globs, the project's own prose and
+  headings, an option it uncommented in the example. Until the refresh runs,
+  `d2w fhir generate` raises a `scaffold-drift` note naming the keys `fhir.toml`
+  and `ig/sushi-config.yaml` state differently.
 
 ### Build and publish
 

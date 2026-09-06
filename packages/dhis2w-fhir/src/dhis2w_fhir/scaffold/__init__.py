@@ -9,13 +9,33 @@ from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescap
 from dhis2w_fhir.scaffold.project_templates import ProjectTemplate, build_template_files, template_selection
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldFile, normalize_project_name
 
-__all__ = ["FSH_INI_RELATIVE_PATH", "SUSHI_CONFIG_RELATIVE_PATH", "build_scaffold_files"]
+__all__ = [
+    "CONFIG_EXAMPLE_RELATIVE_PATH",
+    "FSH_INI_RELATIVE_PATH",
+    "IG_INI_RELATIVE_PATH",
+    "INDEX_PAGE_RELATIVE_PATH",
+    "PYPROJECT_RELATIVE_PATH",
+    "SUSHI_CONFIG_RELATIVE_PATH",
+    "build_scaffold_files",
+]
 
 #: The SUSHI project configuration, and the one file recording the publisher URL and the copyright year.
 SUSHI_CONFIG_RELATIVE_PATH = "ig/sushi-config.yaml"
 
 #: The IG publisher's FSH settings, and the one file recording the SUSHI timeout.
 FSH_INI_RELATIVE_PATH = "ig/fsh.ini"
+
+#: The catalog of every `fhir.toml` option with its default, which opens on the project's own `[ig]` table.
+CONFIG_EXAMPLE_RELATIVE_PATH = "fhir.toml.example"
+
+#: The IG publisher's entry point, which names the ImplementationGuide file by the guide's id.
+IG_INI_RELATIVE_PATH = "ig/ig.ini"
+
+#: The guide's front page, whose heading is the guide's title.
+INDEX_PAGE_RELATIVE_PATH = "ig/input/pagecontent/index.md"
+
+#: The uv project the scaffold is, whose PEP 508 name is normalised from the guide's id.
+PYPROJECT_RELATIVE_PATH = "pyproject.toml"
 
 _ENVIRONMENT = Environment(
     loader=PackageLoader("dhis2w_fhir.scaffold", "templates"),
@@ -44,7 +64,7 @@ def build_scaffold_files(
     year = copyright_year if copyright_year is not None else datetime.now(tz=UTC).year
     files = [
         _render("fhir.toml", "fhir.toml.jinja", options, selection=template_selection(template) if template else None),
-        _render("fhir.toml.example", "fhir.toml.example.jinja", options),
+        _render(CONFIG_EXAMPLE_RELATIVE_PATH, "fhir.toml.example.jinja", options),
         _render(
             SUSHI_CONFIG_RELATIVE_PATH,
             "sushi-config.yaml.jinja",
@@ -52,12 +72,17 @@ def build_scaffold_files(
             year=year,
             identifier_system_base=options.identifier_system_base,
         ),
-        _render("ig/ig.ini", "ig.ini.jinja", options),
+        _render(IG_INI_RELATIVE_PATH, "ig.ini.jinja", options),
         _render(FSH_INI_RELATIVE_PATH, "fsh.ini.jinja", options),
         _render("ig/input/fsh/aliases.fsh", "aliases.fsh.jinja", options),
-        _render("ig/input/pagecontent/index.md", "index.md.jinja", options),
+        _render(INDEX_PAGE_RELATIVE_PATH, "index.md.jinja", options),
         _render("ig/input/ignoreWarnings.txt", "ignoreWarnings.txt.jinja", options),
-        _render("pyproject.toml", "pyproject.toml.jinja", options, project_name=normalize_project_name(options.ig_id)),
+        _render(
+            PYPROJECT_RELATIVE_PATH,
+            "pyproject.toml.jinja",
+            options,
+            project_name=normalize_project_name(options.ig_id),
+        ),
         _render(".python-version", "python-version.jinja", options),
         _render("Makefile", "Makefile.jinja", options),
         _render("Dockerfile", "Dockerfile.jinja", options),
