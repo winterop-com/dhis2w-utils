@@ -30,7 +30,7 @@ core FHIR name like `Period`.
 
 ## The extension registry
 
-Nineteen extensions, and every one of them says something DHIS2 states that
+Twenty-one extensions, and every one of them says something DHIS2 states that
 FHIR has no element for. They divide by where they ride.
 
 | Extension | Id | Rides on | Value |
@@ -54,6 +54,8 @@ FHIR has no element for. They divide by where they ride.
 | [`D2OrganisationUnitLevel`](#d2organisationunitlevel) | `d2-organisation-unit-level` | `Location` | `Coding` |
 | [`D2AttributeValue`](#d2attributevalue) | `d2-attribute-value` | `Organization`, `Location`, `CodeSystem`, `ValueSet`, `Questionnaire` | complex, 3 slices |
 | [`D2TrackedEntityAttributeValue`](#d2trackedentityattributevalue) | `d2-tracked-entity-attribute-value` | `Patient` | complex, 3 slices |
+| [`D2OriginalName`](#d2originalname-and-d2originalcode) | `d2-original-name` | `CodeSystem`, `ValueSet` | `string` |
+| [`D2OriginalCode`](#d2originalname-and-d2originalcode) | `d2-original-code` | `CodeSystem`, `ValueSet` | `string` |
 
 Each `^context` names exactly the resources that carry the extension. A context
 of bare `Element` would attach it anywhere, which the IG publisher's QA calls
@@ -477,6 +479,34 @@ read off the `unique` concept property `D2TEA_CS` publishes, not guessed from
 the value. Values collected at the program are carried alongside the ones
 collected at the tracked entity type, so a person found by a program
 attribute's value comes back holding it.
+
+#### `D2OriginalName` and `D2OriginalCode`
+
+`{canonical}/StructureDefinition/d2-original-name` and
+`{canonical}/StructureDefinition/d2-original-code`, both `string`, both
+contexted on `CodeSystem` and `ValueSet`. The name and the code the DHIS2
+instance holds for the object a resource publishes, stated wherever the run
+published either in rewritten form under
+[`hostile_names = "substitute"`](301-generation.md#hostile_names) - a name
+carrying `<` published as the words it stands for, a code carrying a space
+published hyphenated. A resource whose name and code reached the guide byte-true
+carries neither.
+
+```json
+{
+  "url": "http://localhost:8080/fhir/StructureDefinition/d2-original-code",
+  "valueString": "Distance (in km)"
+}
+```
+
+A concept states the same two facts as the `dhis2-code` and `dhis2-name`
+[concept properties](#the-concept-property-namespace).
+An option set's own CodeSystem and ValueSet are one DHIS2 object each and have
+no concept to hang a property on, so they state them as these extensions -
+defined here rather than borrowed from the property URIs, because a
+concept-property URI names a property of a CodeSystem and defines no extension
+at all. Between them, a consumer reading a rewritten spelling anywhere in the
+guide has the instance's own spelling one element away.
 
 ### Core FHIR extensions the generator also uses
 

@@ -1,0 +1,12 @@
+Extension: {{ names.original_code_extension }}
+Id: {{ names.original_code_extension_id }}
+Title: "DHIS2 original code"
+Description: "The code the DHIS2 instance holds for the object this resource publishes, stated where the run published that code rewritten. A run under the substitute posture hyphenates every space in a code, and this states the instance's own spelling beside it, so a consumer reading a rewritten code can join it back to the instance."
+* ^status = #{{ ig_status }}
+* ^experimental = {{ "true" if experimental else "false" }}
+{% for resource_type in context_resource_types %}
+* ^context[+].type = #element
+* ^context[=].expression = "{{ resource_type }}"
+{% endfor %}
+* value[x] only string
+* valueString 1..1

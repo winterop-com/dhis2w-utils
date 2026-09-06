@@ -688,6 +688,13 @@ chain in one command.
   with the same rewrite applied to NAME translations, and the instance's byte-true
   spelling stated as a `dhis2-name` property beside the published display; every
   such rewrite is a `name-substitution` note.
+- **A rewritten option set states both DHIS2 spellings as defined extensions.** A
+  concept hangs its instance spelling on a concept property, and an option set's
+  own CodeSystem and ValueSet have no concept to hang one on - so each carries the
+  DHIS2 code under `D2OriginalCode` and the DHIS2 name under `D2OriginalName`,
+  two `string` extensions the `foundation` target defines and contexts on
+  `CodeSystem` and `ValueSet`. A resource the run published byte-true carries
+  neither.
 
 ### Generate the IG source
 
@@ -771,6 +778,10 @@ NamingSystems declaring them, plus these extensions:
 - **`D2Description`** - contexted on `Questionnaire.item`, valued string: the
   DHIS2 free text about the data element, tracked entity attribute, or section
   a question or group is asked from.
+- **`D2OriginalName`** and **`D2OriginalCode`** - contexted on CodeSystem and
+  ValueSet, valued string: the name and the code the DHIS2 instance holds for the
+  object a resource publishes, stated wherever the run published either rewritten
+  under `hostile_names = "substitute"`.
 - **`D2FormType`** - contexted on Questionnaire and QuestionnaireResponse
   alike.
 - **`D2ProgramRule`** - a repeating complex extension carrying, per rule the

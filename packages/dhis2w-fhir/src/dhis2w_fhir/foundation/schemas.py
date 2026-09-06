@@ -627,6 +627,26 @@ class FoundationNaming(BaseModel):
         return join_id_tokens(self.definition_prefix, "description")
 
     @property
+    def original_name_extension(self) -> str:
+        """FSH name of the original-name Extension (e.g. `D2OriginalName`)."""
+        return f"{self.definition_prefix}OriginalName"
+
+    @property
+    def original_name_extension_id(self) -> str:
+        """FHIR id of the original-name Extension (e.g. `d2-original-name`)."""
+        return join_id_tokens(self.definition_prefix, "original", "name")
+
+    @property
+    def original_code_extension(self) -> str:
+        """FSH name of the original-code Extension (e.g. `D2OriginalCode`)."""
+        return f"{self.definition_prefix}OriginalCode"
+
+    @property
+    def original_code_extension_id(self) -> str:
+        """FHIR id of the original-code Extension (e.g. `d2-original-code`)."""
+        return join_id_tokens(self.definition_prefix, "original", "code")
+
+    @property
     def form_type_extension(self) -> str:
         """FSH name of the form-type Extension (e.g. `D2FormType`)."""
         return f"{self.definition_prefix}FormType"
