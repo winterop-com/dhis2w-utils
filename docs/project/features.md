@@ -1290,6 +1290,12 @@ registration form become `Questionnaire` instances.
   by `[generate.examples]` `per_target` / `source`.
 - **`source = "synthetic"`** (the default) generates values locally from a
   SHA-256 seed - stable across machines and runs, every option combo filled.
+- **An example is captured at the organisation-unit selection's own root** -
+  `[generate.organisation_units] root` when the project names one, the
+  instance's level-1 unit when it does not - so the Location an example is
+  subject to is one the registry target published a file for. A unit outside
+  the published selection is an aggregate note rather than a reference the
+  publisher cannot resolve.
 - **An example answers the form it answers.** Only the questions the form's own
   `enableWhen` leaves enabled given the rest of the response are answered - the
   sweep runs to a fixed point, because dropping an answer can close the question

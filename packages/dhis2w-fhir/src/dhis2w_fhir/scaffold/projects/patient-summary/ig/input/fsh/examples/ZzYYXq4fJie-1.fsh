@@ -9,7 +9,7 @@ Usage: #example
 * extension[D2FormType].valueCode = #tracker-event
 * extension[D2TrackerEnrollment].valueIdentifier.system = $DHIS2-TRACKER-ENROLLMENT
 * extension[D2TrackerEnrollment].valueIdentifier.value = "gxMz7Qje7pk"
-* extension[D2OrganisationUnit].valueReference = Reference(Location/ImspTQPwCqd)
+* extension[D2OrganisationUnit].valueReference = Reference(Location/qhqAxPSTUXp)
 * questionnaire = "http://example.org/fhir/examples/patient-summary/Questionnaire/ZzYYXq4fJie"
 * status = #completed
 * subject.type = "Patient"

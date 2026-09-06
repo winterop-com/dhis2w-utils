@@ -404,7 +404,9 @@ set `root` to the district and the guide covers only that branch.
 root = "ImspTQPwCqd"
 ```
 
-Only that unit and its descendants are published.
+Only that unit and its descendants are published. Every example response is
+captured at this unit too, so the Location an example is subject to is one the
+guide publishes.
 
 **Default:** unset - **If you leave it out:** the entire organisation unit tree
 is in scope. Note the quiet twin: `root = ""` also means the entire tree - it
@@ -489,6 +491,11 @@ sees real-shaped data, not just an empty form. An example answers the form the
 way a person filling it in would: it answers only the questions the form's own
 `enableWhen` leaves enabled given the rest of its answers, and every numeric
 answer falls inside the `minValue` / `maxValue` the question declares.
+
+An example is captured at the organisation unit selection's own root -
+[`[generate.organisation_units] root`](#root) when a line sets one, the
+instance's top-level unit when none does - which is a unit the guide publishes a
+Location for.
 
 ### `per_target`
 
