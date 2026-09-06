@@ -708,6 +708,11 @@ finding apart; `--details` prints them inline.
 - **Absent or empty means all** of that kind for the first three tables, and
   the types the selected tracker programs register for the fourth; a non-empty
   list filters.
+- **`enabled = false`** on any of the four tables publishes no form of that
+  kind and costs no request for one; `include_ids` is kept and ignored, so the
+  selection returns when the table is switched back on. A guide about programs
+  alone switches `[generate.data_sets]` off rather than listing a UID that
+  matches nothing.
 - **The whole-instance sweep** routes every program by its live `programType`
   and collects the types neither table maps into one aggregate note. A program
   listed under the table its type does not belong to is a loud failure by name,
@@ -3589,10 +3594,10 @@ full key set and refuses anything else.
 | `[generate.option_sets]` | Terminology selection |
 | `[generate.categories]` | Category selection, `include_default` |
 | `[generate.organisation_units]` | `root`, `max_level`, `terminology` |
-| `[generate.data_sets]` | Aggregate form selection |
-| `[generate.event_programs]` | Event program selection (WITHOUT_REGISTRATION) |
-| `[generate.tracker_programs]` | Tracker program selection (WITH_REGISTRATION) |
-| `[generate.tracked_entity_forms]` | Person-only registration form selection |
+| `[generate.data_sets]` | Aggregate form selection, `enabled` |
+| `[generate.event_programs]` | Event program selection (WITHOUT_REGISTRATION), `enabled` |
+| `[generate.tracker_programs]` | Tracker program selection (WITH_REGISTRATION), `enabled` |
+| `[generate.tracked_entity_forms]` | Person-only registration form selection, `enabled` |
 | `[generate.tracked_entity_types]` | UID to FHIR resource type map |
 | `[generate.examples]` | `per_target`, `source` |
 | `[serve]` | `host`, `port`, `strict_codes`, `capture`, `ui`, `spool_dir`, `basemaps`, `tracked_entities`, `data_sets`, `search` |

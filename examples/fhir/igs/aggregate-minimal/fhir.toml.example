@@ -75,19 +75,27 @@ tracked_entity_type = "TET"         # the person-only registration form -> 301-g
 # Data sets to publish as forms, by UID (absent = all data sets). -> 301-what-goes-in#data-sets
 # A UID that matches nothing on the instance is named in the run's notes. -> 301-what-goes-in#reading-the-notes
 # include_ids = ["BfMAe6Itzgt"]
+# false publishes no data set form at all, whatever include_ids says. -> 301-what-goes-in#enabled
+# enabled = true
 
 [generate.event_programs]
 # Event programs (no registration) to publish as forms, by UID (absent = all). -> 301-what-goes-in#event-programs
 # include_ids = ["VBqh0ynB2wv"]
+# false publishes no event program form at all. -> 301-what-goes-in#enabled
+# enabled = true
 
 [generate.tracker_programs]
 # Tracker programs (with registration), one form per stage, by UID (absent = all). -> 301-what-goes-in#tracker-programs
 # include_ids = ["IpHINAT79UW"]
+# false publishes no tracker program form at all. -> 301-what-goes-in#enabled
+# enabled = true
 
 [generate.tracked_entity_forms]
 # Tracked entity types publishing a person-only registration form, by UID
 # (absent = the types the selected tracker programs register). -> 301-what-goes-in#tracked-entity-forms
 # include_ids = ["nEenWmSyUEp"]
+# false publishes no person-only registration form at all. -> 301-what-goes-in#enabled
+# enabled = true
 
 [generate.tracked_entity_types]
 # What each tracked entity type is; a type not named here is a person. -> 301-what-goes-in#tracked_entity_types

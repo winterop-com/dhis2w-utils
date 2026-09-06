@@ -190,6 +190,52 @@ no request for one.
 by name in [the run's notes](#reading-the-notes) and skipped, the way an
 unmatched data set UID is.
 
+### `enabled` on the four form tables { #enabled }
+
+**In plain words.** The off switch for a kind of form. Each of the four tables
+above - `[generate.data_sets]`, `[generate.event_programs]`,
+`[generate.tracker_programs]`, and `[generate.tracked_entity_forms]` - takes an
+`enabled` key. `false` publishes no form of that kind and costs no request for
+one; everything else in the guide is generated exactly as before.
+
+`include_ids` is left alone: the list stays in the file, and the run ignores it
+while the table is off, so turning the table back on restores the selection it
+named. A table that is off is never a mismatch, whatever UIDs it lists.
+
+**When you would change it.** The guide is about tracker programmes and the
+instance holds forty aggregate data sets you have no use for. Listing a data set
+UID that matches nothing would also publish no data set form, but it leaves a
+note in every run; the switch says what you mean.
+
+**Example.**
+
+```toml
+[generate.data_sets]
+enabled = false
+
+[generate.tracker_programs]
+include_ids = ["IpHINAT79UW"]
+```
+
+The guide publishes the one tracker programme's forms, the person-only form for
+the type it registers, and no data set form.
+
+**Default:** `true` - **If you leave it out:** the table selects as its
+`include_ids` says.
+
+**If you get it wrong:** switching `[generate.tracker_programs]` off also empties
+the default of `[generate.tracked_entity_forms]`, which is the types the selected
+tracker programmes register - so a project that wants the person-only forms
+without the programme forms names the types under
+`[generate.tracked_entity_forms] include_ids`. A value that is not `true` or
+`false` stops the run:
+
+```text
+pydantic_core._pydantic_core.ValidationError: 1 validation error for FhirProjectConfig
+generate.data_sets.enabled
+  Input should be a valid boolean, unable to interpret input [type=bool_parsing, input_value='no', input_type=str]
+```
+
 ### `[generate.option_sets]` include_ids { #option-sets }
 
 **In plain words.** Which option sets are published as code lists. You rarely

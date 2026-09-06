@@ -220,9 +220,13 @@ the file refuses.
 | `[generate.naming]` | [`program_stage`](301-generation.md#program_stage) | `"PS"` | name piece for tracker stage forms |
 | `[generate.naming]` | [`source`](301-generation.md#source) | `"id"` | whether names are built on DHIS2 ids or DHIS2 codes |
 | `[generate.naming]` | [`tracked_entity_type`](301-generation.md#tracked_entity_type) | `"TET"` | name piece for person-only registration forms |
+| `[generate.data_sets]` | [`enabled`](301-what-goes-in.md#enabled) | `true` | whether any data set form is published |
 | `[generate.data_sets]` | [`include_ids`](301-what-goes-in.md#data-sets) | all data sets | which data sets become forms |
+| `[generate.event_programs]` | [`enabled`](301-what-goes-in.md#enabled) | `true` | whether any event program form is published |
 | `[generate.event_programs]` | [`include_ids`](301-what-goes-in.md#event-programs) | all event programs | which event programs become forms |
+| `[generate.tracker_programs]` | [`enabled`](301-what-goes-in.md#enabled) | `true` | whether any tracker program form is published |
 | `[generate.tracker_programs]` | [`include_ids`](301-what-goes-in.md#tracker-programs) | all tracker programs | which tracker programs the guide covers |
+| `[generate.tracked_entity_forms]` | [`enabled`](301-what-goes-in.md#enabled) | `true` | whether any person-only registration form is published |
 | `[generate.tracked_entity_forms]` | [`include_ids`](301-what-goes-in.md#tracked-entity-forms) | the types the selected tracker programs register | which types publish a person-only registration form |
 | `[generate.option_sets]` | [`include_ids`](301-what-goes-in.md#option-sets) | all option sets | which option sets become code lists |
 | `[generate.categories]` | [`include_default`](301-what-goes-in.md#include_default) | `false` | whether DHIS2's built-in `default` category is published |

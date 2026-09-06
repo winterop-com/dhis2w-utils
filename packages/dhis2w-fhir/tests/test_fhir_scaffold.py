@@ -163,6 +163,10 @@ def test_fhir_toml_example_round_trips_to_defaults() -> None:
     assert config.generate.data_sets.include_ids == []
     assert config.generate.event_programs.include_ids == []
     assert config.generate.tracker_programs.include_ids == []
+    assert config.generate.data_sets.enabled is True
+    assert config.generate.event_programs.enabled is True
+    assert config.generate.tracker_programs.enabled is True
+    assert config.generate.tracked_entity_forms.enabled is True
     assert config.generate.categories.include_default is False
     assert config.generate.examples.per_target == 1
     assert config.generate.examples.source == "synthetic"

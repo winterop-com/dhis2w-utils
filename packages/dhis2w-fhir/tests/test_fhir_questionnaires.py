@@ -983,8 +983,8 @@ def test_naming_tokens_flow_into_the_questionnaire_names() -> None:
     assert "* extension[Dhis2FormType].valueCode = #aggregate" in artifacts["data-sets/BfMAe6Itzgt.fsh"]
 
 
-async def _scaffold_project(directory: Path, **generate_lines: str) -> None:
-    """Scaffold a project and append generate tables to its fhir.toml."""
+async def _scaffold_project(directory: Path, *, disabled: tuple[str, ...] = (), **generate_lines: str) -> None:
+    """Scaffold a project and append generate tables to its fhir.toml, switching the `disabled` ones off."""
     options = InitOptions(
         ig_id="dhis2.fhir.questionnaires",
         canonical=_CANONICAL,
@@ -995,8 +995,12 @@ async def _scaffold_project(directory: Path, **generate_lines: str) -> None:
     await service.init_project(directory, options)
     config_path = directory / "fhir.toml"
     body = config_path.read_text(encoding="utf-8")
-    for table, entries in generate_lines.items():
-        body += f"\n[generate.{table}]\ninclude_ids = [{entries}]\n"
+    for table in dict.fromkeys([*generate_lines, *disabled]):
+        body += f"\n[generate.{table}]\n"
+        if table in generate_lines:
+            body += f"include_ids = [{generate_lines[table]}]\n"
+        if table in disabled:
+            body += "enabled = false\n"
     config_path.write_text(body, encoding="utf-8")
 
 
@@ -1632,11 +1636,107 @@ async def test_generate_full_without_selection_tables_still_emits_questionnaires
 
 
 def test_target_selection_defaults_to_everything() -> None:
-    """A data-definition target defaults to an empty include list, which selects the whole instance."""
+    """A data-definition target defaults to an empty include list, switched on, which selects the whole instance."""
     assert TargetSelection().include_ids == []
+    assert TargetSelection().enabled is True
     assert GenerateConfig().data_sets.include_ids == []
     assert GenerateConfig().event_programs.include_ids == []
     assert GenerateConfig().tracker_programs.include_ids == []
+    assert GenerateConfig().tracked_entity_forms.enabled is True
+
+
+def test_a_switched_off_target_keeps_the_list_it_named() -> None:
+    """`enabled = false` is a switch beside the list, not a replacement for it, so the selection survives the flip."""
+    config = GenerateConfig.model_validate({"data_sets": {"enabled": False, "include_ids": ["BfMAe6Itzgt"]}})
+    assert config.data_sets.enabled is False
+    assert config.data_sets.include_ids == ["BfMAe6Itzgt"]
+
+
+@respx.mock
+async def test_a_switched_off_data_set_table_reads_nothing_and_notes_nothing(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """`[generate.data_sets] enabled = false` publishes no data set form and reads nothing, whatever it lists."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(
+        tmp_path, data_sets='"BfMAe6Itzgt", "Missing1234"', event_programs='"VBqh0ynB2wv"', disabled=("data_sets",)
+    )
+    data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_EVENT_PROGRAMS_PAYLOAD))
+    respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
+    respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
+    _mock_option_sets()
+    _mock_categories()
+
+    _mock_organisation_units()
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert not data_sets.called
+    assert report.questionnaire_count == 1
+    assert not any(path.startswith("data-sets/") for path in report.written_files)
+    assert not any("Missing1234" in note.message for note in report.notes)
+
+
+@respx.mock
+async def test_switching_both_program_tables_off_reads_no_program_and_no_rule(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """With both program tables off the run reads neither programs nor rules, and publishes the data sets alone."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"', disabled=("event_programs", "tracker_programs"))
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
+    programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_EVENT_PROGRAMS_PAYLOAD))
+    rules = respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
+    types = respx.get(f"{_HOST}/api/trackedEntityTypes").mock(
+        return_value=httpx.Response(200, json={"trackedEntityTypes": []})
+    )
+    _mock_option_sets()
+    _mock_categories()
+
+    _mock_organisation_units()
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert not programs.called
+    assert not rules.called
+    assert not types.called
+    assert report.questionnaire_count == 1
+    assert "data-sets/BfMAe6Itzgt.fsh" in report.written_files
+
+
+@respx.mock
+async def test_a_switched_off_person_only_table_publishes_no_registration_form(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """`[generate.tracked_entity_forms] enabled = false` drops the person-only form the tracker program brings."""
+    mock_system_info("v42")
+    mock_attributes()
+    await _scaffold_project(tmp_path, tracker_programs='"IpHINAT79UW"', disabled=("tracked_entity_forms",))
+    respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
+    respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [_TRACKER_PROGRAM]}))
+    respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
+    types = respx.get(f"{_HOST}/api/trackedEntityTypes").mock(
+        return_value=httpx.Response(200, json=_PERSON_TYPE_PAYLOAD)
+    )
+    _mock_option_sets()
+    _mock_categories()
+
+    _mock_organisation_units()
+    report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
+
+    assert not types.called
+    assert any(path.startswith("tracker-programs/IpHINAT79UW/") for path in report.written_files)
+    assert not any(path.startswith("tracked-entity-types/") for path in report.written_files)
 
 
 def test_generate_questionnaires_cli_renders_the_count(fhir_questionnaire_project: Path) -> None:  # noqa: ARG001

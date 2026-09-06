@@ -1084,8 +1084,10 @@ async def _resolve_scope_tracked_entity_types(
 
     The same selection `_fetch_tracked_entity_type_sources` applies - `[generate.tracked_entity_forms]`
     where it names anything, the types the selected tracker programs track where it does not - so a
-    run naming neither costs no request at all.
+    run naming neither costs no request at all, and neither does a table switched off.
     """
+    if not config.tracked_entity_forms.enabled:
+        return frozenset()
     selected = config.tracked_entity_forms.include_ids
     uids = selected or sorted(tracked_by_programs)
     if not uids:
@@ -1130,11 +1132,13 @@ async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) 
     """
     bindings = _ScopeBindings()
     data_set_ids = config.data_sets.include_ids
-    data_set_models: list[DataSet] = await client.resources.data_sets.list(
-        fields=_SCOPE_DATA_SET_FIELDS,
-        filters=[_uid_filter(data_set_ids)] if data_set_ids else None,
-        paging=False,
-    )
+    data_set_models: list[DataSet] = []
+    if config.data_sets.enabled:
+        data_set_models = await client.resources.data_sets.list(
+            fields=_SCOPE_DATA_SET_FIELDS,
+            filters=[_uid_filter(data_set_ids)] if data_set_ids else None,
+            paging=False,
+        )
     data_sets: set[str] = set()
     for data_set in data_set_models:
         if not data_set.id:
@@ -1143,13 +1147,20 @@ async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) 
         for element in data_set.dataSetElements or []:
             if element.dataElement is not None:
                 bindings.collect(element.dataElement.model_dump())
-    event_ids = config.event_programs.include_ids
-    tracker_ids = config.tracker_programs.include_ids
-    program_models: list[Program] = await client.resources.programs.list(
-        fields=_SCOPE_PROGRAM_FIELDS,
-        filters=[_uid_filter([*event_ids, *tracker_ids])] if event_ids and tracker_ids else None,
-        paging=False,
-    )
+    event_ids = config.event_programs.include_ids if config.event_programs.enabled else []
+    tracker_ids = config.tracker_programs.include_ids if config.tracker_programs.enabled else []
+    program_models: list[Program] = []
+    if config.event_programs.enabled or config.tracker_programs.enabled:
+        # A filtered read serves the run only when every table still on names its programs; a table
+        # on and empty means its whole program type, which only a sweep answers.
+        every_table_named = (event_ids or not config.event_programs.enabled) and (
+            tracker_ids or not config.tracker_programs.enabled
+        )
+        program_models = await client.resources.programs.list(
+            fields=_SCOPE_PROGRAM_FIELDS,
+            filters=[_uid_filter([*event_ids, *tracker_ids])] if every_table_named else None,
+            paging=False,
+        )
     programs: set[str] = set()
     tracker_programs: set[str] = set()
     program_stages: set[str] = set()
@@ -1160,8 +1171,12 @@ async def resolve_validation_scope(client: Dhis2Client, config: GenerateConfig) 
             continue
         program_type = _program_type(program)
         stages = _program_stages(program)
-        as_event = uid in event_ids if event_ids else program_type == _EVENT_PROGRAM_TYPE
-        as_tracker = uid in tracker_ids if tracker_ids else program_type == _TRACKER_PROGRAM_TYPE
+        as_event = config.event_programs.enabled and (
+            uid in event_ids if event_ids else program_type == _EVENT_PROGRAM_TYPE
+        )
+        as_tracker = config.tracker_programs.enabled and (
+            uid in tracker_ids if tracker_ids else program_type == _TRACKER_PROGRAM_TYPE
+        )
         if as_event and program_type == _EVENT_PROGRAM_TYPE:
             programs.add(uid)
             for stage in stages[:1]:
@@ -3348,22 +3363,24 @@ async def _fetch_questionnaire_sources(
     """Fetch the selected data sets, programs, and tracked entity types as the Questionnaire projection.
 
     An absent or empty `include_ids` selects everything the instance holds of that table's kind,
-    matching the terminology targets. Data sets come first, then the programs, then the tracked
-    entity types - whose default is not the whole instance but the types the selected tracker
-    programs track, so a project selecting one program publishes a person-only form for the kind
-    of person that program registers rather than for every kind the instance knows.
+    matching the terminology targets; a table with `enabled = false` selects nothing and is not
+    read. Data sets come first, then the programs, then the tracked entity types - whose default
+    is not the whole instance but the types the selected tracker programs track, so a project
+    selecting one program publishes a person-only form for the kind of person that program
+    registers rather than for every kind the instance knows.
     """
     sources: list[QuestionnaireSourceIn] = []
-    data_set_ids = config.data_sets.include_ids
-    data_sets = await client.resources.data_sets.list(
-        fields=_DATA_SET_FIELDS,
-        filters=[_uid_filter(data_set_ids)] if data_set_ids else None,
-        order=["name:asc"],
-        paging=False,
-    )
-    sources.extend(_data_set_source(model, notes) for model in data_sets)
-    if data_set_ids:
-        _note_unmatched(data_set_ids, {model.id for model in data_sets}, "data_sets", "data set", notes)
+    if config.data_sets.enabled:
+        data_set_ids = config.data_sets.include_ids
+        data_sets = await client.resources.data_sets.list(
+            fields=_DATA_SET_FIELDS,
+            filters=[_uid_filter(data_set_ids)] if data_set_ids else None,
+            order=["name:asc"],
+            paging=False,
+        )
+        sources.extend(_data_set_source(model, notes) for model in data_sets)
+        if data_set_ids:
+            _note_unmatched(data_set_ids, {model.id for model in data_sets}, "data_sets", "data set", notes)
     sources.extend(await _fetch_program_sources(client, config, notes))
     sources.extend(await _fetch_tracked_entity_type_sources(client, config, sources, notes))
     return sources
@@ -3379,8 +3396,11 @@ async def _fetch_tracked_entity_type_sources(
 
     The selection is `[generate.tracked_entity_forms] include_ids` where it names anything, and the
     types the run's tracker programs already track where it does not. Both are a filtered read, so
-    a run selecting no tracker programs and naming no types costs no request at all.
+    a run selecting no tracker programs and naming no types costs no request at all, and neither
+    does a table switched off.
     """
+    if not config.tracked_entity_forms.enabled:
+        return []
     selected = config.tracked_entity_forms.include_ids
     uids = selected or sorted(
         {uid for source in sources if source.kind == "tracker" and (uid := source.tracked_entity_type_uid)}
@@ -3408,32 +3428,38 @@ async def _fetch_program_sources(
     by name, pointing at the table it belongs under. An empty table means every program of its
     type, read off one unfiltered fetch and split by `programType`. With both tables empty a
     single sweep serves both, and the program types neither table maps are collected into one note.
+    A table with `enabled = false` contributes nothing and is not read; with both off, the program
+    rules are not read either, since no form is left for them to reach.
     """
+    events_enabled = config.event_programs.enabled
+    trackers_enabled = config.tracker_programs.enabled
+    if not events_enabled and not trackers_enabled:
+        return []
     event_ids = config.event_programs.include_ids
     tracker_ids = config.tracker_programs.include_ids
     variables: dict[str, list[ProgramRuleVariableIn]] = {}
-    if not event_ids and not tracker_ids:
+    if events_enabled and trackers_enabled and not event_ids and not tracker_ids:
         swept = await _list_programs(client, None)
         variables.update({model.id or "": _program_rule_variable_inputs(model) for model in swept})
         return _with_program_rules(_swept_program_sources(swept, notes), await _fetch_program_rules(client), variables)
     sources: list[QuestionnaireSourceIn] = []
-    if event_ids:
+    if events_enabled and event_ids:
         selected = await _list_programs(client, event_ids)
         sources.extend(_event_program_source(model, notes) for model in selected)
         variables.update({model.id or "": _program_rule_variable_inputs(model) for model in selected})
         _note_unmatched(event_ids, {model.id for model in selected}, "event_programs", "event program", notes)
-    else:
+    elif events_enabled:
         swept = await _list_programs(client, None)
         events = [model for model in swept if _program_type(model) == _EVENT_PROGRAM_TYPE]
         sources.extend(_event_program_source(model, notes) for model in events)
         variables.update({model.id or "": _program_rule_variable_inputs(model) for model in events})
-    if tracker_ids:
+    if trackers_enabled and tracker_ids:
         selected = await _list_programs(client, tracker_ids)
         for model in selected:
             sources.extend(_tracker_program_sources(model, notes))
             variables[model.id or ""] = _program_rule_variable_inputs(model)
         _note_unmatched(tracker_ids, {model.id for model in selected}, "tracker_programs", "tracker program", notes)
-    else:
+    elif trackers_enabled:
         swept = await _list_programs(client, None)
         for model in swept:
             if _program_type(model) == _TRACKER_PROGRAM_TYPE:
