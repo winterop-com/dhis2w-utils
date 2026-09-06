@@ -1,17 +1,27 @@
 """Bring an existing project's scaffold-managed files up to date without dropping anything the user wrote.
 
 The scaffold grows: a `path-resource` declaration lands in `ig/sushi-config.yaml`, an entry lands in
-`.gitignore`, and a project scaffolded before that carries neither. `refresh_project` re-renders the
-scaffold for that project - identity read back off disk, not defaults - and writes a file only when
-the render reproduces every line already there, so a refresh can add what the scaffold gained and can
-never take away what the user added. A file holding a line the scaffold would not produce is left
-exactly as it is and reported - as carrying the user's additions when it still holds every current
-scaffold line, and as diverged when lines are missing in both directions, because the user's edits
-and a scaffold line that has since changed read identically to a line-preserving refresh.
-`fhir.toml` is the user's configuration and is never written at all.
+`.gitignore`, a recipe in the `Makefile` takes a new shape, and a project scaffolded before any of
+that carries none of it. `refresh_project` re-renders the scaffold for that project - identity read
+back off disk, not defaults - and lands the current render wherever nothing of the project's own is
+at stake.
+
+The files at `OWNED_WHOLE_RELATIVE_PATHS` are the scaffold's outright: nobody edits the `Makefile`,
+the `Dockerfile`, `.python-version`, `ig/ig.ini` or `ig/fsh.ini`, because every value in them is
+either a `?=` default taken from the command line or the environment, or a value the project states
+elsewhere and the render carries back in. A refresh writes each of those from the current render
+whenever it differs, so a revision that replaces a line lands whole.
+
+Every other file goes through the line ladder. It is rewritten only when the render reproduces every
+line already there, so a refresh adds what the scaffold gained and never takes away what the user
+added. A file holding a line the scaffold would not produce stays exactly as it is and is reported -
+as carrying the user's additions when it still holds every current scaffold line, and as diverged
+when lines are missing in both directions, since the user's edits and a scaffold line that has since
+changed read identically from disk. `fhir.toml` is the user's configuration and is never written at
+all.
 
 The identity lines are the exception to line preservation, because `fhir.toml` declares them. Five
-files carry the identity - `ig/sushi-config.yaml`, `fhir.toml.example`, the front page at
+files carry the identity - `ig/sushi-config.yaml`, `fhir.example.toml`, the front page at
 `ig/input/pagecontent/index.md`, `ig/ig.ini`, and `pyproject.toml` - and each owns the lines listed in
 `dhis2w_fhir.scaffold.identity`, so a refresh substitutes each of them into the file and reports it
 refreshed. Every other line of every one of those files is the project's and survives
@@ -25,7 +35,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from dhis2w_fhir.config import FHIR_CONFIG_FILENAME, NoFhirProjectError, load_fhir_config
-from dhis2w_fhir.scaffold import FSH_INI_RELATIVE_PATH, SUSHI_CONFIG_RELATIVE_PATH, build_scaffold_files
+from dhis2w_fhir.scaffold import (
+    CONFIG_EXAMPLE_RELATIVE_PATH,
+    FSH_INI_RELATIVE_PATH,
+    OWNED_WHOLE_RELATIVE_PATHS,
+    SUSHI_CONFIG_RELATIVE_PATH,
+    build_scaffold_files,
+)
 from dhis2w_fhir.scaffold.identity import adopt_scaffold_owned_lines
 from dhis2w_fhir.scaffold.schemas import (
     DEFAULT_SUSHI_TIMEOUT_SECONDS,
@@ -35,6 +51,9 @@ from dhis2w_fhir.scaffold.schemas import (
 )
 
 __all__ = ["preserves_every_line", "read_project_scaffold_state", "refresh_project"]
+
+#: What a project may carry from an older scaffold, and the file that writes that content today.
+_SUPERSEDED_FILES = {"fhir.toml.example": CONFIG_EXAMPLE_RELATIVE_PATH}
 
 #: `copyrightYear: 2026+` of sushi-config - the scaffold stamps the year it ran and nothing else records it.
 _COPYRIGHT_YEAR_PATTERN = re.compile(r"^copyrightYear:\s*(\d{4})\+?\s*$", re.MULTILINE)
@@ -87,7 +106,7 @@ def preserves_every_line(current: str, rendered: str) -> bool:
 
 
 def refresh_project(directory: Path) -> ScaffoldReport:
-    """Re-render the scaffold for the project in `directory`, writing only where nothing on disk is lost."""
+    """Re-render the scaffold for the project in `directory`, landing every file nothing of the project's is in."""
     state = read_project_scaffold_state(directory)
     report = ScaffoldReport(directory=directory.resolve())
     for scaffold_file in build_scaffold_files(state.options, copyright_year=state.copyright_year):
@@ -104,10 +123,15 @@ def refresh_project(directory: Path) -> ScaffoldReport:
         if current is None:
             report.diverged_files.append(relative_path)
             continue
-        comparable = adopt_scaffold_owned_lines(relative_path, current, scaffold_file.content)
         if current == scaffold_file.content:
             report.unchanged_files.append(relative_path)
-        elif preserves_every_line(comparable, scaffold_file.content):
+            continue
+        if relative_path in OWNED_WHOLE_RELATIVE_PATHS:
+            destination.write_text(scaffold_file.content, encoding="utf-8")
+            report.refreshed_files.append(relative_path)
+            continue
+        comparable = adopt_scaffold_owned_lines(relative_path, current, scaffold_file.content)
+        if preserves_every_line(comparable, scaffold_file.content):
             destination.write_text(scaffold_file.content, encoding="utf-8")
             report.refreshed_files.append(relative_path)
         elif comparable != current:
@@ -123,7 +147,17 @@ def refresh_project(directory: Path) -> ScaffoldReport:
             # Lines missing in both directions. The user's edits and a scaffold line that has
             # since changed read identically here, so the verdict claims neither author.
             report.diverged_files.append(relative_path)
+    report.notes.extend(_files_the_scaffold_no_longer_writes(directory))
     return report
+
+
+def _files_the_scaffold_no_longer_writes(directory: Path) -> list[str]:
+    """Name each file a project carries that the scaffold does not write, so the person can delete it."""
+    return [
+        f"{superseded} is not a scaffold file; delete it, {replacement} has replaced it"
+        for superseded, replacement in _SUPERSEDED_FILES.items()
+        if (directory / superseded).exists()
+    ]
 
 
 def _read_file(path: Path) -> str | None:

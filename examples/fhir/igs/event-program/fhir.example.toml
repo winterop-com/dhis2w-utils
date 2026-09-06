@@ -1,4 +1,4 @@
-# fhir.toml.example - every option `d2w fhir generate` and `d2w fhir serve` understand,
+# fhir.example.toml - every option `d2w fhir generate` and `d2w fhir serve` understand,
 # with its default. Copy what you need into fhir.toml; omitted options keep these defaults.
 #
 # Nothing reads this file. It is the catalog you copy option lines out of, which is also the
@@ -15,10 +15,10 @@
 
 [ig]
 # Who this guide is and where it lives on the web. -> 301-identity
-id = "dhis2.fhir.examples.aggregate-minimal"
-canonical = "http://example.org/fhir/examples/aggregate-minimal"       # the guide's permanent web address -> 301-identity#canonical
-name = "ExamplesAggregateMinimal"
-title = "Minimal aggregate example guide"
+id = "dhis2.fhir.examples.event-program"
+canonical = "http://example.org/fhir/examples/event-program"       # the guide's permanent web address -> 301-identity#canonical
+name = "ExamplesEventProgram"
+title = "Event program example guide"
 publisher = "dhis2w-utils examples"
 # "draft" while building; "active" for production. -> 301-identity#status
 status = "draft"

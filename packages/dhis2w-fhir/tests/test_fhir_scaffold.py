@@ -8,7 +8,13 @@ import pytest
 import yaml
 from dhis2w_fhir.config import FhirProjectConfig, HostileNamePosture, NoFhirProjectError
 from dhis2w_fhir.resources.pages import SITE_PAGE_FILENAMES
-from dhis2w_fhir.scaffold import build_scaffold_files
+from dhis2w_fhir.scaffold import (
+    CONFIG_EXAMPLE_RELATIVE_PATH,
+    INDEX_PAGE_RELATIVE_PATH,
+    OWNED_WHOLE_RELATIVE_PATHS,
+    SUSHI_CONFIG_RELATIVE_PATH,
+    build_scaffold_files,
+)
 from dhis2w_fhir.scaffold.identity import adopt_scaffold_owned_lines
 from dhis2w_fhir.scaffold.refresh import preserves_every_line, read_project_scaffold_state, refresh_project
 from dhis2w_fhir.scaffold.schemas import DEFAULT_SUSHI_TIMEOUT_SECONDS, InitOptions, normalize_project_name
@@ -50,7 +56,7 @@ def test_scaffold_covers_expected_files() -> None:
     """Every expected project file is scaffolded."""
     assert set(_by_path()) == {
         "fhir.toml",
-        "fhir.toml.example",
+        "fhir.example.toml",
         "ig/sushi-config.yaml",
         "ig/ig.ini",
         "ig/fsh.ini",
@@ -140,13 +146,13 @@ def test_fhir_toml_round_trips() -> None:
 
 
 def test_fhir_toml_example_round_trips_to_defaults() -> None:
-    """fhir.toml.example documents every option, and its stated values ARE the defaults.
+    """fhir.example.toml documents every option, and its stated values ARE the defaults.
 
     The starter fhir.toml matches those defaults except for its one deliberate choice:
     it states `hostile_names = "substitute"`, because almost every real instance carries
     a name with '<' and the standing answer belongs in the file, not in a prompt.
     """
-    raw = tomllib.loads(_by_path()["fhir.toml.example"])
+    raw = tomllib.loads(_by_path()["fhir.example.toml"])
     config = FhirProjectConfig.model_validate(raw)
     assert config.generate.hostile_names is None
     starter = FhirProjectConfig.model_validate(tomllib.loads(_by_path()["fhir.toml"]))
@@ -183,7 +189,7 @@ def test_fhir_toml_example_round_trips_to_defaults() -> None:
 
 def test_fhir_toml_example_catalogues_the_posture_dials_under_their_own_names() -> None:
     """Each dial is one copyable line carrying its default, and `import` is spelled as the file takes it."""
-    example = _by_path()["fhir.toml.example"]
+    example = _by_path()["fhir.example.toml"]
     assert "capture = true" in example
     assert 'spool_dir = ".serve/responses"' in example
     assert "import = false" in example
@@ -204,7 +210,7 @@ def test_fhir_toml_example_catalogues_only_keys_the_document_declares() -> None:
     than a setting. Uncommenting every option line at once proves the catalog is exactly the
     declared surface, suggestions and all.
     """
-    lines = _by_path()["fhir.toml.example"].splitlines()
+    lines = _by_path()["fhir.example.toml"].splitlines()
     uncommented = "\n".join(match.group(1) if (match := _COMMENTED_OPTION.match(line)) else line for line in lines)
     assert "# max_level = 4" not in uncommented
     config = FhirProjectConfig.model_validate(tomllib.loads(uncommented))
@@ -217,7 +223,7 @@ def test_fhir_toml_example_catalogues_only_keys_the_document_declares() -> None:
 
 def test_fhir_toml_example_documents_the_serve_table() -> None:
     """`make serve` reads `[serve]`, so the example states the table and names the 8080 clash."""
-    example = _by_path()["fhir.toml.example"]
+    example = _by_path()["fhir.example.toml"]
     assert "[serve]" in example
     assert "`make serve`" in example
     assert "port = 8090" in example
@@ -226,7 +232,7 @@ def test_fhir_toml_example_documents_the_serve_table() -> None:
 
 def test_fhir_toml_example_comments_out_the_unset_placeholders() -> None:
     """Values that mean "unset" are shown as commented real-shaped examples, not as magic empties."""
-    example = _by_path()["fhir.toml.example"]
+    example = _by_path()["fhir.example.toml"]
     assert '# root = "ImspTQPwCqd"' in example
     assert "# max_level = 4" in example
     assert '# locales = ["lo", "en"]' in example
@@ -689,6 +695,81 @@ def test_refresh_adds_the_serve_targets_to_a_makefile_scaffolded_before_them(tmp
     assert makefile.read_text(encoding="utf-8") == content
 
 
+def test_owned_whole_files_are_the_toolchain_files_nobody_edits(tmp_path: Path) -> None:
+    """The five files a refresh rewrites outright are named once, and every one of them is scaffolded."""
+    assert OWNED_WHOLE_RELATIVE_PATHS == ("Makefile", "Dockerfile", ".python-version", "ig/ig.ini", "ig/fsh.ini")
+    assert set(OWNED_WHOLE_RELATIVE_PATHS) <= set(_by_path())
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "old", "new"),
+    [
+        ("Makefile", "\t\tdocker volume rm $(CACHE_VOLUME); \\", "\t-docker volume rm $(CACHE_VOLUME)"),
+        ("Dockerfile", "FROM", "# an edit nobody makes\nFROM"),
+        (".python-version", "3.13", "3.12"),
+        ("ig/ig.ini", "template = fhir2.base.template", "template = some.other.template"),
+        ("ig/fsh.ini", "[FSH]", "[FSH]\nexcluded = false"),
+    ],
+)
+def test_refresh_rewrites_an_owned_whole_file_from_the_current_render(
+    tmp_path: Path, relative_path: str, old: str, new: str
+) -> None:
+    """A scaffold revision replacing a line in a toolchain file lands whole, rather than reading as a divergence."""
+    _write_project(tmp_path)
+    destination = tmp_path / relative_path
+    rendered = destination.read_text(encoding="utf-8")
+    assert old in rendered
+    destination.write_text(rendered.replace(old, new, 1), encoding="utf-8")
+
+    report = refresh_project(tmp_path)
+
+    assert report.refreshed_files == [relative_path]
+    assert report.diverged_files == []
+    assert destination.read_text(encoding="utf-8") == rendered
+
+
+def test_refresh_keeps_the_sushi_config_a_project_edited(tmp_path: Path) -> None:
+    """sushi-config is the project's to shape, so an edited line stays and the file is not owned whole."""
+    _write_project(tmp_path)
+    sushi_config = tmp_path / SUSHI_CONFIG_RELATIVE_PATH
+    edited = sushi_config.read_text(encoding="utf-8").replace("releaseLabel: ci-build", "releaseLabel: release")
+    sushi_config.write_text(edited, encoding="utf-8")
+
+    report = refresh_project(tmp_path)
+
+    assert SUSHI_CONFIG_RELATIVE_PATH not in OWNED_WHOLE_RELATIVE_PATHS
+    assert report.diverged_files == [SUSHI_CONFIG_RELATIVE_PATH]
+    assert sushi_config.read_text(encoding="utf-8") == edited
+
+
+def test_refresh_keeps_an_edited_front_page_paragraph(tmp_path: Path) -> None:
+    """The front page carries the project's prose, so an edited paragraph is kept and the file is reported."""
+    _write_project(tmp_path)
+    front_page = tmp_path / INDEX_PAGE_RELATIVE_PATH
+    rendered = front_page.read_text(encoding="utf-8")
+    second_line = rendered.splitlines()[2]
+    edited = rendered.replace(second_line, "A sentence this project wrote for its readers.", 1)
+    front_page.write_text(edited, encoding="utf-8")
+
+    report = refresh_project(tmp_path)
+
+    assert report.diverged_files == [INDEX_PAGE_RELATIVE_PATH]
+    assert front_page.read_text(encoding="utf-8") == edited
+
+
+def test_refresh_writes_the_example_config_a_project_lacks_and_names_the_file_it_replaces(tmp_path: Path) -> None:
+    """A project carrying the file the scaffold no longer writes gains fhir.example.toml and is told to delete it."""
+    _write_project(tmp_path)
+    superseded = tmp_path / "fhir.toml.example"
+    (tmp_path / CONFIG_EXAMPLE_RELATIVE_PATH).rename(superseded)
+
+    report = refresh_project(tmp_path)
+
+    assert report.created_files == [CONFIG_EXAMPLE_RELATIVE_PATH]
+    assert superseded.is_file()
+    assert report.notes == ["fhir.toml.example is not a scaffold file; delete it, fhir.example.toml has replaced it"]
+
+
 def test_refresh_never_writes_fhir_toml(tmp_path: Path) -> None:
     """fhir.toml is the user's configuration: a refresh neither compares it nor writes it."""
     _write_project(tmp_path)
@@ -788,13 +869,13 @@ def test_refresh_keeps_the_sushi_timeout_no_other_file_records(tmp_path: Path) -
 
 
 def test_every_committed_guide_example_matches_the_current_render() -> None:
-    """Each guide's committed fhir.toml.example is byte-identical to what the scaffold renders today.
+    """Each guide's committed fhir.example.toml is byte-identical to what the scaffold renders today.
 
     The scaffold template is pinned to the config schema by the round-trip test above; the copies
     committed under examples/fhir/igs/ are what a reader browsing the repository sees, and nothing
     else asserts they kept up. A config table added without resweeping the guides passed silently
     twice before this test existed; now it is a failure naming the guide, and the fix it names is
-    the one that always works: delete the guide's fhir.toml.example and run
+    the one that always works: delete the guide's fhir.example.toml and run
     `d2w fhir init --refresh .` in the guide.
     """
     from dhis2w_fhir.scaffold import build_scaffold_files
@@ -806,18 +887,18 @@ def test_every_committed_guide_example_matches_the_current_render() -> None:
     stale: list[str] = []
     for config_path in guides:
         guide = config_path.parent
-        committed = guide / "fhir.toml.example"
+        committed = guide / "fhir.example.toml"
         if not committed.is_file():
-            stale.append(f"{guide.name}: fhir.toml.example is missing")
+            stale.append(f"{guide.name}: fhir.example.toml is missing")
             continue
         state = read_project_scaffold_state(guide)
         rendered = {
             f.relative_path: f.content for f in build_scaffold_files(state.options, copyright_year=state.copyright_year)
         }
-        if committed.read_text(encoding="utf-8") != rendered["fhir.toml.example"]:
-            stale.append(f"{guide.name}: fhir.toml.example does not match the current render")
+        if committed.read_text(encoding="utf-8") != rendered["fhir.example.toml"]:
+            stale.append(f"{guide.name}: fhir.example.toml does not match the current render")
     assert not stale, (
-        "committed guide examples have gone stale - in each guide, delete fhir.toml.example and "
+        "committed guide examples have gone stale - in each guide, delete fhir.example.toml and "
         "run `d2w fhir init --refresh .`:\n  " + "\n  ".join(stale)
     )
 
@@ -936,7 +1017,7 @@ def test_refresh_lands_an_edited_identity_in_every_file_that_carries_it(tmp_path
     report = refresh_project(tmp_path)
 
     assert sorted(report.refreshed_files) == [
-        "fhir.toml.example",
+        "fhir.example.toml",
         "ig/ig.ini",
         "ig/input/pagecontent/index.md",
         "ig/sushi-config.yaml",
@@ -946,7 +1027,7 @@ def test_refresh_lands_an_edited_identity_in_every_file_that_carries_it(tmp_path
     published = yaml.safe_load((tmp_path / "ig" / "sushi-config.yaml").read_text(encoding="utf-8"))
     assert published["id"] == "dhis2.fhir.sl"
     assert published["title"] == "Sierra Leone HMIS FHIR Guide"
-    example = tomllib.loads((tmp_path / "fhir.toml.example").read_text(encoding="utf-8"))
+    example = tomllib.loads((tmp_path / "fhir.example.toml").read_text(encoding="utf-8"))
     assert example["ig"]["id"] == "dhis2.fhir.sl"
     assert example["ig"]["title"] == "Sierra Leone HMIS FHIR Guide"
     assert (
@@ -985,7 +1066,7 @@ def test_refresh_lands_the_identity_in_the_example_and_keeps_an_option_the_proje
 ) -> None:
     """The example's `[ig]` table follows fhir.toml; every other line of the catalog is the project's."""
     _write_project(tmp_path)
-    example = tmp_path / "fhir.toml.example"
+    example = tmp_path / "fhir.example.toml"
     example.write_text(
         example.read_text(encoding="utf-8").replace('# profile = "myserver"', 'profile = "hmis"'), encoding="utf-8"
     )
@@ -993,7 +1074,7 @@ def test_refresh_lands_the_identity_in_the_example_and_keeps_an_option_the_proje
 
     report = refresh_project(tmp_path)
 
-    assert "fhir.toml.example" in report.refreshed_files
+    assert "fhir.example.toml" in report.refreshed_files
     written = example.read_text(encoding="utf-8")
     assert 'profile = "hmis"\n' in written
     assert 'title = "Sierra Leone HMIS FHIR Guide"\n' in written

@@ -556,8 +556,13 @@ chain in one command.
   fails the build with exit 143.
 - **`--refresh`** brings an existing project's scaffold-managed files up to
   date, recovering the IG identity from the project's own `fhir.toml`,
-  `ig/fsh.ini`, and `ig/sushi-config.yaml`, and rewriting a file only when the
-  current render reproduces every line already on disk in order. So a refresh
+  `ig/fsh.ini`, and `ig/sushi-config.yaml`. The `Makefile`, the `Dockerfile`,
+  `.python-version`, `ig/ig.ini` and `ig/fsh.ini` are the scaffold's own files
+  and are rewritten from the current render whenever it differs - every knob
+  the Makefile has is a `?=` default set on the command line (`make build
+  JAVA_HEAP=4g`) or in the environment, so an override outlives the refresh.
+  Every other file is rewritten only when the current render reproduces every
+  line already on disk in order. So a refresh
   adds what the scaffold gained (a new `path-resource` glob, a new `.gitignore`
   entry, a new menu entry) and never drops a line the user wrote. Each file is
   reported as created / refreshed / unchanged / with your additions / diverged
@@ -572,7 +577,7 @@ chain in one command.
   them: `ig/sushi-config.yaml` (`id`, `canonical`, `name`, `title`, the
   description built from the title, `status`, the publisher name, and the six
   `special-url` lines the `[generate] identifier_system_base` stem addresses),
-  the `[ig]` table of `fhir.toml.example`, the first-line heading of
+  the `[ig]` table of `fhir.example.toml`, the first-line heading of
   `ig/input/pagecontent/index.md`, the `ig = ` line of `ig/ig.ini`, and the
   `[project] name` of `pyproject.toml`. Each is reported refreshed. Every other
   line of those files is the project's and survives byte-identical -
@@ -3694,7 +3699,7 @@ full key set and refuses anything else.
 - **The `[forward] import` key is spelled `import` in the file** (the field is
   `import_responses` in Python, because `import` is a keyword), and the file
   accepts no other spelling of it.
-- **`fhir.toml.example`** carries a one-line comment per option pointing at its
+- **`fhir.example.toml`** carries a one-line comment per option pointing at its
   section in the guide, and the scaffolded `fhir.toml` header names both the
   example file and the series.
 
@@ -3816,7 +3821,7 @@ scenario, an example, the default and leave-it-out behaviour, and the exact
 refusal text a mistake produces, captured from real misconfigured runs.
 
 - [The settings file: fhir.toml](../fhir/301-fhir-toml.md) - what the
-  file is, how commands discover it, the `fhir.toml` / `fhir.toml.example`
+  file is, how commands discover it, the `fhir.toml` / `fhir.example.toml`
   split, TOML editing rules, the unknown-key refusal and its `did you mean`
   suggestion, the two silent-unset values, and the three
   read-before-you-decide options.

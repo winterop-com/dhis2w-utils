@@ -227,7 +227,7 @@ The per-key catalog lives in the user guides, one page per table, each key with
 its default, its refusal text, and when to change it:
 
 - [The settings file](../301-fhir-toml.md) - discovery, the
-  `fhir.toml` / `fhir.toml.example` split, editing rules, and the two
+  `fhir.toml` / `fhir.example.toml` split, editing rules, and the two
   silent-unset values (`root = ""`, `max_level = 0`).
 - [Who the guide is](../301-identity.md) - `profile` and `[ig]`.
 - [How things are generated](../301-generation.md) - `[generate]`
@@ -238,7 +238,7 @@ its default, its refusal text, and when to change it:
 - [Serving it](../301-serving.md) - `[serve]`.
 
 `config.py` and the emitter selection schemas stay the source of truth; the
-scaffolded `fhir.toml.example` states every key with its default and points
+scaffolded `fhir.example.toml` states every key with its default and points
 each one at its section of those pages.
 
 ### 2.5 Every scaffolded file
@@ -248,7 +248,7 @@ each one at its section of those pages.
 | Path | What it is |
 | --- | --- |
 | `fhir.toml` | The minimal committed config - the profile pointer, `[ig]`, and the seeded target lists when `--data-set` / `--event-program` / `--tracker-program` were given. |
-| `fhir.toml.example` | Every option with its default, documented. |
+| `fhir.example.toml` | Every option with its default, documented. |
 | `ig/sushi-config.yaml` | SUSHI identity, `fhirVersion: 4.0.1`, `excludexml` / `excludettl` (JSON only), the six `special-url` declarations for the DHIS2 identifier namespaces the ConceptMaps target, the `path-resource` globs for `input/resources/registry/*`, `input/resources/terminology/*`, and `input/resources/categories/*` (SUSHI recurses into those sub-folders, the IG Publisher does not, so a missing glob drops that sub-folder from the published guide), and the eight-entry `menu:`. No `pages:` and no `groups:`. Also the one file recording the publisher URL and the copyright year, which is why a refresh reads its inputs from it. |
 | `ig/ig.ini` | `template = fhir2.base.template`, pointing at the compiled ImplementationGuide JSON. |
 | `ig/fsh.ini` | `timeout = 1800` for the publisher's embedded SUSHI, settable with `--sushi-timeout`. |

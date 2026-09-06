@@ -1,4 +1,4 @@
-# fhir.toml.example - every option `d2w fhir generate` and `d2w fhir serve` understand,
+# fhir.example.toml - every option `d2w fhir generate` and `d2w fhir serve` understand,
 # with its default. Copy what you need into fhir.toml; omitted options keep these defaults.
 #
 # Nothing reads this file. It is the catalog you copy option lines out of, which is also the
@@ -15,13 +15,13 @@
 
 [ig]
 # Who this guide is and where it lives on the web. -> 301-identity
-id = "dhis2.fhir.examples.refused-names"
-canonical = "http://example.org/fhir/examples/refused-names"       # the guide's permanent web address -> 301-identity#canonical
-name = "ExamplesRefusedNames"
-title = "Refused names example guide"
-publisher = "dhis2w-utils examples"
+id = "{{ ig_id }}"
+canonical = "{{ canonical }}"       # the guide's permanent web address -> 301-identity#canonical
+name = "{{ name }}"
+title = "{{ title }}"
+publisher = "{{ publisher }}"
 # "draft" while building; "active" for production. -> 301-identity#status
-status = "draft"
+status = "{{ status }}"
 
 [generate]
 # Web-address stem of the DHIS2 identifiers every published entry carries. -> 301-generation#identifier_system_base

@@ -84,7 +84,7 @@ none yet.
 $ d2w fhir init my-ig --id org.example.dhis2 --canonical https://example.org/fhir --publisher "Example Org"
 ...
   created fhir.toml
-  created fhir.toml.example
+  created fhir.example.toml
   created ig/sushi-config.yaml
   created ig/ig.ini
   created ig/fsh.ini

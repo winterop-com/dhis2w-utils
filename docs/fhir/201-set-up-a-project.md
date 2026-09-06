@@ -40,7 +40,7 @@ $ d2w fhir init demo-ig --id dhis2.fhir.demo \
 │skipped   │ 0                        │
 └──────────┴──────────────────────────┘
   created fhir.toml
-  created fhir.toml.example
+  created fhir.example.toml
   created ig/sushi-config.yaml
   created ig/ig.ini
   created ig/fsh.ini
@@ -79,7 +79,7 @@ never checked against an instance. `init` writes a minimal `fhir.toml` holding
 the IG identity and one standing choice - `hostile_names = "substitute"`, since
 almost every instance names an age band with a `<` the IG publisher cannot
 survive ([what it does](301-generation.md#hostile_names)) - plus
-`fhir.toml.example` documenting every option with its default; copy what you
+`fhir.example.toml` documenting every option with its default; copy what you
 need across, and anything you omit keeps its default.
 
 ## Start from a template
@@ -308,7 +308,7 @@ $ d2w fhir init . --refresh
 │with your additions │ 0                        │
 │diverged (kept)     │ 0                        │
 └────────────────────┴──────────────────────────┘
-  unchanged fhir.toml.example
+  unchanged fhir.example.toml
   unchanged ig/sushi-config.yaml
   unchanged ig/ig.ini
   unchanged ig/fsh.ini
@@ -323,15 +323,29 @@ $ d2w fhir init . --refresh
 note: fhir.toml is yours - a refresh never writes it
 ```
 
-The rule is one sentence: **a file is rewritten only when the current
-scaffold render reproduces every line already on disk, in order.** So a
-refresh can only add what the scaffold gained, and no line you wrote is ever
-dropped. Every file gets one of five outcomes, all of them printed:
+Two rules decide what a refresh writes.
+
+**The `Makefile`, the `Dockerfile`, `.python-version`, `ig/ig.ini` and
+`ig/fsh.ini` are the scaffold's own files, and a refresh rewrites each of them
+from the current render whenever it differs.** There is nothing in them to
+protect: every knob the Makefile has is a `?=` default - `D2W`, `TX_SERVER`,
+`JAVA_HEAP` - that you set on the command line (`make build JAVA_HEAP=4g`) or
+in the environment, so your override lives outside the file and outlives the
+refresh; the Dockerfile and `.python-version` pin the image and the
+interpreter; and `ig/ig.ini` and `ig/fsh.ini` carry values the project states
+elsewhere - the guide's id from `fhir.toml`, and the `[FSH] timeout` the
+refresh reads off the file and writes back unchanged. So a scaffold revision
+that replaces a line in one of them lands whole, reported `refreshed`.
+
+**Every other file is rewritten only when the current scaffold render
+reproduces every line already on disk, in order.** So a refresh can only add
+what the scaffold gained, and no line you wrote is ever dropped. Every file
+gets one of five outcomes, all of them printed:
 
 | Outcome | Meaning |
 | --- | --- |
 | `created` | A scaffold file the project did not have. Written. |
-| `refreshed` | The render carries every line on disk plus more. Rewritten. |
+| `refreshed` | One of the five files the scaffold owns outright, or a file whose render carries every line on disk plus more. Rewritten. |
 | `unchanged` | Already byte-identical to the current scaffold. |
 | `with your additions` | Carries every line the current scaffold renders, plus lines of your own. Nothing to add, so nothing is written. |
 | `diverged (kept)` | Holds lines the current scaffold does not write - your edits, or scaffold lines that have since changed; a line-preserving refresh cannot tell which. Your version stays, reported as `kept <path> (holds lines the current scaffold does not write)`. To take the scaffold's version, delete the file and refresh again. |
@@ -346,7 +360,7 @@ declares them, so the refresh writes them wherever they appear: in
 `ig/sushi-config.yaml` (the guide's `id`, `canonical`, `name`, `title`, the
 one-line description built from the title, `status`, the publisher's name, and
 the six `special-url` lines that follow `[generate] identifier_system_base`), in
-the `[ig]` table of `fhir.toml.example`, on the first line of the front page at
+the `[ig]` table of `fhir.example.toml`, on the first line of the front page at
 `ig/input/pagecontent/index.md`, in the `ig = ` line of `ig/ig.ini`, and as the
 project name in `pyproject.toml`. Change a title in `fhir.toml` and one refresh
 puts it on the guide's cover and its front page, reporting each file as
@@ -363,7 +377,10 @@ generate` says so with a `scaffold-drift` note naming the keys `fhir.toml` and
     scaffold line out, change it into something the scaffold would not
     produce - comment it out, or edit it - rather than removing it. To go
     the other way and take the scaffold's version of a kept file, delete the
-    file and refresh again; it comes back as `created`.
+    file and refresh again; it comes back as `created`. Neither applies to
+    the five files the scaffold owns outright: an edit to any of them is
+    replaced by the render, so keep what you change to them in the command
+    line or the environment.
 
 `--refresh` and `--force` are mutually exclusive, and the run stops if you
 pass both: `--force` rewrites every scaffold file including the ones you

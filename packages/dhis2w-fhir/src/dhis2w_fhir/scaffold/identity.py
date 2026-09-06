@@ -1,7 +1,7 @@
 """The scaffold lines `fhir.toml` declares, and how a refresh lands them.
 
 The guide's identity is stated once, in the `[ig]` table of `fhir.toml`, and five scaffold-managed
-files carry it: `ig/sushi-config.yaml` states it to the IG publisher, `fhir.toml.example` shows it
+files carry it: `ig/sushi-config.yaml` states it to the IG publisher, `fhir.example.toml` shows it
 back as the catalog's own `[ig]` table, `ig/input/pagecontent/index.md` puts the title on the front
 page, `ig/ig.ini` names the ImplementationGuide file by the guide's id, and `pyproject.toml` carries
 that id as the uv project's PEP 508 name. Those lines are the
@@ -57,7 +57,7 @@ class _ScaffoldOwnedLines(BaseModel):
     """The lines of one scaffold file that fhir.toml declares, and the region of the file holding them.
 
     `region_pattern` narrows the substitution to one part of the file, for a key spelled the same way
-    in more than one place: `fhir.toml.example` carries a `name = ` line in its `[ig]` table and
+    in more than one place: `fhir.example.toml` carries a `name = ` line in its `[ig]` table and
     another in each `[[serve.basemaps]]` entry, and only the first is the guide's.
     """
 
@@ -96,7 +96,7 @@ _SPECIAL_URL_BLOCK_PATTERN = "(?m)" + "\n".join(
     rf"^    - (?P<stem_{index}>\S+)/id/{re.escape(suffix)}$" for index, suffix in enumerate(_SPECIAL_URL_SUFFIXES)
 )
 
-#: The `[ig]` table of fhir.toml.example, from its header to the next table header or the end of the file.
+#: The `[ig]` table of fhir.example.toml, from its header to the next table header or the end of the file.
 _CONFIG_EXAMPLE_IG_TABLE_PATTERN = r"(?ms)^\[ig\]$.*?(?=^\[|\Z)"
 
 #: The `[project]` table of pyproject.toml, whose `name` is the guide's id as a PEP 508 project name.
@@ -144,7 +144,7 @@ def adopt_scaffold_owned_lines(relative_path: str, current: str, rendered: str) 
     """Return `current` with every line the scaffold owns in this file replaced by the rendered one.
 
     A file the scaffold owns no line of comes back untouched, and so does one whose owned region -
-    the `[ig]` table of `fhir.toml.example` - the project has taken out of the file altogether.
+    the `[ig]` table of `fhir.example.toml` - the project has taken out of the file altogether.
     """
     owned = _OWNED_LINES_BY_FILE.get(relative_path)
     if owned is None:

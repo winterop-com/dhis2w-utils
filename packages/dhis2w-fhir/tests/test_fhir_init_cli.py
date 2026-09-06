@@ -175,6 +175,33 @@ def test_init_refresh_rewrites_an_untouched_support_file(workdir: Path) -> None:
     assert "ig/input/resources/" in ignored.read_text(encoding="utf-8").splitlines()
 
 
+def test_init_refresh_rewrites_the_makefile_the_scaffold_owns(workdir: Path) -> None:
+    """The Makefile is the scaffold's file, so a replaced recipe line is rewritten from the current render."""
+    project = _scaffold(workdir)
+    makefile = project / "Makefile"
+    rendered = makefile.read_text(encoding="utf-8")
+    makefile.write_text(rendered.replace("JAVA_HEAP ?= 8g", "JAVA_HEAP ?= 8g\nSTALE := 1", 1), encoding="utf-8")
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--refresh"])
+
+    assert result.exit_code == 0, result.output
+    assert "refreshed Makefile" in result.output
+    assert makefile.read_text(encoding="utf-8") == rendered
+
+
+def test_init_refresh_names_the_file_the_scaffold_no_longer_writes(workdir: Path) -> None:
+    """A project carrying fhir.toml.example gains fhir.example.toml and is told it can delete the old file."""
+    project = _scaffold(workdir)
+    (project / "fhir.example.toml").rename(project / "fhir.toml.example")
+
+    result = _runner.invoke(build_app(), ["fhir", "init", "project", "--refresh"])
+
+    assert result.exit_code == 0, result.output
+    assert "created fhir.example.toml" in result.output
+    assert "fhir.toml.example is not a scaffold file; delete it, fhir.example.toml has replaced it" in result.stderr
+    assert (project / "fhir.toml.example").is_file()
+
+
 def test_init_refresh_keeps_a_rewritten_file_and_claims_no_author(workdir: Path) -> None:
     """A rewritten file stays byte-identical, and the verdict states the fact rather than who caused it."""
     project = _scaffold(workdir)
