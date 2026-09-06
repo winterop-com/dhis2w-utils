@@ -1,6 +1,6 @@
 [project]
 name = "dhis2w-mcp-bridge"
-version = "1.14.0.dev0"
+version = "1.13.2"
 description = "Single-tool MCP bridge that exposes the d2w CLI for small local models."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
@@ -15,7 +15,7 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "dhis2w-cli>=1.13.1,<2.0",
+    "dhis2w-cli>=1.13.2,<2.0",
     "fastmcp>=3.4.7",
 ]
 
