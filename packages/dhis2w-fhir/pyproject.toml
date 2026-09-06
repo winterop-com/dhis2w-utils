@@ -1,6 +1,6 @@
 [project]
 name = "dhis2w-fhir"
-version = "1.13.0"
+version = "1.14.0.dev0"
 description = "FHIR Implementation Guide generation from DHIS2 metadata — SUSHI project scaffolding, FSH emission, and FHIR-safety validation, mounted as the `d2w fhir` plugin."
 readme = "README.md"
 authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
