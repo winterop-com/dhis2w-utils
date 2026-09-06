@@ -602,8 +602,8 @@ chain in one command.
   `ig/input/pagecontent/**/*.md` is out of scope on purpose: markdown carries
   HTML by design. An existing project takes the gate up with one
   `d2w fhir init --refresh`.
-- **`JAVA_HEAP`** sizes the publisher JVM heap - the knob for an exit-137 OOM
-  kill on a small docker VM.
+- **`JAVA_HEAP`** sizes the publisher JVM heap, `8g` by default - the knob for
+  an exit-137 OOM kill on a small docker VM.
 - **Registry scale.** `d2w fhir generate org-units` warns at generate time once
   the registry passes 2,000 instances, because the IG publisher validates and
   renders every resource and the registry therefore sets the wall clock of

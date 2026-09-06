@@ -333,7 +333,7 @@ for the caches that make every later build cheaper.
 ```console
 $ docker run --rm -v $(pwd)/ig:/home/publisher/ig -v fhir-ig-cache:/home/publisher/.fhir \
 		fhir-ig \
-		java -Xmx4g -jar /home/publisher/.ig-publisher/publisher.jar ig.ini -ig . -tx http://tx.fhir.org
+		java -Xmx8g -jar /home/publisher/.ig-publisher/publisher.jar ig.ini -ig . -tx http://tx.fhir.org
 ...
 Sushi: ========================= SUSHI RESULTS ===========================
 Sushi: |  -------------------------------------------------------------  |

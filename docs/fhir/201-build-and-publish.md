@@ -47,7 +47,7 @@ docker run --rm -v $(pwd)/ig:/home/publisher/ig -v fhir-ig-cache:/home/publisher
 # the full publisher; the site lands in ig/output/
 docker run --rm -v $(pwd)/ig:/home/publisher/ig -v fhir-ig-cache:/home/publisher/.fhir \
     fhir-ig \
-    java -Xmx4g -jar /home/publisher/.ig-publisher/publisher.jar ig.ini -ig . -tx http://tx.fhir.org
+    java -Xmx8g -jar /home/publisher/.ig-publisher/publisher.jar ig.ini -ig . -tx http://tx.fhir.org
 ```
 
 SUSHI alone is the one you run in a loop. It compiles and says whether the
@@ -230,7 +230,7 @@ boundary attachment states its media type, that field binds to the IETF BCP
 13 media types, and only a terminology server can answer that value set.
 Those errors are the whole difference, and they go away online.
 
-**`JAVA_HEAP`** is the publisher's JVM heap, `4g` by default - the knob for
+**`JAVA_HEAP`** is the publisher's JVM heap, `8g` by default - the knob for
 exit 137:
 
 ```text
@@ -243,15 +243,15 @@ that `ig/output` is empty afterwards: the publisher writes the site in one
 pass at the very end, so a build killed in the peak-memory phases leaves
 nothing behind. A real build error looks nothing like this - a Java stack
 trace, a different exit code, partial output on disk. The container carries
-no `--memory` limit, so it inherits the docker VM's allocation, and a 4 GB
-heap needs roughly 6 GB of room once metaspace, JVM native memory, and the
+no `--memory` limit, so it inherits the docker VM's allocation, and an 8 GB
+heap needs roughly 10 GB of room once metaspace, JVM native memory, and the
 OS are counted:
 
 ```bash
 # bytes available to the docker VM
 docker info --format '{{.MemTotal}}'
 
-# a smaller heap, when you cannot raise the VM - the -Xmx flag is the knob
+# a heap smaller than the 8g default, when you cannot raise the VM - -Xmx is the knob
 docker run --rm -v $(pwd)/ig:/home/publisher/ig -v fhir-ig-cache:/home/publisher/.fhir \
     fhir-ig \
     java -Xmx2g -jar /home/publisher/.ig-publisher/publisher.jar ig.ini -ig . -tx http://tx.fhir.org
@@ -263,15 +263,15 @@ kill by dropping
 `docker inspect <container> --format '{{.State.OOMKilled}}'`.
 
 The other memory failure is the opposite one - the heap itself too small.
-A national-scale guide (8,000-plus publishable files) does not fit the
-default heap: the run dies mid-validation with
+A national-scale guide (8,000-plus publishable files) is what the `8g`
+default is sized for; a smaller heap dies mid-validation with
 `Exception in thread "main" java.lang.OutOfMemoryError: Java heap space`
-and a Java stack trace, which is a real build error, not a kill. The fix
-is `make build JAVA_HEAP=8g`. The two knobs squeeze against each other
-through the heap-plus-2-gigabyte rule: on one 16 GB docker VM, measured on
-one national guide, `4g` dies in validation, `10g` clears validation and
-is then OOM-killed at Jekyll, and `8g` completes the whole build - about
-21 minutes, site, package, and QA report.
+and a Java stack trace, which is a real build error, not a kill. The two
+knobs squeeze against each other through the heap-plus-2-gigabyte rule: on
+one 16 GB docker VM, measured on one national guide, `4g` dies in
+validation, `10g` clears validation and is then OOM-killed at Jekyll, and
+`8g` completes the whole build - about 21 minutes, site, package, and QA
+report.
 
 ## Size the build
 
