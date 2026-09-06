@@ -10,11 +10,16 @@ from dhis2w_fhir.i18n import TranslationIn
 from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_instances,
     build_organisation_unit_level_terminology,
+    build_organisation_unit_level_terminology_documents,
     build_organisation_unit_profiles,
     build_organisation_unit_terminology,
     build_registry_examples,
 )
-from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
+from dhis2w_fhir.resources.organisation_units.schemas import (
+    OrganisationUnitIn,
+    OrganisationUnitLevelIn,
+    OrganisationUnitLevelNames,
+)
 from dhis2w_fhir.writer import JsonArtifact, JsonBuild
 
 _ROOT = OrganisationUnitIn(uid="ImspTQPwCqd", name="Sierra Leone", level=1, path="/ImspTQPwCqd", code="SL")
@@ -186,8 +191,41 @@ def _instances(
 ) -> JsonBuild:
     """Build the registry for one selection against the test canonical."""
     return build_organisation_unit_instances(
-        organisation_units, config, _CANONICAL, attribute_codes=attribute_codes or AttributeCodeIndex()
+        organisation_units,
+        config,
+        _CANONICAL,
+        attribute_codes=attribute_codes or AttributeCodeIndex(),
+        level_names=OrganisationUnitLevelNames(),
     )
+
+
+#: What a Sierra Leone instance calls the depths of its hierarchy - the names its level concepts carry.
+_NAMED_LEVELS = OrganisationUnitLevelNames(
+    levels=[
+        OrganisationUnitLevelIn(level=1, name="National", uid="Ol1aaaaaaaa"),
+        OrganisationUnitLevelIn(level=2, name="District", uid="Ol2aaaaaaaa"),
+        OrganisationUnitLevelIn(level=3, name="Chiefdom", uid="Ol3aaaaaaaa"),
+        OrganisationUnitLevelIn(level=4, name="Facility", uid="Ol4aaaaaaaa"),
+    ]
+)
+
+
+def _level_concepts(
+    levels: list[int], level_names: OrganisationUnitLevelNames, config: GenerateConfig = _CONFIG
+) -> dict[str, dict[str, Any]]:
+    """The served level CodeSystem's concepts, keyed by concept code."""
+    build = build_organisation_unit_level_terminology_documents(
+        levels, config, _CANONICAL, ig_status="draft", level_names=level_names
+    )
+    document = json.loads(build.code_systems[0].model_dump_json(exclude_none=True, by_alias=True))
+    return {concept["code"]: concept for concept in document["concept"]}
+
+
+def _level_displays(
+    levels: list[int], level_names: OrganisationUnitLevelNames, config: GenerateConfig = _CONFIG
+) -> dict[str, str]:
+    """The display the served level CodeSystem publishes each concept under, keyed by concept code."""
+    return {code: concept["display"] for code, concept in _level_concepts(levels, level_names, config).items()}
 
 
 def test_profiles_artifact() -> None:
@@ -243,7 +281,9 @@ managed by the D2Organization of the same unit."
 
 def test_the_registry_profiles_publish_one_worked_example_each() -> None:
     """The registry ships as JSON SUSHI never compiles, so the profiles are illustrated by a curated pair."""
-    artifact = build_registry_examples([_DISTRICT, _ROOT], _CONFIG, ig_status="draft")
+    artifact = build_registry_examples(
+        [_DISTRICT, _ROOT], _CONFIG, ig_status="draft", level_names=OrganisationUnitLevelNames()
+    )
     assert artifact is not None
     assert artifact.relative_path == "organization/registry-examples.fsh"
     assert artifact.content == _REGISTRY_EXAMPLES_GOLDEN
@@ -251,7 +291,9 @@ def test_the_registry_profiles_publish_one_worked_example_each() -> None:
 
 def test_the_registry_examples_are_drawn_from_the_selections_own_root() -> None:
     """The exemplar is the shallowest unit of the selection, so it validates against data the instance holds."""
-    artifact = build_registry_examples([_ORPHAN, _DISTRICT], _CONFIG, ig_status="draft")
+    artifact = build_registry_examples(
+        [_ORPHAN, _DISTRICT], _CONFIG, ig_status="draft", level_names=OrganisationUnitLevelNames()
+    )
     assert artifact is not None
     assert '* identifier[dhis2id].value = "O6uvpzGd5pu"' in artifact.content
     assert '* type = D2OU_Level_CS#level-2 "Level 2"' in artifact.content
@@ -261,7 +303,12 @@ def test_the_registry_examples_are_drawn_from_the_selections_own_root() -> None:
 
 def test_the_registry_examples_follow_the_naming_tokens() -> None:
     """The instance names and ids derive from the same profile names the registry references."""
-    artifact = build_registry_examples([_ROOT], GenerateConfig(naming=NamingConfig(prefix="Dhis2")), ig_status="draft")
+    artifact = build_registry_examples(
+        [_ROOT],
+        GenerateConfig(naming=NamingConfig(prefix="Dhis2")),
+        ig_status="draft",
+        level_names=OrganisationUnitLevelNames(),
+    )
     assert artifact is not None
     assert "Instance: Dhis2OrganizationExample" in artifact.content
     assert "InstanceOf: Dhis2Organization" in artifact.content
@@ -271,7 +318,7 @@ def test_the_registry_examples_follow_the_naming_tokens() -> None:
 
 def test_an_empty_selection_publishes_no_registry_example() -> None:
     """With no unit selected there is no real data to illustrate the profiles with, so nothing is written."""
-    assert build_registry_examples([], _CONFIG, ig_status="draft") is None
+    assert build_registry_examples([], _CONFIG, ig_status="draft", level_names=OrganisationUnitLevelNames()) is None
 
 
 def test_organisation_unit_artifacts_derive_their_publication_state_from_the_ig_status() -> None:
@@ -282,10 +329,14 @@ def test_organisation_unit_artifacts_derive_their_publication_state_from_the_ig_
     profiles = build_organisation_unit_profiles(_CONFIG, ig_status="active")
     assert profiles.content.count("* ^status = #active") == 2
     assert profiles.content.count("* ^experimental = false") == 2
-    draft_levels = build_organisation_unit_level_terminology([1], _CONFIG, ig_status="draft")
+    draft_levels = build_organisation_unit_level_terminology(
+        [1], _CONFIG, ig_status="draft", level_names=OrganisationUnitLevelNames()
+    )
     assert draft_levels.content.count("* ^status = #draft") == 2
     assert draft_levels.content.count("* ^experimental = true") == 2
-    levels = build_organisation_unit_level_terminology([1], _CONFIG, ig_status="active")
+    levels = build_organisation_unit_level_terminology(
+        [1], _CONFIG, ig_status="active", level_names=OrganisationUnitLevelNames()
+    )
     assert levels.content.count("* ^status = #active") == 2
     assert levels.content.count("* ^experimental = false") == 2
     draft_selection = build_organisation_unit_terminology([_ROOT], _CONFIG, ig_status="draft")
@@ -314,11 +365,99 @@ def test_instances_carry_the_bare_uid_as_their_resource_id() -> None:
 
 
 def test_level_terminology_covers_observed_levels() -> None:
-    """The level CodeSystem lists each observed level once, sorted."""
-    artifact = build_organisation_unit_level_terminology([2, 1, 2, 3], _CONFIG, ig_status="draft")
+    """The level CodeSystem lists each observed level once, sorted, under the name the instance gives it."""
+    artifact = build_organisation_unit_level_terminology(
+        [2, 1, 2, 3], _CONFIG, ig_status="draft", level_names=_NAMED_LEVELS
+    )
     assert artifact.content.count("* #level-") == 3
-    assert '* #level-1 "Level 1"' in artifact.content
+    assert '* #level-1 "National"' in artifact.content
     assert "ValueSet: D2OU_Level_VS" in artifact.content
+
+
+def test_the_level_concepts_carry_the_names_the_instance_gives_its_depths() -> None:
+    """A DHIS2 instance names its levels, and both spellings of the vocabulary publish those names."""
+    fsh = build_organisation_unit_level_terminology([1, 2, 3], _CONFIG, ig_status="draft", level_names=_NAMED_LEVELS)
+    assert '* #level-1 "National"' in fsh.content
+    assert '* #level-2 "District"' in fsh.content
+    assert '* #level-3 "Chiefdom"' in fsh.content
+    assert _level_displays([1, 2, 3], _NAMED_LEVELS) == {
+        "level-1": "National",
+        "level-2": "District",
+        "level-3": "Chiefdom",
+    }
+
+
+def test_a_depth_the_instance_names_no_level_at_reads_its_number() -> None:
+    """A selection reaching deeper than the instance's own level table still publishes a concept per depth."""
+    level_names = OrganisationUnitLevelNames(
+        levels=[
+            OrganisationUnitLevelIn(level=1, name="National"),
+            OrganisationUnitLevelIn(level=2, name="District"),
+        ]
+    )
+    fsh = build_organisation_unit_level_terminology([1, 2, 3], _CONFIG, ig_status="draft", level_names=level_names)
+    assert '* #level-3 "Level 3"' in fsh.content
+    assert _level_displays([1, 2, 3], level_names)["level-3"] == "Level 3"
+
+
+def test_the_level_names_are_translated_under_the_configured_locales() -> None:
+    """A level name is translated the way a unit name is: the NAME translations the locales select."""
+    level_names = OrganisationUnitLevelNames(
+        levels=[
+            OrganisationUnitLevelIn(
+                level=1,
+                name="National",
+                translations=[
+                    TranslationIn(locale="fr", property="NAME", value="National (fr)"),
+                    TranslationIn(locale="pt", property="NAME", value="Nacional"),
+                ],
+            )
+        ]
+    )
+    config = GenerateConfig(locales=["fr"])
+    fsh = build_organisation_unit_level_terminology([1], config, ig_status="draft", level_names=level_names)
+    assert "* #level-1 ^designation[+].language = #fr" in fsh.content
+    assert '* #level-1 ^designation[=].value = "National (fr)"' in fsh.content
+    assert "#pt" not in fsh.content
+    concept = _level_concepts([1], level_names, config)["level-1"]
+    assert concept["designation"] == [{"language": "fr", "value": "National (fr)"}]
+
+
+def test_the_named_level_pair_is_the_same_vocabulary_in_fsh_and_in_json() -> None:
+    """The compiled level pair and the served one publish concept for concept under the instance's names."""
+    fsh = build_organisation_unit_level_terminology([1, 2, 3], _CONFIG, ig_status="draft", level_names=_NAMED_LEVELS)
+    for code, display in _level_displays([1, 2, 3], _NAMED_LEVELS).items():
+        assert f'* #{code} "{display}"' in fsh.content
+
+
+def test_both_resources_of_a_unit_state_the_instances_name_for_its_depth() -> None:
+    """`Organization.type` and the level extension a Location carries read one coding, so they agree."""
+    build = build_organisation_unit_instances(
+        [_DISTRICT],
+        _CONFIG,
+        _CANONICAL,
+        attribute_codes=AttributeCodeIndex(),
+        level_names=_NAMED_LEVELS,
+    )
+    documents = _documents(build)
+    coding = {
+        "system": f"{_CANONICAL}/CodeSystem/d2-ou-level-cs",
+        "code": "level-2",
+        "display": "District",
+    }
+    assert documents["registry/Organization-O6uvpzGd5pu.json"]["type"] == [{"coding": [coding]}]
+    assert documents["registry/Location-O6uvpzGd5pu.json"]["extension"][-1] == {
+        "url": f"{_CANONICAL}/StructureDefinition/d2-organisation-unit-level",
+        "valueCoding": coding,
+    }
+
+
+def test_the_registry_examples_state_the_instances_name_for_the_roots_depth() -> None:
+    """The worked pair illustrates the profiles with the level display the registry itself publishes."""
+    artifact = build_registry_examples([_ROOT], _CONFIG, ig_status="draft", level_names=_NAMED_LEVELS)
+    assert artifact is not None
+    assert '* type = D2OU_Level_CS#level-1 "National"' in artifact.content
+    assert '* extension[level].valueCoding = D2OU_Level_CS#level-1 "National"' in artifact.content
 
 
 def test_instances_golden_one_file_per_resource_grouped_by_level() -> None:
@@ -473,7 +612,11 @@ def test_the_level_extension_follows_the_ig_canonical_and_the_naming_tokens() ->
     """Both the extension url and the coding system are derived, never hard-coded."""
     config = GenerateConfig(naming=NamingConfig(prefix="Dhis2", organisation_unit="OrgUnit"))
     build = build_organisation_unit_instances(
-        [_ROOT], config, "https://ig.example/fhir", attribute_codes=AttributeCodeIndex()
+        [_ROOT],
+        config,
+        "https://ig.example/fhir",
+        attribute_codes=AttributeCodeIndex(),
+        level_names=OrganisationUnitLevelNames(),
     )
     extension = _documents(build)["registry/Location-ImspTQPwCqd.json"]["extension"][0]
     assert extension["url"] == "https://ig.example/fhir/StructureDefinition/dhis2-organisation-unit-level"
@@ -503,7 +646,9 @@ def test_organisation_unit_terminology_properties() -> None:
 def test_naming_tokens_are_configurable() -> None:
     """Custom naming tokens flow into names and ids (e.g. organisation_unit "OrgUnit" -> d2-org-unit-level-cs)."""
     config = GenerateConfig(naming=NamingConfig(organisation_unit="OrgUnit"))
-    levels = build_organisation_unit_level_terminology([1], config, ig_status="draft")
+    levels = build_organisation_unit_level_terminology(
+        [1], config, ig_status="draft", level_names=OrganisationUnitLevelNames()
+    )
     assert "CodeSystem: D2OrgUnit_Level_CS" in levels.content
     assert "Id: d2-org-unit-level-cs" in levels.content
     organization = _documents(_instances([_ROOT], config))["registry/Organization-ImspTQPwCqd.json"]
@@ -514,7 +659,11 @@ def test_instance_urls_follow_the_ig_canonical() -> None:
     """The profile and level-code URLs are the IG's own canonical, not the identifier system base."""
     documents = _documents(
         build_organisation_unit_instances(
-            [_ROOT], _CONFIG, "https://ig.example/fhir", attribute_codes=AttributeCodeIndex()
+            [_ROOT],
+            _CONFIG,
+            "https://ig.example/fhir",
+            attribute_codes=AttributeCodeIndex(),
+            level_names=OrganisationUnitLevelNames(),
         )
     )
     organization = documents["registry/Organization-ImspTQPwCqd.json"]
@@ -539,7 +688,9 @@ def test_empty_prefix_keeps_profile_token() -> None:
     config = GenerateConfig(naming=NamingConfig(prefix=""))
     profiles = build_organisation_unit_profiles(config, ig_status="draft")
     assert "Profile: D2Organization" in profiles.content
-    levels = build_organisation_unit_level_terminology([1], config, ig_status="draft")
+    levels = build_organisation_unit_level_terminology(
+        [1], config, ig_status="draft", level_names=OrganisationUnitLevelNames()
+    )
     assert "CodeSystem: OU_Level_CS" in levels.content
     assert "Id: ou-level-cs" in levels.content
     organization = _documents(_instances([_ROOT], config))["registry/Organization-ImspTQPwCqd.json"]

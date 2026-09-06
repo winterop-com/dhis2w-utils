@@ -23,7 +23,7 @@
         {
           "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
           "code": "level-3",
-          "display": "Level 3"
+          "display": "District"
         }
       ]
     }

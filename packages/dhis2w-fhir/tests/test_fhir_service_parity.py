@@ -192,11 +192,13 @@ async def test_generate_option_sets_sweeps_terminology_fsh_it_no_longer_writes(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Generated terminology FSH is removed: SUSHI refuses a definition duplicating a pre-defined resource."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     fsh_terminology = tmp_path / "ig" / "input" / "fsh" / "terminology"
     fsh_terminology.mkdir(parents=True, exist_ok=True)
@@ -219,11 +221,13 @@ async def test_generate_categories_across_majors(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """`generate_categories` writes the CodeSystem/ValueSet/ConceptMap triple against every DHIS2 major."""
     mock_system_info(wire_version)
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     route = respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json=_CATEGORIES_PAYLOAD))
 
@@ -262,11 +266,13 @@ async def test_the_two_concept_map_families_share_a_directory_without_sweeping_e
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """`concept-maps/` holds both families behind one publisher glob, so neither target owns it outright."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json=_CATEGORIES_PAYLOAD))
@@ -288,11 +294,13 @@ async def test_a_category_map_a_rerun_no_longer_produces_is_swept(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Owning a prefix rather than the directory still converges: a dropped category takes its map with it."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json=_CATEGORIES_PAYLOAD))
     await service.generate_categories(resolve_profile("probe"), load_project(tmp_path))
@@ -310,16 +318,47 @@ async def test_a_category_map_a_rerun_no_longer_produces_is_swept(
 
 
 @respx.mock
+async def test_the_generated_level_vocabulary_reads_the_instances_own_level_names(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A run reads `/api/organisationUnitLevels` and publishes the words the instance puts on its depths."""
+    mock_system_info("v42")
+    mock_attributes()
+    mock_organisation_unit_levels({1: "National", 2: "District"})
+    await _scaffold_project(tmp_path)
+    respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ORGANISATION_UNITS_PAYLOAD))
+
+    await service.generate_organisation_units(resolve_profile("probe"), load_project(tmp_path))
+
+    levels = (tmp_path / "ig" / "input" / "fsh" / "organization" / "org-unit-levels.fsh").read_text(encoding="utf-8")
+    assert '* #level-1 "National"' in levels
+    assert '* #level-2 "District"' in levels
+    registry = tmp_path / "ig" / "input" / "resources" / "registry"
+    district = json.loads((registry / "Organization-O6uvpzGd5pu.json").read_text(encoding="utf-8"))
+    assert district["type"][0]["coding"][0]["display"] == "District"
+    examples = (tmp_path / "ig" / "input" / "fsh" / "organization" / "registry-examples.fsh").read_text(
+        encoding="utf-8"
+    )
+    assert '#level-1 "National"' in examples
+
+
+@respx.mock
 async def test_generate_organisation_units_across_majors(
     wire_version: str,
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """`generate_organisation_units` writes profiles, level terminology, and per-level instances on every major."""
     mock_system_info(wire_version)
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     route = respx.get(f"{_HOST}/api/organisationUnits").mock(
         return_value=httpx.Response(200, json=_ORGANISATION_UNITS_PAYLOAD)
@@ -403,11 +442,13 @@ async def test_generate_questionnaires_across_majors(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """`generate_questionnaires` maps data sets and event programs on every DHIS2 major."""
     mock_system_info(wire_version)
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     (tmp_path / "fhir.toml").write_text(
         (tmp_path / "fhir.toml").read_text(encoding="utf-8")
@@ -488,11 +529,13 @@ async def test_translations_are_requested_and_mapped(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Both fetches ask for translations, and the wire entries reach the emitted FSH as designations."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     option_sets = respx.get(f"{_HOST}/api/optionSets").mock(
         return_value=httpx.Response(200, json=_TRANSLATED_OPTION_SETS_PAYLOAD)
@@ -524,11 +567,13 @@ async def test_generate_is_idempotent(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A second generate run replaces the previously generated files instead of stacking new ones."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
 
@@ -563,11 +608,13 @@ async def test_generate_full_is_byte_stable_across_two_runs(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Every target - the capture contract included - writes nothing on a second run of unchanged metadata."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     _mock_page_endpoints()
 

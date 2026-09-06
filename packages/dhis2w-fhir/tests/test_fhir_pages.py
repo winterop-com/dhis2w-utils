@@ -23,6 +23,7 @@ from dhis2w_fhir.names import markdown_text
 from dhis2w_fhir.period.schemas import PERIOD_TYPE_DEFINITIONS
 from dhis2w_fhir.resources.examples import STATUS_BY_EVENT_STATUS
 from dhis2w_fhir.resources.option_sets import option_set_identities
+from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitLevelNames
 from dhis2w_fhir.resources.pages import INTRO_SUFFIX, PAGES_DIRECTORY, SITE_PAGE_FILENAMES, build_page_artifacts
 from dhis2w_fhir.resources.pages.schemas import PagesIn
 from dhis2w_fhir.resources.questionnaires import ITEM_TYPES_BY_VALUE_TYPE
@@ -626,7 +627,11 @@ def test_code_system_link_targets_match_the_emitted_ids() -> None:
 def test_organization_intro_names_the_emitted_instance() -> None:
     """The Organization intro file stem is the very registry file stem the org-unit target emits."""
     build = build_organisation_unit_instances(
-        [_ROOT_UNIT, _CHILD_UNIT], GenerateConfig(), "http://example.org/fhir", attribute_codes=AttributeCodeIndex()
+        [_ROOT_UNIT, _CHILD_UNIT],
+        GenerateConfig(),
+        "http://example.org/fhir",
+        attribute_codes=AttributeCodeIndex(),
+        level_names=OrganisationUnitLevelNames(),
     )
     emitted = {Path(artifact.relative_path).stem for artifact in build.artifacts}
     assert "Organization-ImspTQPwCqd" in emitted

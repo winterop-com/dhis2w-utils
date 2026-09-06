@@ -7,8 +7,12 @@ Description: {{ terminology.description_literal }}
 * ^content = #complete
 * ^caseSensitive = true
 * ^valueSet = Canonical({{ names.level_value_set }})
-{% for level in levels %}
-* #level-{{ level }} "Level {{ level }}"
+{% for concept in concepts %}
+* #level-{{ concept.level }} {{ concept.display_literal }}
+{% for designation in concept.designations %}
+* #level-{{ concept.level }} ^designation[+].language = #{{ designation.locale }}
+* #level-{{ concept.level }} ^designation[=].value = {{ designation.value_literal }}
+{% endfor %}
 {% endfor %}
 
 ValueSet: {{ names.level_value_set }}

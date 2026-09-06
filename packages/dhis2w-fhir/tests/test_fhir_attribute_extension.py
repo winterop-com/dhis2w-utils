@@ -26,7 +26,10 @@ from dhis2w_fhir.foundation import build_foundation_artifacts
 from dhis2w_fhir.resources.option_sets import build_option_set_artifacts
 from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentityPlan, OptionSetIn
 from dhis2w_fhir.resources.organisation_units import build_organisation_unit_instances
-from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
+from dhis2w_fhir.resources.organisation_units.schemas import (
+    OrganisationUnitIn,
+    OrganisationUnitLevelNames,
+)
 from dhis2w_fhir.resources.questionnaires import build_questionnaire_artifacts
 from dhis2w_fhir.resources.questionnaires.schemas import QuestionnaireItemIn, QuestionnaireSourceIn
 from dhis2w_fhir.status import IgStatus
@@ -138,7 +141,11 @@ def _registry(
     """Build the org-unit registry for one selection against the test canonical."""
     return _documents(
         build_organisation_unit_instances(
-            organisation_units, config or GenerateConfig(), _CANONICAL, attribute_codes=attribute_codes
+            organisation_units,
+            config or GenerateConfig(),
+            _CANONICAL,
+            attribute_codes=attribute_codes,
+            level_names=OrganisationUnitLevelNames(),
         )
     )
 
@@ -245,8 +252,12 @@ def test_the_location_emits_the_boundary_first_the_values_next_and_the_level_las
 def test_the_location_extension_order_is_byte_stable_across_runs() -> None:
     """`sync_artifacts` only reports an unchanged run quiet when the emitted bytes repeat exactly."""
     unit = _UNIT.model_copy(update={"boundary_geojson": _BOUNDARY_GEOJSON})
-    first = build_organisation_unit_instances([unit], GenerateConfig(), _CANONICAL, attribute_codes=_CODES)
-    second = build_organisation_unit_instances([unit], GenerateConfig(), _CANONICAL, attribute_codes=_CODES)
+    first = build_organisation_unit_instances(
+        [unit], GenerateConfig(), _CANONICAL, attribute_codes=_CODES, level_names=OrganisationUnitLevelNames()
+    )
+    second = build_organisation_unit_instances(
+        [unit], GenerateConfig(), _CANONICAL, attribute_codes=_CODES, level_names=OrganisationUnitLevelNames()
+    )
     assert [artifact.content for artifact in first.artifacts] == [artifact.content for artifact in second.artifacts]
 
 
@@ -323,7 +334,9 @@ def test_a_geojson_valued_attribute_travels_as_the_string_dhis2_sent() -> None:
 def test_the_extension_url_follows_the_ig_canonical_and_the_naming_prefix() -> None:
     """The emitted url resolves to the StructureDefinition the same run's foundation target writes."""
     config = GenerateConfig(naming=NamingConfig(prefix="Dhis2"))
-    build = build_organisation_unit_instances([_UNIT], config, "https://ig.example/fhir", attribute_codes=_CODES)
+    build = build_organisation_unit_instances(
+        [_UNIT], config, "https://ig.example/fhir", attribute_codes=_CODES, level_names=OrganisationUnitLevelNames()
+    )
     organization = _documents(build)["registry/Organization-mOsABqg3Cqw.json"]
     assert organization["extension"][0]["url"] == "https://ig.example/fhir/StructureDefinition/dhis2-attribute-value"
 
@@ -365,6 +378,9 @@ async def test_every_generate_target_resolves_the_attribute_codes_it_emits(
     mock_system_info("v42")
     await _scaffold_project(tmp_path)
     attributes = respx.get(f"{_HOST}/api/attributes").mock(return_value=httpx.Response(200, json=_WIRE_ATTRIBUTES))
+    respx.get(f"{_HOST}/api/organisationUnitLevels").mock(
+        return_value=httpx.Response(200, json={"organisationUnitLevels": []})
+    )
     respx.get(f"{_HOST}/api/optionSets").mock(
         return_value=httpx.Response(
             200,

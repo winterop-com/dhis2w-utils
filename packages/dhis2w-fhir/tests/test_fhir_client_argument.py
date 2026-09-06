@@ -73,6 +73,9 @@ def _mock_instance() -> None:
     respx.get(f"{_HOST}/api/system/info").mock(return_value=httpx.Response(200, json={"version": "2.42.0"}))
     for resource, items in _INSTANCE.items():
         respx.get(f"{_HOST}/api/{resource}").mock(return_value=httpx.Response(200, json={resource: items}))
+    respx.get(f"{_HOST}/api/organisationUnitLevels").mock(
+        return_value=httpx.Response(200, json={"organisationUnitLevels": []})
+    )
     respx.get(f"{_HOST}/api/metadata").mock(
         return_value=httpx.Response(
             200,

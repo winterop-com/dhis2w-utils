@@ -184,11 +184,13 @@ async def test_every_metadata_fetch_asks_for_the_attribute_values(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Every projection fetch requests the attribute values - an omitted field list silently empties them."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     option_sets = respx.get(f"{_HOST}/api/optionSets").mock(
         return_value=httpx.Response(200, json={"optionSets": []}),

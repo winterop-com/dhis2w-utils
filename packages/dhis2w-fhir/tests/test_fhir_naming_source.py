@@ -43,6 +43,7 @@ from dhis2w_fhir import (
     plan_questionnaire_stems,
     service,
 )
+from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitLevelNames
 from dhis2w_fhir.resources.questionnaires.schemas import ProgramContextIn
 
 _CANONICAL = "http://example.org/fhir"
@@ -82,7 +83,11 @@ def _organisation_units() -> list[OrganisationUnitIn]:
 def _registry_documents(source: NamingSource) -> tuple[dict[str, Any], list[str]]:
     """Build the registry under one source: the parsed documents keyed by file stem, plus the notes."""
     build = build_organisation_unit_instances(
-        _organisation_units(), _config(source), _CANONICAL, attribute_codes=AttributeCodeIndex()
+        _organisation_units(),
+        _config(source),
+        _CANONICAL,
+        attribute_codes=AttributeCodeIndex(),
+        level_names=OrganisationUnitLevelNames(),
     )
     documents = {
         artifact.relative_path.removeprefix("registry/").removesuffix(".json"): json.loads(artifact.content)
@@ -152,7 +157,11 @@ def test_code_mode_refuses_the_org_unit_surface_by_name() -> None:
     """`source = "code"` raises before anything is built, naming the surface and the offenders."""
     with pytest.raises(CodeStemError, match="organisation unit") as caught:
         build_organisation_unit_instances(
-            _organisation_units(), _config("code"), _CANONICAL, attribute_codes=AttributeCodeIndex()
+            _organisation_units(),
+            _config("code"),
+            _CANONICAL,
+            attribute_codes=AttributeCodeIndex(),
+            level_names=OrganisationUnitLevelNames(),
         )
     assert "OU_525" in str(caught.value)
 
@@ -492,10 +501,15 @@ async def _scaffold_project(directory: Path, source: NamingSource) -> None:
     config_path.write_text(f'{body}\n[generate.naming]\nsource = "{source}"\n', encoding="utf-8")
 
 
-def _mock_instance(mock_system_info: Callable[..., None], mock_attributes: Callable[..., None]) -> None:
+def _mock_instance(
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
+) -> None:
     """Mock every endpoint a generate run over the coded fixture instance reads."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json={"optionSets": []}))
     respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json={"categories": []}))
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
@@ -509,10 +523,11 @@ async def test_the_generate_report_carries_the_code_or_id_fallback_notes(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A questionnaire run under code-or-id reports every code that could not serve as a stem."""
-    _mock_instance(mock_system_info, mock_attributes)
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
     await _scaffold_project(tmp_path, "code-or-id")
 
     report = await service.generate_questionnaires(resolve_profile("probe"), load_project(tmp_path))
@@ -534,10 +549,11 @@ async def test_the_org_unit_report_notes_the_underscore_fallback_and_writes_code
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The registry names its files by the resolved stems and reports the underscore fall-back."""
-    _mock_instance(mock_system_info, mock_attributes)
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
     await _scaffold_project(tmp_path, "code-or-id")
 
     report = await service.generate_organisation_units(resolve_profile("probe"), load_project(tmp_path))
@@ -561,10 +577,11 @@ async def test_code_mode_refuses_the_run_before_writing_anything(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """`source = "code"` raises `CodeStemError` at the plan level, leaving the target directories untouched."""
-    _mock_instance(mock_system_info, mock_attributes)
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
     await _scaffold_project(tmp_path, "code")
 
     with pytest.raises(CodeStemError, match="questionnaire target"):
@@ -581,10 +598,11 @@ async def test_generate_full_under_code_or_id_matches_the_solo_targets(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The plans the full run passes down equal the ones each solo target resolves for itself."""
-    _mock_instance(mock_system_info, mock_attributes)
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
     full_root = tmp_path / "full"
     solo_root = tmp_path / "solo"
     await _scaffold_project(full_root, "code-or-id")

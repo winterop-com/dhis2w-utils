@@ -12,7 +12,7 @@ Usage: #example
 * identifier[dhis2code].value = "OU_226213"
 * active = true
 * name = "Koinadugu"
-* type = D2OU_Level_CS#level-2 "Level 2"
+* type = D2OU_Level_CS#level-2 "Province"
 
 Instance: D2LocationExample
 InstanceOf: D2Location
@@ -29,5 +29,5 @@ Usage: #example
 * description = "A worked D2Location: DHIS2 organisation unit Koinadugu (qhqAxPSTUXp) as the physical place, managed by the D2Organization of the same unit."
 * position.longitude = -11.344954
 * position.latitude = 9.452197
-* extension[level].valueCoding = D2OU_Level_CS#level-2 "Level 2"
+* extension[level].valueCoding = D2OU_Level_CS#level-2 "Province"
 * managingOrganization = Reference(D2OrganizationExample)

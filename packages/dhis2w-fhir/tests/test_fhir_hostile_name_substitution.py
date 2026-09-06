@@ -513,6 +513,7 @@ def _hostile_instance() -> dict[str, list[dict[str, Any]]]:
         "organisationUnits": [
             {"id": "OuHos000001", "name": "Sierra Leone < north", "code": "SL", "level": 1, "path": "/OuHos000001"}
         ],
+        "organisationUnitLevels": [{"id": "OlHos000001", "level": 1, "name": "National < region"}],
         "programRules": [],
         "attributes": [],
     }
@@ -565,6 +566,7 @@ def _unrefused_instance() -> dict[str, list[dict[str, Any]]]:
     instance["organisationUnits"] = [
         {"id": "OuHos000001", "name": "Sierra Leone", "code": "SL", "level": 1, "path": "/OuHos000001"}
     ]
+    instance["organisationUnitLevels"] = [{"id": "OlHos000001", "level": 1, "name": "National"}]
     return instance
 
 
@@ -651,6 +653,31 @@ async def test_the_run_notes_every_name_the_guide_states_differently(
     assert notes
     assert any("5 to < 15 years, Female" in note.message for note in notes)
     assert all(note.echoes_validate is False for note in notes)
+
+
+@respx.mock
+async def test_a_hostile_level_name_is_rewritten_on_the_runs_one_answer(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """The words an instance calls its depths go through the gate the unit names go through, on one answer."""
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path)
+    _mock_instance(_hostile_instance())
+
+    report = await service.generate_full(resolve_profile("probe"), load_project(tmp_path), gate=_substituting_gate())
+
+    levels = (tmp_path / "ig" / "input" / "fsh" / "organization" / "org-unit-levels.fsh").read_text(encoding="utf-8")
+    assert '* #level-1 "National under region"' in levels
+    distinct = report.with_distinct_notes()
+    notes = [
+        note
+        for field_name in type(distinct).model_fields
+        for note in getattr(distinct, field_name).notes
+        if note.category == GenerateNoteCategory.NAME_SUBSTITUTION and "National < region" in note.message
+    ]
+    assert len(notes) == 1
 
 
 @respx.mock

@@ -30,6 +30,7 @@ from dhis2w_fhir.resources.organisation_units.schemas import (
     ORGANISATION_UNIT_LEVEL_TERMINOLOGY,
     ORGANISATION_UNIT_TERMINOLOGY,
     OrganisationUnitIn,
+    OrganisationUnitLevelNames,
     ordered_organisation_units,
 )
 from dhis2w_fhir.status import IgStatus
@@ -57,12 +58,22 @@ class OrganisationUnitTerminologyBuild(BaseModel):
 
 
 def build_organisation_unit_level_terminology_documents(
-    levels: list[int], config: GenerateConfig, canonical: str, *, ig_status: IgStatus
+    levels: list[int],
+    config: GenerateConfig,
+    canonical: str,
+    *,
+    level_names: OrganisationUnitLevelNames,
+    ig_status: IgStatus,
 ) -> OrganisationUnitTerminologyBuild:
-    """Build the level pair over the levels the selection reaches - the vocabulary `Organization.type` binds."""
+    """Build the level pair over the levels the selection reaches - the vocabulary `Organization.type` binds.
+
+    `level_names` is what the instance calls each depth: the display is that name where the
+    instance names one and `Level <n>` where it names none, and the level's own DHIS2 translations
+    become the concept's designations under `[generate] locales`.
+    """
     names = OrganisationUnitNaming.from_naming(config.naming)
     pair = build_terminology_pair(
-        [CodeSystemConcept(code=f"level-{level}", display=f"Level {level}") for level in sorted(set(levels))],
+        [_level_concept(level, config, level_names) for level in sorted(set(levels))],
         ORGANISATION_UNIT_LEVEL_TERMINOLOGY,
         canonical,
         code_system_name=names.level_code_system,
@@ -100,6 +111,19 @@ def build_organisation_unit_terminology_documents(
         ],
     )
     return OrganisationUnitTerminologyBuild(code_systems=[pair.code_system], value_sets=[pair.value_set])
+
+
+def _level_concept(level: int, config: GenerateConfig, level_names: OrganisationUnitLevelNames) -> CodeSystemConcept:
+    """One hierarchy depth as a concept: the stable `level-<n>` code under the instance's own name."""
+    return CodeSystemConcept(
+        code=f"level-{level}",
+        display=level_names.display(level),
+        designation=[
+            CodeSystemConceptDesignation(language=translation.locale, value=flatten_whitespace(translation.value))
+            for translation in level_names.designations(level, config.locales)
+        ]
+        or None,
+    )
 
 
 def _concept(organisation_unit: OrganisationUnitIn, config: GenerateConfig) -> CodeSystemConcept:

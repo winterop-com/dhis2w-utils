@@ -148,7 +148,12 @@ from dhis2w_fhir.resources.organisation_units import (
     organisation_unit_stem_subjects,
     plan_organisation_unit_stems,
 )
-from dhis2w_fhir.resources.organisation_units.schemas import GeoPoint, OrganisationUnitIn
+from dhis2w_fhir.resources.organisation_units.schemas import (
+    GeoPoint,
+    OrganisationUnitIn,
+    OrganisationUnitLevelIn,
+    OrganisationUnitLevelNames,
+)
 from dhis2w_fhir.resources.pages import (
     INTRO_SUFFIX,
     PAGES_BASE_SUBDIRECTORY,
@@ -242,6 +247,7 @@ if TYPE_CHECKING:
         DataSetElement,
         OptionSet,
         OrganisationUnit,
+        OrganisationUnitLevel,
         Program,
         ProgramRule,
         TrackedEntityAttribute,
@@ -274,6 +280,9 @@ _ORGANISATION_UNIT_FIELDS = (
     "id,code,name,shortName,description,level,path,parent[id],geometry,contactPerson,email,phoneNumber,openingDate,"
     f"closedDate,{_TRANSLATION_FIELDS},{_ATTRIBUTE_VALUE_FIELDS}"
 )
+#: What the instance's own level table has to state for the level concepts to carry its names: the
+#: depth, the name it gives that depth, and the translations of that name.
+_ORGANISATION_UNIT_LEVEL_FIELDS = f"id,level,name,{_TRANSLATION_FIELDS}"
 #: What a category combo has to state for its option combos to publish their own composition: the
 #: ordered categories the combo splits over, and the category options each option combo is met from.
 #: The UIDs alone - every name and every concept code the decomposition emits is joined from the
@@ -2672,6 +2681,29 @@ def _organisation_unit_selection_filters(config: GenerateConfig) -> list[str]:
     return filters
 
 
+async def _fetch_organisation_unit_levels(client: Dhis2Client) -> list[OrganisationUnitLevelIn]:
+    """Read what the instance calls each depth of its hierarchy - one unpaged read of the level table.
+
+    A hierarchy is a handful of levels deep however many units hang off it, so the whole table
+    comes back in a single request. A row stating no depth names nothing the guide can publish a
+    concept under, so it is dropped.
+    """
+    models: list[OrganisationUnitLevel] = await client.resources.organisation_unit_levels.list(
+        fields=_ORGANISATION_UNIT_LEVEL_FIELDS,
+        paging=False,
+    )
+    return [
+        OrganisationUnitLevelIn(
+            level=model.level,
+            name=model.name,
+            uid=model.id,
+            translations=_translation_inputs(model.translations),
+        )
+        for model in models
+        if model.level is not None
+    ]
+
+
 async def _fetch_published_organisation_unit_uids(client: Dhis2Client, config: GenerateConfig) -> frozenset[str]:
     """Read the UID of every organisation unit the registry target publishes a Location for.
 
@@ -2747,13 +2779,19 @@ async def generate_organisation_units(
     progress.step(_FETCH_LABEL, "fetching organisation units")
     async with _instance_connection(profile, client) as client:
         organisation_units = await _fetch_organisation_units(client, project.config.generate, tally, today, progress)
+        level_rows = await _fetch_organisation_unit_levels(client)
         attribute_codes = await resolve_attribute_code_index(client)
     notes = tally.to_notes()
-    organisation_units = _screening_gate(gate).screen(organisation_units, notes)
+    # One gate for both reads, so a run asks its hostile-name question once over every name it is
+    # about to publish - the units and the words the instance calls their depths.
+    screening = _screening_gate(gate)
+    organisation_units = screening.screen(organisation_units, notes)
+    level_names = OrganisationUnitLevelNames(levels=screening.screen(level_rows, notes))
     progress.complete(f"{len(organisation_units):,} organisation unit(s)")
     return _emit_organisation_units(
         project,
         organisation_units=organisation_units,
+        level_names=level_names,
         attribute_codes=attribute_codes,
         stems=plan_organisation_unit_stems(
             organisation_unit_stem_subjects(organisation_units), project.config.generate.naming.source
@@ -2767,6 +2805,7 @@ def _emit_organisation_units(
     project: FhirProject,
     *,
     organisation_units: list[OrganisationUnitIn],
+    level_names: OrganisationUnitLevelNames,
     attribute_codes: AttributeCodeIndex,
     stems: StemResolution,
     notes: list[GenerateNote],
@@ -2802,6 +2841,7 @@ def _emit_organisation_units(
             build_organisation_unit_level_terminology(
                 [organisation_unit.level for organisation_unit in organisation_units],
                 generate_config,
+                level_names=level_names,
                 ig_status=ig_status,
             )
         )
@@ -2810,11 +2850,14 @@ def _emit_organisation_units(
             generate_config,
             project.config.ig.canonical,
             attribute_codes=attribute_codes,
+            level_names=level_names,
             stems=stems,
         )
         registry = instances.artifacts
         notes.extend(instances.notes)
-        examples = build_registry_examples(organisation_units, generate_config, ig_status=ig_status)
+        examples = build_registry_examples(
+            organisation_units, generate_config, level_names=level_names, ig_status=ig_status
+        )
         if examples is not None:
             artifacts.append(examples)
         if selection.terminology:
@@ -3045,6 +3088,7 @@ async def generate_full(
         organisation_units = _emit_organisation_units(
             project,
             organisation_units=inputs.organisation_units,
+            level_names=inputs.organisation_unit_levels,
             attribute_codes=inputs.attribute_codes,
             stems=inputs.organisation_unit_stems,
             notes=list(inputs.geometry_notes),
@@ -3123,6 +3167,9 @@ class LiveIgInputs(BaseModel):
     option_set_plan: OptionSetIdentityPlan
     categories: list[CategoryIn] = Field(default_factory=list)
     organisation_units: list[OrganisationUnitIn] = Field(default_factory=list)
+    organisation_unit_levels: OrganisationUnitLevelNames = Field(default_factory=OrganisationUnitLevelNames)
+    """What the instance calls each depth of its hierarchy - the display every level concept carries."""
+
     attribute_codes: AttributeCodeIndex
     assignments: AssignmentIndex = Field(default_factory=AssignmentIndex)
     """The organisation units each selected data set and program is assigned to, read id-only."""
@@ -3183,15 +3230,17 @@ async def fetch_live_ig_inputs(
     steps.tick("reading categories")
     categories = await _fetch_categories(client, config, category_notes)
     organisation_units = await _fetch_organisation_units(client, config, tally, today, steps)
+    level_rows = await _fetch_organisation_unit_levels(client)
     geometry_notes = tally.to_notes()
     # The one screening a full run takes: the answer is settled over every projection at once, so
     # a run that asks states the whole instance read's count, and each projection then carries its
     # rewrites into the notes of the target that owns it.
-    screening.decide(sources, option_sets, categories, organisation_units)
+    screening.decide(sources, option_sets, categories, organisation_units, level_rows)
     sources = screening.screen(sources, source_notes)
     option_sets = screening.screen(option_sets, option_set_notes)
     categories = screening.screen(categories, category_notes)
     organisation_units = screening.screen(organisation_units, geometry_notes)
+    organisation_unit_levels = OrganisationUnitLevelNames(levels=screening.screen(level_rows, geometry_notes))
     option_set_plan = _option_set_identity_plan(screening.screen(fetched_option_sets, []), config, sources)
     steps.tick("reading the attribute-code join")
     attribute_codes = await resolve_attribute_code_index(client)
@@ -3209,6 +3258,7 @@ async def fetch_live_ig_inputs(
         option_set_plan=option_set_plan,
         categories=categories,
         organisation_units=organisation_units,
+        organisation_unit_levels=organisation_unit_levels,
         attribute_codes=attribute_codes,
         assignments=assignments,
         questionnaire_stems=questionnaire_stems,
@@ -3287,7 +3337,11 @@ async def fetch_live_artifacts(
             artifacts=build_category_concept_map_artifacts(inputs.categories, config, canonical, ig_status=ig_status)
         ),
         build_organisation_unit_instances(
-            inputs.organisation_units, config, canonical, attribute_codes=inputs.attribute_codes
+            inputs.organisation_units,
+            config,
+            canonical,
+            attribute_codes=inputs.attribute_codes,
+            level_names=inputs.organisation_unit_levels,
         ),
         attribute_combos,
         JsonBuild(

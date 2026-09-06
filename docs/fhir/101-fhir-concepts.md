@@ -127,7 +127,9 @@ one per attribute category combo, plus a fixed set of shared ones: `D2DE_CS` ove
 every data element the generated forms reference, `D2TEA_CS` over every tracked
 entity attribute they ask for, `D2COC_CS` over every category option combo,
 `D2TET_CS` over the tracked entity types, `D2OU_Level_CS` over the organisation-unit
-levels, `D2PeriodType_CS`, and `D2FormType_CS`. By default the concept code is the
+levels, `D2PeriodType_CS`, and `D2FormType_CS`. A level concept is coded `level-<n>` and
+displayed under the name the instance gives that depth in `/api/organisationUnitLevels`,
+falling back to `Level <n>` where it names none. By default the concept code is the
 DHIS2 UID; `concept_code_source = "code"` swaps in the DHIS2 code.
 
 `D2FormType_CS` names the five kinds of DHIS2 form the generator recognises:
@@ -493,7 +495,7 @@ it on. Paths use the ids from a real run; `<uid>` is the DHIS2 UID.
 | Tracked entity attribute a form asks for | A concept in `D2TEA_CS` | `GET /CodeSystem/d2-tea-cs` |
 | Category option combo | A concept in `D2COC_CS` | `GET /CodeSystem/d2-coc-cs` |
 | Tracked entity type | A concept in `D2TET_CS`, and a `D2TET_CM` entry naming the FHIR resource type it publishes as | `GET /CodeSystem/d2-tet-cs`, `GET /ConceptMap/d2-tet-cm` |
-| Organisation unit level | A concept in `D2OU_Level_CS`, bound to `Organization.type` | `GET /CodeSystem/d2-ou-level-cs` |
+| Organisation unit level | A concept in `D2OU_Level_CS`, bound to `Organization.type`, displayed under the instance's own name for that depth | `GET /CodeSystem/d2-ou-level-cs` |
 | Period type | A concept in `D2PeriodType_CS` | `GET /CodeSystem/d2-period-type-cs` |
 | Every identifier convention above | One `NamingSystem` declaration each - twenty-six of them | The guide's artifact index |
 

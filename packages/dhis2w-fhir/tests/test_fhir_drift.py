@@ -670,6 +670,9 @@ async def test_the_phase_skips_when_the_project_was_generated_but_never_compiled
     _mock_instance()
     respx.get(f"{_BASE_URL}/api/metadata").mock(return_value=httpx.Response(200, json={}))
     respx.get(f"{_BASE_URL}/api/attributes").mock(return_value=httpx.Response(200, json={"attributes": []}))
+    respx.get(f"{_BASE_URL}/api/organisationUnitLevels").mock(
+        return_value=httpx.Response(200, json={"organisationUnitLevels": []})
+    )
     respx.get(f"{_BASE_URL}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
     respx.get(f"{_BASE_URL}/api/categories").mock(return_value=httpx.Response(200, json={"categories": []}))
     respx.get(f"{_BASE_URL}/api/dataElements").mock(return_value=httpx.Response(200, json={"dataElements": []}))

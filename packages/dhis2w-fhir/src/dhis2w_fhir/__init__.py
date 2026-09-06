@@ -445,6 +445,8 @@ from dhis2w_fhir.resources.organisation_units import (
 from dhis2w_fhir.resources.organisation_units.schemas import (
     GeoPoint,
     OrganisationUnitIn,
+    OrganisationUnitLevelIn,
+    OrganisationUnitLevelNames,
     OrganisationUnitSelection,
 )
 from dhis2w_fhir.resources.pages import (
@@ -1139,6 +1141,8 @@ __all__ = [
     "organisation_unit_stem_subjects",
     "ORGANISATION_UNIT_STEM_SURFACE",
     "OrganisationUnitIn",
+    "OrganisationUnitLevelIn",
+    "OrganisationUnitLevelNames",
     "OrganisationUnitResolution",
     "OrganisationUnitSelection",
     "ORPHAN_TEMPORARY_FILE_AGE_SECONDS",

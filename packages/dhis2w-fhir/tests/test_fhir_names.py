@@ -25,7 +25,10 @@ from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_profiles,
     build_organisation_unit_terminology,
 )
-from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
+from dhis2w_fhir.resources.organisation_units.schemas import (
+    OrganisationUnitIn,
+    OrganisationUnitLevelNames,
+)
 from dhis2w_fhir.resources.questionnaires import build_questionnaire_artifacts
 from dhis2w_fhir.resources.questionnaires.schemas import QuestionnaireItemIn, QuestionnaireSourceIn
 
@@ -164,7 +167,11 @@ def _emitted_contents(config: GenerateConfig) -> list[str]:
     """Every FSH file the emitters produce for one naming configuration."""
     contents = [artifact.content for artifact in build_foundation_artifacts(config, _CANONICAL, ig_status="draft")]
     contents.append(build_organisation_unit_profiles(config, ig_status="draft").content)
-    contents.append(build_organisation_unit_level_terminology([1], config, ig_status="draft").content)
+    contents.append(
+        build_organisation_unit_level_terminology(
+            [1], config, ig_status="draft", level_names=OrganisationUnitLevelNames()
+        ).content
+    )
     contents.append(build_organisation_unit_terminology([_ORGANISATION_UNIT], config, ig_status="draft").content)
     contents += [
         artifact.content

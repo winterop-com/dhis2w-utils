@@ -557,6 +557,9 @@ async def test_validate_error_and_the_generate_gate_refuse_the_same_object(
     }
     _mock_scope_endpoints(option_sets=[hostile])
     respx.get(f"{_HOST}/api/attributes").mock(return_value=httpx.Response(200, json={"attributes": []}))
+    respx.get(f"{_HOST}/api/organisationUnitLevels").mock(
+        return_value=httpx.Response(200, json={"organisationUnitLevels": []})
+    )
     respx.get(f"{_HOST}/api/metadata").mock(
         return_value=httpx.Response(200, json={"optionSets": [hostile]}),
     )
@@ -596,6 +599,9 @@ async def test_an_out_of_scope_aborting_code_passes_validate_and_generate_alike(
     clean: dict[str, object] = {"id": "Os2aaaaaaaa", "name": "Birth type", "code": "BIRTH_TYPE", "options": []}
     _mock_scope_endpoints(option_sets=[hostile, clean])
     respx.get(f"{_HOST}/api/attributes").mock(return_value=httpx.Response(200, json={"attributes": []}))
+    respx.get(f"{_HOST}/api/organisationUnitLevels").mock(
+        return_value=httpx.Response(200, json={"organisationUnitLevels": []})
+    )
     respx.get(f"{_HOST}/api/metadata").mock(
         return_value=httpx.Response(200, json={"optionSets": [hostile, clean]}),
     )

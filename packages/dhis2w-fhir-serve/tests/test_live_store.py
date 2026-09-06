@@ -169,6 +169,14 @@ _PROGRAMS_PAYLOAD = {
     ]
 }
 
+#: What the mocked instance calls each depth of its hierarchy - the display its level concepts carry.
+_ORGANISATION_UNIT_LEVELS_PAYLOAD = {
+    "organisationUnitLevels": [
+        {"id": "OlLive00001", "level": 1, "name": "National"},
+        {"id": "OlLive00002", "level": 2, "name": "District"},
+    ]
+}
+
 #: The tracker program's single stage, and the program every artifact of it is grouped under.
 _TRACKER_STAGE_UID = "A03MvHHogjR"
 _TRACKER_PROGRAM_UID = "IpHINAT79UW"
@@ -213,6 +221,9 @@ def _mock_instance(data_sets: dict[str, Any] | None = None, option_sets: dict[st
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_PROGRAMS_PAYLOAD))
     respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
     respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ORGANISATION_UNITS_PAYLOAD))
+    respx.get(f"{_HOST}/api/organisationUnitLevels").mock(
+        return_value=httpx.Response(200, json=_ORGANISATION_UNIT_LEVELS_PAYLOAD)
+    )
     return system_info
 
 
@@ -307,7 +318,7 @@ async def test_live_store_serves_the_terminology_and_the_registry(
         "valueCoding": {
             "system": f"{_CANONICAL}/CodeSystem/d2-ou-level-cs",
             "code": "level-2",
-            "display": "Level 2",
+            "display": "District",
         },
     }
 

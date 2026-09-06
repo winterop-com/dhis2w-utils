@@ -38,7 +38,7 @@
       "valueCoding": {
         "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
         "code": "level-2",
-        "display": "Level 2"
+        "display": "Province"
       }
     }
   ],

@@ -201,11 +201,13 @@ async def test_the_data_set_fetch_asks_for_the_join_category_combo(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The override rides the projection the elements ride, so knowing it costs no second request."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     data_sets = _mock_metadata(override=_AGE_COMBO)
 
@@ -230,12 +232,14 @@ async def test_an_override_disaggregates_the_question_into_its_own_cells(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     wire_version: str,
     tmp_path: Path,
 ) -> None:
     """A data set that states a four-way split over a default-combo element publishes four cells per question."""
     mock_system_info(wire_version)
     mock_attributes()
+    mock_organisation_unit_levels()
 
     content = (await _generate(tmp_path, override=_AGE_COMBO))["data-sets/ce7DSxx5H2I.fsh"]
 
@@ -252,11 +256,13 @@ async def test_without_an_override_the_data_elements_own_combo_stands(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A data set that restates nothing holds the element's own cells - here the default combo's single one."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
 
     content = (await _generate(tmp_path, override=None))["data-sets/ce7DSxx5H2I.fsh"]
 
@@ -271,12 +277,14 @@ async def test_an_override_naming_the_elements_own_combo_changes_nothing(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
     """Restating the combo an element already carries is a no-op, byte for byte across every file."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
 
     restated = await _generate(tmp_path, override=_DEFAULT_COMBO)
     plain = await _generate(tmp_path_factory.mktemp("plain"), override=None)
@@ -289,11 +297,13 @@ async def test_the_option_combos_of_an_override_reach_the_category_option_combo_
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Every cell the forms hold is a concept of `D2COC_CS`, decomposed into the category it splits over."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
 
     artifacts = await _generate(tmp_path, override=_AGE_COMBO)
 
@@ -313,11 +323,13 @@ async def test_a_compulsory_operand_requires_a_cell_of_the_override(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """An operand names the cell by the option combo the data set holds it over, so the override grades it."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     operands: list[dict[str, object]] = [
         {"dataElement": {"id": "eY5ehpbEsB7"}, "categoryOptionCombo": {"id": "Coc0to11moo"}}
     ]
@@ -334,11 +346,13 @@ async def test_an_example_answers_the_cell_of_the_override_it_holds_a_value_for(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A live value is keyed by the option combo of the override, so the example answers that cell."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, examples_source="instance")
     _mock_metadata(override=_AGE_COMBO)
     respx.get(f"{_HOST}/api/dataValueSets").mock(return_value=httpx.Response(200, json=_DATA_VALUE_SET))

@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict
 
 from dhis2w_fhir.foundation.schemas import FoundationNaming
 from dhis2w_fhir.names import join_id_tokens
+from dhis2w_fhir.r4 import Coding
+from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitLevelNames
 
 if TYPE_CHECKING:
     from dhis2w_fhir.config import GenerateConfig, NamingConfig
@@ -117,3 +119,14 @@ class OrganisationUnitInstanceUrls(BaseModel):
             code_identifier_system=f"{identifier_base}/id/org-unit-code",
             identifier_system_base=identifier_base,
         )
+
+
+def organisation_unit_level_coding(
+    level: int, urls: OrganisationUnitInstanceUrls, level_names: OrganisationUnitLevelNames
+) -> Coding:
+    """The published level coding of one depth - stable `level-<n>` code, the instance's own name as display.
+
+    Read by both resources of a unit: `Organization.type` and the D2OrganisationUnitLevel extension
+    a Location carries. One helper keeps the two spellings of the same fact identical.
+    """
+    return Coding(system=urls.level_code_system, code=f"level-{level}", display=level_names.display(level))

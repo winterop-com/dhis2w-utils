@@ -45,7 +45,6 @@ from dhis2w_fhir.notes import GenerateNoteCategory, aggregate_generate_note
 from dhis2w_fhir.r4 import (
     BOUNDARY_EXTENSION_URL,
     CodeableConcept,
-    Coding,
     ContactPoint,
     HumanName,
     Identifier,
@@ -59,7 +58,9 @@ from dhis2w_fhir.resources.organisation_units.location import build_location
 from dhis2w_fhir.resources.organisation_units.naming import (
     OrganisationUnitInstanceUrls,
     OrganisationUnitNaming,
+    organisation_unit_level_coding,
 )
+from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitLevelNames
 from dhis2w_fhir.status import IgStatus, experimental_for_status
 from dhis2w_fhir.writer import FshArtifact, JsonArtifact, JsonBuild
 
@@ -150,6 +151,7 @@ class _RegistryExampleView(BaseModel):
 
     level_code_system: str
     level: int
+    level_display_literal: str
     uid_literal: str
     code_literal: str
     name_literal: str
@@ -158,7 +160,11 @@ class _RegistryExampleView(BaseModel):
 
 
 def build_registry_examples(
-    organisation_units: list[OrganisationUnitIn], config: GenerateConfig, *, ig_status: IgStatus
+    organisation_units: list[OrganisationUnitIn],
+    config: GenerateConfig,
+    *,
+    level_names: OrganisationUnitLevelNames,
+    ig_status: IgStatus,
 ) -> FshArtifact | None:
     """Build `organization/registry-examples.fsh` - one `Usage: #example` per registry profile, or None.
 
@@ -184,7 +190,7 @@ def build_registry_examples(
     if root is None:
         return None
     names = OrganisationUnitNaming.from_naming(config.naming)
-    view = _registry_example_view(root, names)
+    view = _registry_example_view(root, names, level_names)
     return FshArtifact(
         relative_path="organization/registry-examples.fsh",
         kind="instances",
@@ -200,7 +206,9 @@ def _root_organisation_unit(organisation_units: list[OrganisationUnitIn]) -> Org
     return min(organisation_units, key=lambda unit: (unit.level, unit.path, unit.uid))
 
 
-def _registry_example_view(root: OrganisationUnitIn, names: OrganisationUnitNaming) -> _RegistryExampleView:
+def _registry_example_view(
+    root: OrganisationUnitIn, names: OrganisationUnitNaming, level_names: OrganisationUnitLevelNames
+) -> _RegistryExampleView:
     """Project the root unit onto the two exemplar instances the registry profiles are illustrated with."""
     label = f"{root.name} ({root.uid})"
     location_description = (
@@ -224,6 +232,7 @@ def _registry_example_view(root: OrganisationUnitIn, names: OrganisationUnitNami
         location_description_element_literal=quote(location_description),
         level_code_system=names.level_code_system,
         level=root.level,
+        level_display_literal=quote(level_names.display(root.level)),
         uid_literal=quote(root.uid),
         code_literal=quote(code_or_uid(root.code, root.uid)),
         name_literal=quote(root.name),
@@ -238,6 +247,7 @@ def build_organisation_unit_instances(
     canonical: str,
     *,
     attribute_codes: AttributeCodeIndex,
+    level_names: OrganisationUnitLevelNames,
     stems: StemResolution | None = None,
 ) -> JsonBuild:
     """Build one `registry/Organization-<stem>.json` and `registry/Location-<stem>.json` per organisation unit.
@@ -272,9 +282,17 @@ def build_organisation_unit_instances(
                 attribute_codes,
                 extension_url,
                 resolved,
+                level_names,
             )
             location = build_location(
-                organisation_unit, urls, selected_uids, config.locales, attribute_codes, extension_url, resolved
+                organisation_unit,
+                urls,
+                selected_uids,
+                config.locales,
+                attribute_codes,
+                extension_url,
+                resolved,
+                level_names,
             )
             stem = resolved.stem_for(organisation_unit.uid)
             build.artifacts.append(_json_artifact(f"Organization-{stem}", organization))
@@ -307,6 +325,7 @@ def _build_organization(
     attribute_codes: AttributeCodeIndex,
     extension_url: str,
     stems: StemResolution,
+    level_names: OrganisationUnitLevelNames,
 ) -> Organization:
     """Build the Organization of one unit, noting units whose parent falls outside the selection.
 
@@ -323,7 +342,6 @@ def _build_organization(
     alias: list[str] | None = None
     if organisation_unit.short_name is not None and organisation_unit.short_name != organisation_unit.name:
         alias = [flatten_whitespace(organisation_unit.short_name)]
-    level = organisation_unit.level
     return Organization(
         id=stems.stem_for(uid),
         meta=Meta(profile=[urls.organization_profile]),
@@ -339,13 +357,7 @@ def _build_organization(
         name=flatten_whitespace(organisation_unit.name),
         name_element=translated_element(name_translations(organisation_unit.translations, locales)),
         alias=alias,
-        type=[
-            CodeableConcept(
-                coding=[
-                    Coding(system=urls.level_code_system, code=f"level-{level}", display=f"Level {level}"),
-                ]
-            )
-        ],
+        type=[CodeableConcept(coding=[organisation_unit_level_coding(organisation_unit.level, urls, level_names)])],
         partOf=Reference(reference=f"Organization/{stems.stem_for(parent_uid)}") if parent_uid is not None else None,
         telecom=_telecom(organisation_unit) or None,
         contact=_contact(organisation_unit),

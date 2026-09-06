@@ -1386,11 +1386,13 @@ async def test_a_form_the_questionnaire_target_refused_gets_no_example(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A linkId collision skips the whole form, so nothing may answer a Questionnaire that was never written."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     data_sets: list[dict[str, Any]] = deepcopy(_DATA_SETS_PAYLOAD["dataSets"])
     data_sets[0]["sections"][0]["id"] = "De1aaaaaaaa"
@@ -1419,11 +1421,13 @@ async def test_generate_full_runs_the_example_target_after_the_questionnaires(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A full run carries an example report whose responses answer the questionnaires it just wrote."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     _mock_metadata()
 

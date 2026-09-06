@@ -145,7 +145,7 @@ facts that say when and where it may be used.
 | Concept | What it means in DHIS2 | Verdict | Carrier or reason | Consumer |
 | --- | --- | --- | --- | --- |
 | Hierarchy | Every place is a node under exactly one parent | `CARRIED` | `Organization.partOf` and `Location.partOf`, both constrained to the D2 profile; a `parent` code property on `D2OU_CS` | capture, output leg |
-| Level | Depth in the hierarchy, named by the instance | `CARRIED` | `D2OrganisationUnitLevel` (Coding 1..1) on `Location`, `D2OU_Level_CS` / `_VS`, and `Organization.type` bound to the same ValueSet | capture, output leg |
+| Level | Depth in the hierarchy, named by the instance | `CARRIED` | `D2OrganisationUnitLevel` (Coding 1..1) on `Location`, `D2OU_Level_CS` / `_VS`, and `Organization.type` bound to the same ValueSet; the concept displays are the instance's own `organisationUnitLevels` names, with the depth as the fall-back where it names none | capture, output leg |
 | `path` | The materialised ancestor chain | `CARRIED` | Implicitly, through `partOf` and the `parent` property; the emitter orders the registry by `path` so a regenerate is byte-stable | - |
 | Geometry | A point or a boundary polygon | `CARRIED` | `Location.position` (point, or the area-weighted centroid of a polygon) plus `location-boundary-geojson` carrying the full Feature | output leg, harmonization |
 | Contact person, email, phone number | Who to reach at a facility | `CARRIED` | `Organization.contact.name` (HumanName.text) and `Organization.telecom` (phone, email) | output leg |

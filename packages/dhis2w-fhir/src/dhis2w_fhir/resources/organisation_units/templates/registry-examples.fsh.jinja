@@ -10,7 +10,7 @@ Usage: #example
 * identifier[dhis2code].value = {{ example.code_literal }}
 * active = true
 * name = {{ example.name_literal }}
-* type = {{ example.level_code_system }}#level-{{ example.level }} "Level {{ example.level }}"
+* type = {{ example.level_code_system }}#level-{{ example.level }} {{ example.level_display_literal }}
 
 Instance: {{ example.location_name }}
 InstanceOf: {{ example.location_profile }}
@@ -29,5 +29,5 @@ Usage: #example
 * position.longitude = {{ example.longitude }}
 * position.latitude = {{ example.latitude }}
 {% endif %}
-* extension[level].valueCoding = {{ example.level_code_system }}#level-{{ example.level }} "Level {{ example.level }}"
+* extension[level].valueCoding = {{ example.level_code_system }}#level-{{ example.level }} {{ example.level_display_literal }}
 * managingOrganization = Reference({{ example.organization_name }})
