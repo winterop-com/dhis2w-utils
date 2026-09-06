@@ -715,11 +715,13 @@ async def test_the_data_set_fetch_asks_for_the_compulsory_operands(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Required flags come off `compulsoryDataElementOperands`, so the projection has to request it."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_operand_payload([])))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
@@ -740,11 +742,13 @@ async def test_an_operand_without_an_option_combo_requires_a_plain_question(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """An operand naming a data element alone makes that whole question mandatory."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
 
     content = await _generated_data_set(tmp_path, [{"dataElement": {"id": "De1aaaaaaaa"}}])
 
@@ -759,11 +763,13 @@ async def test_an_operand_without_an_option_combo_requires_every_cell_of_a_disag
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The same operand on a disaggregated element requires the group and every option combo under it."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
 
     content = await _generated_data_set(tmp_path, [{"dataElement": {"id": "De2aaaaaaaa"}}])
 
@@ -777,11 +783,13 @@ async def test_an_operand_with_an_option_combo_requires_only_that_cell(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """An operand naming a category option combo makes only that one child question mandatory."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
 
     content = await _generated_data_set(
         tmp_path,
@@ -1009,11 +1017,13 @@ async def test_generate_questionnaires_writes_the_target_directory(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The target fetches the configured data sets and event programs and syncs its four directories."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"', event_programs='"VBqh0ynB2wv"')
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_EVENT_PROGRAMS_PAYLOAD))
@@ -1055,11 +1065,13 @@ async def test_an_absent_selection_covers_the_whole_instance(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """No selection tables means all: every data set, every event program, and every stage of every tracker."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     data_sets = respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_ALL_DATA_SETS_PAYLOAD))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_ALL_PROGRAMS_PAYLOAD))
@@ -1099,11 +1111,13 @@ async def test_the_stages_of_a_tracker_program_are_ordered_by_their_dhis2_sort_o
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Stages and their questions are emitted in the order DHIS2 sorts them, not the order it serialised them."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, tracker_programs='"IpHINAT79UW"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [_TRACKER_PROGRAM]}))
@@ -1133,11 +1147,13 @@ async def test_an_explicit_tracker_selection_is_a_filtered_fetch_of_its_own(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Each program table reads its own selection, so a listed tracker UID is fetched by filter and noted if absent."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, event_programs="", tracker_programs='"IpHINAT79UW", "Missing1234"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
@@ -1166,11 +1182,13 @@ async def test_a_stage_mixing_sectioned_and_unsectioned_elements_is_noted_as_a_s
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The note names the form kind it is about, so a stage is called a tracker program stage."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, tracker_programs='"IpHINAT79UW"')
     loose = {
         "id": "IpHINAT79UW",
@@ -1216,11 +1234,13 @@ async def test_a_program_the_target_does_not_map_is_one_note_on_the_sweep(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A whole-instance sweep names the programs whose type neither table maps, and generates the rest."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     respx.get(f"{_HOST}/api/programs").mock(
@@ -1245,11 +1265,13 @@ async def test_each_directory_is_swept_against_its_own_files(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Narrowing the selection deletes the questionnaires that left its own directory, and nothing else."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
 
     def _data_sets(request: httpx.Request) -> httpx.Response:
@@ -1282,11 +1304,13 @@ async def test_a_registration_form_states_the_dhis2_level_of_every_attribute_it_
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The tracked entity type's own join rides the program read, and the form publishes what it says."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, tracker_programs='"IpHINAT79UW"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     programs = respx.get(f"{_HOST}/api/programs").mock(
@@ -1345,11 +1369,13 @@ async def test_a_tracker_programs_type_publishes_a_person_only_form_by_default(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The default person-only selection is the types the selected tracker programs already register."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, tracker_programs='"IpHINAT79UW"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [_TRACKER_PROGRAM]}))
@@ -1382,11 +1408,13 @@ async def test_a_run_selecting_no_tracker_program_reads_no_tracked_entity_types(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The person-only read is filtered or skipped, so a data-set-only project costs no extra request."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"', event_programs='"VBqh0ynB2wv"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_EVENT_PROGRAMS_PAYLOAD))
@@ -1408,11 +1436,13 @@ async def test_an_explicit_person_only_selection_overrides_the_default_set(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """`[generate.tracked_entity_forms]` names the types outright, and an unmatched UID is noted by name."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, tracked_entity_forms='"nEenWmSyUEp", "Missing1234"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
@@ -1486,11 +1516,13 @@ async def test_an_unmatched_target_uid_is_noted(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A configured UID the instance answers nothing for is reported as a note, never dropped silently."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt", "Missing1234"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
@@ -1511,11 +1543,13 @@ async def test_a_form_mixing_sectioned_and_unsectioned_elements_is_noted(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Data elements no section references are emitted after the sections, with one note naming them."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
     payload = {
         "dataSets": [
@@ -1550,11 +1584,13 @@ async def test_option_set_selection_unions_the_target_closure(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A narrowed option-set selection still emits the sets the configured targets bind their elements to."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, option_sets='"Os2aaaaaaaa"', data_sets='"BfMAe6Itzgt"')
     option_sets_payload = {
         "optionSets": [
@@ -1589,11 +1625,13 @@ async def test_option_set_closure_is_a_no_op_when_every_set_is_already_included(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """An empty include_ids already means all option sets, so the targets are not fetched a second time."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
     respx.get(f"{_HOST}/api/optionSets").mock(
         return_value=httpx.Response(200, json={"optionSets": [{"id": "Os1aaaaaaaa", "name": "Gender"}]})
@@ -1611,11 +1649,13 @@ async def test_generate_full_without_selection_tables_still_emits_questionnaires
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A full run on a project with no selection tables generates for the whole instance."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path)
     _mock_option_sets()
     _mock_categories()
@@ -1657,11 +1697,13 @@ async def test_a_switched_off_data_set_table_reads_nothing_and_notes_nothing(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """`[generate.data_sets] enabled = false` publishes no data set form and reads nothing, whatever it lists."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(
         tmp_path, data_sets='"BfMAe6Itzgt", "Missing1234"', event_programs='"VBqh0ynB2wv"', disabled=("data_sets",)
     )
@@ -1686,11 +1728,13 @@ async def test_switching_both_program_tables_off_reads_no_program_and_no_rule(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """With both program tables off the run reads neither programs nor rules, and publishes the data sets alone."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"', disabled=("event_programs", "tracker_programs"))
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     programs = respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_EVENT_PROGRAMS_PAYLOAD))
@@ -1716,11 +1760,13 @@ async def test_a_switched_off_person_only_table_publishes_no_registration_form(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """`[generate.tracked_entity_forms] enabled = false` drops the person-only form the tracker program brings."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, tracker_programs='"IpHINAT79UW"', disabled=("tracked_entity_forms",))
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json={"dataSets": []}))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": [_TRACKER_PROGRAM]}))
@@ -1800,11 +1846,13 @@ async def test_a_data_sets_unsectioned_elements_are_ordered_independently_of_the
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """DHIS2 shuffles `dataSetElements` per request (BUGS.md #63), so the emitter orders them itself."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, data_sets='"Ds3aaaaaaaa"')
     elements = [
         {"dataElement": {"id": "Deczzzzzzzz", "name": "Zebra count", "valueType": "INTEGER"}},
@@ -1875,11 +1923,13 @@ async def test_category_option_combos_are_ordered_independently_of_the_wire(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """DHIS2 shuffles `categoryOptionCombos` per request (BUGS.md #64), so the emitter orders them itself."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, data_sets='"Ds3aaaaaaaa"')
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))
     respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
@@ -2083,11 +2133,13 @@ async def test_the_questionnaire_target_plans_option_set_names_over_the_whole_se
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A slug is assigned against its peers, so the target reads every selected set, not just the bound ones."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     await _scaffold_project(tmp_path, data_sets='"BfMAe6Itzgt"')
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json={"programs": []}))

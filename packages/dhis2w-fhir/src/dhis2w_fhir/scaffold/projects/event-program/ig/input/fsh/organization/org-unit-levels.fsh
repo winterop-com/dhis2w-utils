@@ -9,9 +9,9 @@ Description: "Hierarchy levels of the DHIS2 organisation unit tree."
 * ^content = #complete
 * ^caseSensitive = true
 * ^valueSet = Canonical(D2OU_Level_VS)
-* #level-2 "Level 2"
-* #level-3 "Level 3"
-* #level-4 "Level 4"
+* #level-2 "Province"
+* #level-3 "District"
+* #level-4 "Facility"
 
 ValueSet: D2OU_Level_VS
 Id: d2-ou-level-vs

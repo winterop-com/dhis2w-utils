@@ -25,7 +25,7 @@
       "valueCoding": {
         "system": "http://example.org/fhir/examples/event-program/CodeSystem/d2-ou-level-cs",
         "code": "level-4",
-        "display": "Level 4"
+        "display": "Facility"
       }
     }
   ],

@@ -19,7 +19,10 @@ from dhis2w_fhir.resources.organisation_units import (
     build_organisation_unit_instances,
     build_organisation_unit_terminology,
 )
-from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
+from dhis2w_fhir.resources.organisation_units.schemas import (
+    OrganisationUnitIn,
+    OrganisationUnitLevelNames,
+)
 from dhis2w_fhir.resources.questionnaires.schemas import (
     ProgramContextIn,
     QuestionnaireItemIn,
@@ -215,7 +218,11 @@ def test_short_name_and_description_translations_are_not_emitted() -> None:
 def test_instances_carry_name_translation_extensions() -> None:
     """Both the Organization and the Location name gain one translation extension per NAME translation."""
     build = build_organisation_unit_instances(
-        [_BO], GenerateConfig(), "http://example.org/fhir", attribute_codes=AttributeCodeIndex()
+        [_BO],
+        GenerateConfig(),
+        "http://example.org/fhir",
+        attribute_codes=AttributeCodeIndex(),
+        level_names=OrganisationUnitLevelNames(),
     )
     documents = {artifact.relative_path: json.loads(artifact.content) for artifact in build.artifacts}
     assert documents["registry/Organization-O6uvpzGd5pu.json"]["name"] == "Bo"

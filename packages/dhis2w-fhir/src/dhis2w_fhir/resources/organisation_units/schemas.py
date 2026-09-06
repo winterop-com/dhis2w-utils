@@ -1,4 +1,4 @@
-"""Organisation-unit schemas: the emitter projection, its geometry, and the selection table."""
+"""Organisation-unit schemas: the emitter projection, its geometry, the selection table, and the level names."""
 
 from __future__ import annotations
 
@@ -7,7 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from dhis2w_fhir.attributes import AttributeValueIn
 from dhis2w_fhir.coded import CodedProjectionIn
 from dhis2w_fhir.foundation.schemas import TerminologyPairProfile, TerminologyPropertyDeclaration
-from dhis2w_fhir.i18n import TranslationIn
+from dhis2w_fhir.i18n import TranslationIn, name_translations
+from dhis2w_fhir.names import flatten_whitespace
 
 #: The prose the org-unit-level CodeSystem/ValueSet pair publishes under - the levels the selection reaches.
 ORGANISATION_UNIT_LEVEL_TERMINOLOGY = TerminologyPairProfile(
@@ -93,6 +94,50 @@ class OrganisationUnitIn(CodedProjectionIn):
     closed: bool = False
     translations: list[TranslationIn] = Field(default_factory=list)
     attribute_values: list[AttributeValueIn] = Field(default_factory=list)
+
+
+class OrganisationUnitLevelIn(BaseModel):
+    """One row of `/api/organisationUnitLevels`: the depth it names, that name, and its translations."""
+
+    model_config = ConfigDict(frozen=True)
+
+    level: int
+    name: str | None = None
+    uid: str | None = None
+    translations: list[TranslationIn] = Field(default_factory=list)
+
+
+class OrganisationUnitLevelNames(BaseModel):
+    """What the instance calls each depth of its hierarchy - the display every level concept carries.
+
+    A DHIS2 instance names its levels (National, District, Chiefdom, Facility), and those names are
+    what a person reading the guide recognises. A depth the instance names no level at falls back to
+    `Level <n>`, so a selection reaching deeper than the instance's own table still publishes a
+    concept for every depth it holds. The concept code stays `level-<n>` either way: the code is the
+    stable identity a consumer binds to, and the display is prose that may change under it.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    levels: list[OrganisationUnitLevelIn] = Field(default_factory=list)
+
+    def display(self, level: int) -> str:
+        """The instance's name for this depth, whitespace-flattened, else the `Level <n>` fall-back."""
+        named = self._at(level)
+        if named is not None and named.name is not None and named.name.strip():
+            return flatten_whitespace(named.name)
+        return f"Level {level}"
+
+    def designations(self, level: int, locales: list[str]) -> list[TranslationIn]:
+        """The NAME translations of this depth's level, filtered to `locales`; empty where none is named."""
+        named = self._at(level)
+        if named is None:
+            return []
+        return name_translations(named.translations, locales)
+
+    def _at(self, level: int) -> OrganisationUnitLevelIn | None:
+        """The row the instance names this depth with, or None where it names none."""
+        return next((row for row in self.levels if row.level == level), None)
 
 
 def ordered_organisation_units(organisation_units: list[OrganisationUnitIn]) -> list[OrganisationUnitIn]:

@@ -772,7 +772,8 @@ NamingSystems declaring them, plus these extensions:
   bound extensibly to the organisation-unit level ValueSet: the hierarchy level
   a published place sits at, stated on the Location because that is the
   hierarchy-bearing half of the pair, while the Organization already carries
-  the same coding as `Organization.type`.
+  the same coding as `Organization.type`. Both read one coding, whose display
+  is the instance's own name for that depth and whose code is `level-<n>`.
 - **`D2AttributeValue`** - contexted on Organization, Location, CodeSystem,
   ValueSet, and Questionnaire.
 - **`D2TrackedEntityAttributeValue`** - contexted on Patient.
@@ -1294,7 +1295,12 @@ registration form become `Questionnaire` instances.
 - **`D2Organization` / `D2Location` profiles**, the latter slicing the level
   extension `named level 1..1`, so every published Location states the
   hierarchy level it sits at instead of leaving it to be counted off `partOf`
-  hops. The level CodeSystem ships beside them, as does a curated
+  hops. The level CodeSystem ships beside them - one concept per depth the
+  selection reaches, coded `level-<n>` and displayed under the name the
+  instance gives that depth in `/api/organisationUnitLevels` (`Level <n>` where
+  it names none), with that name's DHIS2 translations as concept designations
+  under `[generate] locales`; the table is one unpaged read per generate run -
+  as does a curated
   `registry-examples.fsh` (`D2OrganizationExample` / `D2LocationExample`,
   `Usage: #example`) drawn from the selection's own root unit so the publisher
   validates both registry profiles against real instance data - kept beside the

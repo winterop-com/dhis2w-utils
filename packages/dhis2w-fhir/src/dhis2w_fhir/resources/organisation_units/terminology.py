@@ -20,6 +20,7 @@ from dhis2w_fhir.resources.organisation_units.schemas import (
     ORGANISATION_UNIT_LEVEL_TERMINOLOGY,
     ORGANISATION_UNIT_TERMINOLOGY,
     OrganisationUnitIn,
+    OrganisationUnitLevelNames,
     ordered_organisation_units,
 )
 from dhis2w_fhir.status import IgStatus, experimental_for_status
@@ -51,14 +52,37 @@ class _OrganisationUnitConcept(BaseModel):
     designations: list[TranslationIn] = Field(default_factory=list)
 
 
+class _OrganisationUnitLevelConcept(BaseModel):
+    """One hierarchy depth as a concept of the level CodeSystem."""
+
+    model_config = ConfigDict(frozen=True)
+
+    level: int
+    display_literal: str
+    designations: list[TranslationIn] = Field(default_factory=list)
+
+
 def build_organisation_unit_level_terminology(
-    levels: list[int], config: GenerateConfig, *, ig_status: IgStatus
+    levels: list[int], config: GenerateConfig, *, level_names: OrganisationUnitLevelNames, ig_status: IgStatus
 ) -> FshArtifact:
-    """Build `organization/org-unit-levels.fsh` covering the levels observed in the selection."""
+    """Build `organization/org-unit-levels.fsh` covering the levels observed in the selection.
+
+    `level_names` is what the instance calls each depth: the display is that name where the
+    instance names one and `Level <n>` where it names none, and the level's own DHIS2 translations
+    become the concept's designations under `[generate] locales`.
+    """
     names = OrganisationUnitNaming.from_naming(config.naming)
+    concepts = [
+        _OrganisationUnitLevelConcept(
+            level=level,
+            display_literal=quote(level_names.display(level)),
+            designations=level_names.designations(level, config.locales),
+        )
+        for level in sorted(set(levels))
+    ]
     content = _ENVIRONMENT.get_template("org-unit-levels.fsh.jinja").render(
         names=names,
-        levels=sorted(set(levels)),
+        concepts=concepts,
         terminology=ORGANISATION_UNIT_LEVEL_TERMINOLOGY,
         ig_status=ig_status,
         experimental=experimental_for_status(ig_status),

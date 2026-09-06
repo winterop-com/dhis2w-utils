@@ -1,4 +1,4 @@
-"""Shared fixtures for dhis2w-fhir tests: a probe profile, system-info mocking, and the attribute join."""
+"""Shared fixtures for dhis2w-fhir tests: a probe profile, system-info mocking, and the instance reads."""
 
 from __future__ import annotations
 
@@ -43,6 +43,26 @@ def mock_attributes() -> Callable[..., None]:
         attributes = [{"id": uid, "code": code} for uid, code in (codes or {}).items()]
         respx.get(f"{base_url}/api/attributes").mock(
             return_value=httpx.Response(200, json={"attributes": attributes}),
+        )
+
+    return _mock
+
+
+@pytest.fixture
+def mock_organisation_unit_levels() -> Callable[..., None]:
+    """Return a helper that mocks `/api/organisationUnitLevels` to a `level -> name` mapping (respx-active).
+
+    Every target that emits organisation units reads the instance's level names off this endpoint,
+    so a test leaving it unmocked fails on the unmatched request. The default is an instance that
+    names no level at all - the level concepts then read `Level <n>`.
+    """
+
+    def _mock(names: dict[int, str] | None = None, base_url: str = "https://dhis2.example") -> None:
+        levels = [
+            {"id": f"level{level}", "level": level, "name": name} for level, name in sorted((names or {}).items())
+        ]
+        respx.get(f"{base_url}/api/organisationUnitLevels").mock(
+            return_value=httpx.Response(200, json={"organisationUnitLevels": levels}),
         )
 
     return _mock

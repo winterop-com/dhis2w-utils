@@ -56,6 +56,9 @@ def _mock_empty_metadata() -> None:
     for resource in ("optionSets", "categories", "organisationUnits", "dataSets", "programs", "programRules"):
         respx.get(f"{_HOST}/api/{resource}").mock(return_value=httpx.Response(200, json={resource: []}))
     respx.get(f"{_HOST}/api/attributes").mock(return_value=httpx.Response(200, json={"attributes": []}))
+    respx.get(f"{_HOST}/api/organisationUnitLevels").mock(
+        return_value=httpx.Response(200, json={"organisationUnitLevels": []})
+    )
 
 
 def _mock(resource: str, *items: dict[str, Any]) -> None:
@@ -519,6 +522,9 @@ def _mock_parity_instance(instance: dict[str, list[dict[str, Any]]]) -> None:
     for resource, items in instance.items():
         respx.get(f"{_HOST}/api/{resource}").mock(return_value=httpx.Response(200, json={resource: items}))
     respx.get(f"{_HOST}/api/metadata").mock(return_value=httpx.Response(200, json=_sweep_body(instance)))
+    respx.get(f"{_HOST}/api/organisationUnitLevels").mock(
+        return_value=httpx.Response(200, json={"organisationUnitLevels": []})
+    )
 
 
 def _sweep_body(instance: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:

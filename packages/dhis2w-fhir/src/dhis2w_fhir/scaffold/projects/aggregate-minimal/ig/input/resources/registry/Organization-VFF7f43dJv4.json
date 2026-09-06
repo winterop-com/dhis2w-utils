@@ -23,7 +23,7 @@
         {
           "system": "http://example.org/fhir/examples/aggregate-minimal/CodeSystem/d2-ou-level-cs",
           "code": "level-4",
-          "display": "Level 4"
+          "display": "Facility"
         }
       ]
     }

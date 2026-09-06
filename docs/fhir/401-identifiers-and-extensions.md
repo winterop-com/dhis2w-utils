@@ -389,8 +389,10 @@ hierarchy a place sits at. It rides every `Location` the registry publishes.
 
 ```console
 $ curl -s localhost:8389/Location/O6uvpzGd5pu | jq -c '.extension[1]'
-{"url":"http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level","valueCoding":{"system":"http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs","code":"level-2","display":"Level 2"}}
+{"url":"http://localhost:8080/fhir/StructureDefinition/d2-organisation-unit-level","valueCoding":{"system":"http://localhost:8080/fhir/CodeSystem/d2-ou-level-cs","code":"level-2","display":"District"}}
 ```
+
+The display is the instance's own name for that depth, read from `/api/organisationUnitLevels`, and `Level <n>` where the instance names no level at that depth. The code stays `level-<n>` either way.
 
 #### `D2AttributeValue`
 

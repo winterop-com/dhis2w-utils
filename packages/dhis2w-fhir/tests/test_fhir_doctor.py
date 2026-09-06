@@ -397,6 +397,9 @@ def _mock_whole_instance() -> None:
     """
     respx.get(f"{_BASE_URL}/api/system/info").mock(return_value=httpx.Response(200, json={"version": "2.42.0"}))
     respx.get(f"{_BASE_URL}/api/attributes").mock(return_value=httpx.Response(200, json={"attributes": []}))
+    respx.get(f"{_BASE_URL}/api/organisationUnitLevels").mock(
+        return_value=httpx.Response(200, json={"organisationUnitLevels": []})
+    )
     respx.get(f"{_BASE_URL}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
     respx.get(f"{_BASE_URL}/api/categories").mock(return_value=httpx.Response(200, json=_CATEGORIES_PAYLOAD))
     respx.get(f"{_BASE_URL}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))

@@ -38,7 +38,7 @@
       "valueCoding": {
         "system": "http://example.org/fhir/examples/patient-summary/CodeSystem/d2-ou-level-cs",
         "code": "level-4",
-        "display": "Level 4"
+        "display": "Facility"
       }
     }
   ],

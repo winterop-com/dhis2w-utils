@@ -147,10 +147,15 @@ async def _scaffold_project(directory: Path) -> None:
     await service.init_project(directory, options)
 
 
-def _mock_instance(mock_system_info: Callable[..., None], mock_attributes: Callable[..., None]) -> None:
+def _mock_instance(
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
+) -> None:
     """Mock every endpoint one full generate run reads."""
     mock_system_info("v42")
     mock_attributes()
+    mock_organisation_unit_levels()
     respx.get(f"{_HOST}/api/optionSets", name="optionSets").mock(
         return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD)
     )
@@ -170,10 +175,11 @@ async def test_generate_full_reads_each_metadata_collection_exactly_once(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """One full run reads every collection once; the seven solo commands read them over and over."""
-    _mock_instance(mock_system_info, mock_attributes)
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
     organisation_units = respx.routes["organisationUnits"]
     await _scaffold_project(tmp_path)
 
@@ -189,6 +195,9 @@ async def test_generate_full_reads_each_metadata_collection_exactly_once(
         assert "organisationUnits[id]" in respx.routes[name].calls[1].request.url.params["fields"]
     assert _route_call_count("/api/attributes") == 1
     assert _route_call_count("/api/system/info") == 1
+    # The instance's level table is one unpaged read: a hierarchy is a handful of levels deep
+    # however many units hang off it, so the whole table comes back in a single request.
+    assert _route_call_count("/api/organisationUnitLevels") == 1
     # Two org-unit reads, and only one of them is the paged hierarchy walk: the examples target
     # also asks the instance for its level-1 root, which is the subject every example is filed under.
     assert organisation_units.call_count == 2
@@ -207,10 +216,11 @@ async def test_generate_full_writes_what_the_solo_targets_write(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The consolidated run leaves the project byte-identical to running every target on its own."""
-    _mock_instance(mock_system_info, mock_attributes)
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
     full_root = tmp_path / "full"
     solo_root = tmp_path / "solo"
     await _scaffold_project(full_root)
@@ -241,10 +251,11 @@ async def test_generate_full_announces_the_fetch_and_one_step_per_target(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The reporter sees the instance fetch, then the seven targets, each closed by its own summary."""
-    _mock_instance(mock_system_info, mock_attributes)
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
     await _scaffold_project(tmp_path)
     reporter = _RecordingReporter()
 
@@ -283,10 +294,11 @@ async def test_generate_option_sets_announces_a_fetch_and_an_emit_step(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A solo target announces two steps: what it reads, then what it writes, then its outcome."""
-    _mock_instance(mock_system_info, mock_attributes)
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
     await _scaffold_project(tmp_path)
     reporter = _RecordingReporter()
 
@@ -421,10 +433,11 @@ async def test_a_generate_that_writes_fsh_removes_the_compile_it_no_longer_match
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """A first run writes every FSH source, so the compile of the sources before it goes with it."""
-    _mock_instance(mock_system_info, mock_attributes)
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
     await _scaffold_project(tmp_path)
     compiled = _write_compile(tmp_path)
 
@@ -443,10 +456,11 @@ async def test_an_unchanged_regenerate_leaves_the_compile_alone(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The second run over the same instance writes no FSH, so the compile is still the one these sources make."""
-    _mock_instance(mock_system_info, mock_attributes)
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
     await _scaffold_project(tmp_path)
     await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
     compiled = _write_compile(tmp_path)
@@ -462,10 +476,11 @@ async def test_the_removal_is_reported_once_however_many_targets_rewrote_fsh(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """Four targets of a first run write FSH, and the compile is removed and reported by the first of them."""
-    _mock_instance(mock_system_info, mock_attributes)
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
     await _scaffold_project(tmp_path)
     _write_compile(tmp_path)
 
@@ -480,10 +495,11 @@ async def test_a_solo_target_whose_own_sources_changed_removes_the_compile(
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """One target is a whole regenerate as far as the compile is concerned: its sources are in it too."""
-    _mock_instance(mock_system_info, mock_attributes)
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
     await _scaffold_project(tmp_path)
     compiled = _write_compile(tmp_path)
 
@@ -498,10 +514,11 @@ async def test_a_target_that_writes_only_predefined_json_leaves_the_compile_alon
     probe_profile: None,  # noqa: ARG001
     mock_system_info: Callable[..., None],
     mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
     tmp_path: Path,
 ) -> None:
     """The option-set target writes `ig/input/resources`, which is read off disk rather than compiled."""
-    _mock_instance(mock_system_info, mock_attributes)
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
     await _scaffold_project(tmp_path)
     compiled = _write_compile(tmp_path)
 

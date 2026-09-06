@@ -102,7 +102,7 @@ if TYPE_CHECKING:
     from dhis2w_fhir.config import FhirProject, GenerateConfig
     from dhis2w_fhir.r4 import CodeSystem, ConceptMap, Questionnaire, ValueSet
     from dhis2w_fhir.resources.organisation_units import OrganisationUnitTerminologyBuild
-    from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn
+    from dhis2w_fhir.resources.organisation_units.schemas import OrganisationUnitIn, OrganisationUnitLevelNames
     from dhis2w_fhir.status import IgStatus
 
     from dhis2w_fhir_serve.settings import ServeSettings
@@ -178,7 +178,7 @@ async def build_live_store(project: FhirProject, settings: ServeSettings, client
     foundation_terminology = build_foundation_terminology_documents(config, canonical, ig_status=ig_status)
     program_rule_actions = _program_rule_action_terminology(config, canonical, ig_status)
     organisation_unit_terminology = _organisation_unit_terminology(
-        inputs.organisation_units, config, canonical, ig_status
+        inputs.organisation_units, config, canonical, ig_status, inputs.organisation_unit_levels
     )
     json_builds: tuple[JsonBuild, ...] = (
         build_option_set_artifacts(
@@ -200,7 +200,11 @@ async def build_live_store(project: FhirProject, settings: ServeSettings, client
             artifacts=build_category_identifier_artifacts(inputs.categories, config, canonical, ig_status=ig_status)
         ),
         build_organisation_unit_instances(
-            inputs.organisation_units, config, canonical, attribute_codes=inputs.attribute_codes
+            inputs.organisation_units,
+            config,
+            canonical,
+            attribute_codes=inputs.attribute_codes,
+            level_names=inputs.organisation_unit_levels,
         ),
         assignments,
         attribute_combos,
@@ -282,7 +286,11 @@ def _program_rule_action_terminology(config: GenerateConfig, canonical: str, ig_
 
 
 def _organisation_unit_terminology(
-    organisation_units: list[OrganisationUnitIn], config: GenerateConfig, canonical: str, ig_status: IgStatus
+    organisation_units: list[OrganisationUnitIn],
+    config: GenerateConfig,
+    canonical: str,
+    ig_status: IgStatus,
+    level_names: OrganisationUnitLevelNames,
 ) -> tuple[OrganisationUnitTerminologyBuild, ...]:
     """The organisation-unit vocabularies this selection publishes, on the conditions the FSH target publishes them.
 
@@ -298,6 +306,7 @@ def _organisation_unit_terminology(
             [organisation_unit.level for organisation_unit in organisation_units],
             config,
             canonical,
+            level_names=level_names,
             ig_status=ig_status,
         )
     ]
