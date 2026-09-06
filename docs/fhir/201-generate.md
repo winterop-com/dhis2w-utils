@@ -30,40 +30,64 @@ $ d2w fhir generate
 running 8 step(s)
 [1/8] instance metadata: 14 questionnaire target(s), 13 option set(s), 5 categories,
 1,332 organisation unit(s)
-[2/8] foundation: 23 written, 0 unchanged
-[3/8] option sets: 39 written, 0 unchanged
-[4/8] categories: 15 written, 0 unchanged
-[5/8] questionnaires: 28 written, 0 unchanged, 1 note
-[6/8] examples: 14 written, 0 unchanged, 2 notes
-[7/8] organisation units: 2667 written, 0 unchanged
-[8/8] pages: 20 written, 0 unchanged, 1 note
+[2/8] foundation: 23 files written, 0 files unchanged
+[3/8] option sets: 13 option sets, 39 files written, 0 files unchanged
+[4/8] categories: 5 categories, 15 files written, 0 files unchanged
+[5/8] questionnaires: 14 questionnaires, 28 files written, 0 files unchanged, 1 note
+[6/8] examples: 14 examples, 14 files written, 0 files unchanged, 2 notes
+[7/8] organisation units: 1,332 organisation units, 2667 files written, 0 files unchanged
+[8/8] pages: 6 pages, 20 files written, 0 files unchanged, 1 note
 full pipeline: 2,806 file(s) written across 7 target(s)
 info: local_basic (fhir.toml) -> /home/you/demo-ig
-                                   fhir generate (7)
-┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━┓
-┃Target         ┃ Directory                     ┃ Written ┃ Unchanged ┃ Deleted ┃ Notes┃
-┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━┩
-│foundation     │ ig/input/fsh/foundation       │ 23      │ 0         │ 0       │ 0    │
-│option-sets    │ ig/input/resources/terminolog │ 39      │ 0         │ 0       │ 0    │
-│               │ y, resources/concept-maps     │         │           │         │      │
-│categories     │ ig/input/resources/categories │ 15      │ 0         │ 0       │ 0    │
-│               │ , resources/concept-maps      │         │           │         │      │
-│questionnaires │ ig/input/fsh/data-sets,       │ 28      │ 0         │ 0       │ 1    │
-│               │ fsh/event-programs,           │         │           │         │      │
-│               │ fsh/tracker-programs,         │         │           │         │      │
-│               │ fsh/tracked-entity-types,     │         │           │         │      │
-│               │ fsh/data-dictionary,          │         │           │         │      │
-│               │ resources/assignments,        │         │           │         │      │
-│               │ resources/attribute-option-co │         │           │         │      │
-│               │ mbos, resources/concept-maps  │         │           │         │      │
-│examples       │ ig/input/fsh/examples         │ 14      │ 0         │ 0       │ 1    │
-│org-units      │ ig/input/fsh/organization,    │ 2667    │ 0         │ 0       │ 0    │
-│               │ resources/registry            │         │           │         │      │
-│pages          │ ig/input/pagecontent          │ 20      │ 0         │ 0       │ 0    │
-└───────────────┴───────────────────────────────┴─────────┴───────────┴─────────┴──────┘
+                                                 fhir generate (7)
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━┓
+┃Target         ┃ Subject            ┃ Directory          ┃ Files written ┃ Files unchanged ┃ Files deleted ┃ Notes┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━┩
+│foundation     │ -                  │ ig/input/fsh/found │ 23            │ 0               │ 0             │ 0    │
+│               │                    │ ation              │               │                 │               │      │
+│option-sets    │ 13 option sets     │ ig/input/resources │ 39            │ 0               │ 0             │ 0    │
+│               │                    │ /terminology,      │               │                 │               │      │
+│               │                    │ resources/concept- │               │                 │               │      │
+│               │                    │ maps               │               │                 │               │      │
+│categories     │ 5 categories       │ ig/input/resources │ 15            │ 0               │ 0             │ 0    │
+│               │                    │ /categories,       │               │                 │               │      │
+│               │                    │ resources/concept- │               │                 │               │      │
+│               │                    │ maps               │               │                 │               │      │
+│questionnaires │ 14 questionnaires  │ ig/input/fsh/data- │ 28            │ 0               │ 0             │ 1    │
+│               │                    │ sets,              │               │                 │               │      │
+│               │                    │ fsh/event-programs │               │                 │               │      │
+│               │                    │ ,                  │               │                 │               │      │
+│               │                    │ fsh/tracker-progra │               │                 │               │      │
+│               │                    │ ms,                │               │                 │               │      │
+│               │                    │ fsh/tracked-entity │               │                 │               │      │
+│               │                    │ -types,            │               │                 │               │      │
+│               │                    │ fsh/data-dictionar │               │                 │               │      │
+│               │                    │ y,                 │               │                 │               │      │
+│               │                    │ resources/assignme │               │                 │               │      │
+│               │                    │ nts,               │               │                 │               │      │
+│               │                    │ resources/attribut │               │                 │               │      │
+│               │                    │ e-option-combos,   │               │                 │               │      │
+│               │                    │ resources/concept- │               │                 │               │      │
+│               │                    │ maps               │               │                 │               │      │
+│examples       │ 14 examples        │ ig/input/fsh/examp │ 14            │ 0               │ 0             │ 1    │
+│               │                    │ les                │               │                 │               │      │
+│org-units      │ 1,332 organisation │ ig/input/fsh/organ │ 2667          │ 0               │ 0             │ 0    │
+│               │ units              │ ization,           │               │                 │               │      │
+│               │                    │ resources/registry │               │                 │               │      │
+│pages          │ 6 pages            │ ig/input/pageconte │ 20            │ 0               │ 0             │ 0    │
+│               │                    │ nt                 │               │                 │               │      │
+└───────────────┴────────────────────┴────────────────────┴───────────────┴─────────────────┴───────────────┴──────┘
 note: 2 note(s) across 2 target(s); full list in
 /home/you/demo-ig/reports/fhir-generate-notes.md (--details to print)
 ```
+
+Every line carries two different numbers. The subject is what the target
+covers on the instance - 1,332 organisation units, 14 questionnaires - and the
+file counts say how many files publishing that took, which is larger wherever
+one covered object ships as several resources: an organisation unit becomes
+both an `Organization` and a `Location`, so 1,332 units are 2,667 files.
+Foundation covers no instance object at all, so its line and its `Subject`
+cell are files alone.
 
 The step lines and the table disagree about the examples on purpose: the
 step line counts what that target raised on its own, and the table counts
@@ -86,13 +110,13 @@ $ d2w fhir generate
 running 8 step(s)
 [1/8] instance metadata: 14 questionnaire target(s), 13 option set(s), 5 categories,
 1,332 organisation unit(s)
-[2/8] foundation: 0 written, 23 unchanged
-[3/8] option sets: 0 written, 39 unchanged
-[4/8] categories: 0 written, 15 unchanged
-[5/8] questionnaires: 0 written, 28 unchanged, 1 note
-[6/8] examples: 0 written, 14 unchanged, 2 notes
-[7/8] organisation units: 0 written, 2667 unchanged
-[8/8] pages: 0 written, 20 unchanged, 1 note
+[2/8] foundation: 0 files written, 23 files unchanged
+[3/8] option sets: 13 option sets, 0 files written, 39 files unchanged
+[4/8] categories: 5 categories, 0 files written, 15 files unchanged
+[5/8] questionnaires: 14 questionnaires, 0 files written, 28 files unchanged, 1 note
+[6/8] examples: 14 examples, 0 files written, 14 files unchanged, 2 notes
+[7/8] organisation units: 1,332 organisation units, 0 files written, 2667 files unchanged
+[8/8] pages: 6 pages, 0 files written, 20 files unchanged, 1 note
 full pipeline: 0 file(s) written across 7 target(s)
 ```
 

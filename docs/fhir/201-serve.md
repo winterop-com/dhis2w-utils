@@ -693,7 +693,7 @@ facade:
 $ d2w fhir generate load-set --per-target 2 --salt docs201
 running 2 step(s)
 [1/2] instance metadata: 14 questionnaire target(s)
-[2/2] load set: 28 written, 0 unchanged
+[2/2] load set: 14 questionnaires, 28 files written, 0 files unchanged
 $ for response in load/*.json; do
     curl -s -o /dev/null -w '%{http_code}\n' \
       -X POST localhost:8390/QuestionnaireResponse \

@@ -686,7 +686,7 @@ def _render_generate_report(
 ) -> None:
     """Render one run's outcome as a detail table on stderr, followed by every note it raised.
 
-    The common rows - profile, project, target, and the written / unchanged / deleted counts -
+    The common rows - profile, project, target, and the files written / unchanged / deleted -
     are the same whichever run wrote them; `extra_rows` carries the counts that belong to this
     target alone. Every row renders at zero too, so a table's shape says what a target counts
     rather than what it happened to find.
@@ -696,7 +696,7 @@ def _render_generate_report(
         DetailRow("project", str(report.project_root)),
         DetailRow("target", _target_label(report)),
         DetailRow("files written", str(len(report.written_files))),
-        DetailRow("unchanged", str(report.unchanged_count)),
+        DetailRow("files unchanged", str(report.unchanged_count)),
         DetailRow("files deleted", str(len(report.deleted_files))),
         *extra_rows,
     ]
@@ -822,6 +822,10 @@ def _render_full_notes(outcomes: list[_TargetOutcome], generation: GenerationPro
 def _render_full_report(report: GenerateFullReport, generation: GenerationProfile, *, details: bool = False) -> None:
     """Render a full run as one row per target, then say where the notes the run raised are.
 
+    Subject and the file columns are two different numbers: the subject names what the target
+    covers in the instance's own objects, and the file counts say how many files that took, which
+    is larger wherever one covered object ships as several resources.
+
     Rendering reads the distinct-notes view of the run, so a note several targets share is
     counted and printed once, on the first target that raised it; the `--json` dump keeps the
     full per-target lists, which read exactly as the solo commands' do.
@@ -833,6 +837,7 @@ def _render_full_report(report: GenerateFullReport, generation: GenerationProfil
         [
             {
                 "target": outcome.target,
+                "subject": outcome.report.subject.label() if outcome.report.subject is not None else "",
                 "directory": _target_label(outcome.report),
                 "written": str(len(outcome.report.written_files)),
                 "unchanged": str(outcome.report.unchanged_count),
@@ -843,10 +848,11 @@ def _render_full_report(report: GenerateFullReport, generation: GenerationProfil
         ],
         [
             ColumnSpec("Target", "target", no_wrap=True),
+            ColumnSpec("Subject", "subject"),
             ColumnSpec("Directory", "directory"),
-            ColumnSpec("Written", "written", no_wrap=True),
-            ColumnSpec("Unchanged", "unchanged", no_wrap=True),
-            ColumnSpec("Deleted", "deleted", no_wrap=True),
+            ColumnSpec("Files written", "written", no_wrap=True),
+            ColumnSpec("Files unchanged", "unchanged", no_wrap=True),
+            ColumnSpec("Files deleted", "deleted", no_wrap=True),
             ColumnSpec("Notes", "notes", no_wrap=True),
         ],
         console=STDERR_CONSOLE,
@@ -1042,7 +1048,7 @@ def generate_organisation_units_command(ctx: typer.Context, progress: ProgressOp
         report,
         generation,
         extra_rows=[
-            DetailRow("org units", str(report.organisation_unit_count)),
+            DetailRow("organisation units", str(report.organisation_unit_count)),
             DetailRow("positions", str(report.position_count)),
             DetailRow("boundaries", str(report.boundary_count)),
         ],

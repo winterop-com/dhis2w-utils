@@ -697,6 +697,16 @@ summary row per target. Notes go to `reports/fhir-generate-notes.md` with one
 counted hint on the terminal, counting the kinds that only restate a `validate`
 finding apart; `--details` prints them inline.
 
+- **Every target says what it covers and what that cost in files.** The row
+  carries a `Subject` column - `1,332 organisation units`, `13 option sets`,
+  `14 questionnaires` - beside `Files written`, `Files unchanged`, and
+  `Files deleted`, and the step line leads with the same subject
+  (`[7/8] organisation units: 1,332 organisation units, 2667 files written,
+  0 files unchanged`). The two numbers differ wherever one covered object ships
+  as several resources: an organisation unit becomes both an `Organization` and
+  a `Location`. The foundation target covers no instance object, so it reports
+  files alone, and the closing `full pipeline:` line is a file count.
+
 - **A run that rewrites FSH removes the compile it no longer matches.** Any
   target that writes or sweeps a file under `ig/input/fsh/` removes
   `ig/fsh-generated/` - SUSHI's output and nobody else's, which

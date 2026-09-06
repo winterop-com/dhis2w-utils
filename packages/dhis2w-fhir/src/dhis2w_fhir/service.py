@@ -456,6 +456,22 @@ class ProgramRuleIndex(BaseModel):
     rules_by_program: dict[str, list[ProgramRuleIn]] = Field(default_factory=dict)
 
 
+class GenerateSubject(BaseModel):
+    """What a generate target covers, counted in the instance's own objects rather than in files."""
+
+    model_config = ConfigDict(frozen=True)
+
+    count: int
+    noun: str
+    plural: str | None = None
+
+    def label(self) -> str:
+        """The subject as one phrase, grouped for reading: `1,696 organisation units`, `1 option set`."""
+        spelled = self.noun if self.count == 1 else self.plural
+        counted = pluralize(self.count, self.noun) if spelled is None else f"{self.count} {spelled}"
+        return f"{self.count:,}{counted.removeprefix(str(self.count))}"
+
+
 class GenerateReport(BaseModel):
     """Outcome of one `d2w fhir generate` target."""
 
@@ -476,6 +492,9 @@ class GenerateReport(BaseModel):
     example_count: int = 0
     page_count: int = 0
     intro_count: int = 0
+    #: What this target covers - the count a reader compares with the instance, distinct from the
+    #: files it wrote, since one covered object can ship as several files.
+    subject: GenerateSubject | None = None
     notes: list[GenerateNote] = Field(default_factory=list)
 
 
@@ -493,6 +512,8 @@ class LoadSetReport(BaseModel):
     deleted_files: list[str] = Field(default_factory=list)
     response_count: int = 0
     questionnaire_count: int = 0
+    #: What the corpus covers - the questionnaires it answers, distinct from the files it wrote.
+    subject: GenerateSubject | None = None
     notes: list[GenerateNote] = Field(default_factory=list)
 
 
@@ -777,10 +798,14 @@ class _StepAnnouncer:
 
 
 def _target_counts(report: GenerateReport) -> str:
-    """One-line outcome of one generate target: what it wrote, left alone, removed, and noted."""
-    parts = [f"{len(report.written_files)} written", f"{report.unchanged_count} unchanged"]
+    """One-line outcome of one generate target: what it covers, then what it wrote, left alone, removed, and noted."""
+    parts = [] if report.subject is None else [report.subject.label()]
+    parts += [
+        f"{pluralize(len(report.written_files), 'file')} written",
+        f"{pluralize(report.unchanged_count, 'file')} unchanged",
+    ]
     if report.deleted_files:
-        parts.append(f"{len(report.deleted_files)} deleted")
+        parts.append(f"{pluralize(len(report.deleted_files), 'file')} deleted")
     if report.notes:
         parts.append(f"{len(report.notes)} note{'' if len(report.notes) == 1 else 's'}")
     return ", ".join(parts)
@@ -1455,6 +1480,7 @@ def _emit_option_sets(
         written_files=[*sync.written, *concept_map_sync.written],
         unchanged_count=len(sync.unchanged) + len(concept_map_sync.unchanged),
         option_set_count=len(option_sets),
+        subject=GenerateSubject(count=len(option_sets), noun="option set"),
         # The JSON this target writes is read straight off `ig/input/resources`, so only the
         # superseded FSH it swept is a change to what SUSHI compiles.
         notes=[*notes, *build.notes, *_remove_stale_compile(project, SyncReport(deleted=superseded))],
@@ -1545,6 +1571,7 @@ def _emit_categories(
         written_files=[*sync.written, *concept_map_sync.written],
         unchanged_count=len(sync.unchanged) + len(concept_map_sync.unchanged),
         category_count=len(categories),
+        subject=GenerateSubject(count=len(categories), noun="category", plural="categories"),
         notes=[*notes, *build.notes],
     )
     progress.complete(_target_counts(report))
@@ -1822,6 +1849,7 @@ def _emit_questionnaires(
         ],
         unchanged_count=sum(len(sync.unchanged) for sync in [*syncs, *json_syncs]),
         questionnaire_count=len(sources),
+        subject=GenerateSubject(count=len(sources), noun="questionnaire"),
         assignment_count=len(assignment_build.artifacts),
         attribute_combo_count=len(attribute_combo_build.artifacts),
         notes=[
@@ -1967,6 +1995,7 @@ async def _emit_examples(
         written_files=sync.written,
         unchanged_count=len(sync.unchanged),
         example_count=example_count,
+        subject=GenerateSubject(count=example_count, noun="example"),
         notes=[*notes, *_remove_stale_compile(project, sync)],
     )
     progress.complete(_target_counts(report))
@@ -2070,6 +2099,7 @@ async def generate_load_set(
         notes.extend(build.notes)
     base_directory = output_directory or project.project_root
     sync = sync_json_artifacts(base_directory, _LOAD_DIRECTORY, [_load_artifact(document) for document in documents])
+    subject = GenerateSubject(count=len(covered_sources), noun="questionnaire")
     report = LoadSetReport(
         project_root=project.project_root,
         target_directory=_LOAD_DIRECTORY,
@@ -2078,9 +2108,12 @@ async def generate_load_set(
         deleted_files=sync.deleted,
         response_count=len(documents),
         questionnaire_count=len(covered_sources),
+        subject=subject,
         notes=notes,
     )
-    progress.complete(f"{len(report.written_files):,} written, {report.unchanged_count:,} unchanged")
+    progress.complete(
+        f"{subject.label()}, {len(report.written_files):,} files written, {report.unchanged_count:,} files unchanged"
+    )
     return report
 
 
@@ -2800,6 +2833,7 @@ def _emit_organisation_units(
         written_files=[*sync.written, *registry_sync.written],
         unchanged_count=len(sync.unchanged) + len(registry_sync.unchanged),
         organisation_unit_count=len(organisation_units),
+        subject=GenerateSubject(count=len(organisation_units), noun="organisation unit"),
         position_count=sum(1 for organisation_unit in organisation_units if organisation_unit.latitude is not None),
         boundary_count=sum(
             1 for organisation_unit in organisation_units if organisation_unit.boundary_geojson is not None
@@ -2917,6 +2951,7 @@ def _emit_pages(
         written_files=sync.written,
         unchanged_count=len(sync.unchanged),
         page_count=len(build.artifacts) - intro_count,
+        subject=GenerateSubject(count=len(build.artifacts) - intro_count, noun="page"),
         intro_count=intro_count,
         notes=[*notes, *build.notes],
     )
