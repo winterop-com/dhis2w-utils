@@ -552,7 +552,16 @@ already carries a bound from its DHIS2 value type - a percentage admits 0..100 -
 the tighter of the two is published, once.
 
 `SHOWWARNING` never becomes a bound. DHIS2 lets a warned value through, and a
-`maxValue` a server accepts answers past is a constraint nobody enforces.
+`maxValue` a server accepts answers past is a constraint nobody enforces. Neither
+does a refusal whose complement the question's own value type admits nothing of:
+`#{count} >= 0` on a question typed `INTEGER_ZERO_OR_POSITIVE` would state a
+maximum of -1 under a minimum of 0, a range no answer is in, so the rule goes to
+tier 3 whole.
+
+The generated examples answer inside both tiers: an example answers only the
+questions its form's own `enableWhen` leaves enabled given the rest of its
+answers, and every numeric answer it draws falls inside the question's
+`minValue` / `maxValue`.
 
 **Tier 2 - a single-question hide becomes `enableWhen`.** A rule whose actions
 are all `HIDEFIELD` and whose condition compares one *other* question against one

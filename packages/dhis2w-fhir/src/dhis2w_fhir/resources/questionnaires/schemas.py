@@ -425,6 +425,20 @@ class NumericBounds(BaseModel):
     maximum_value: int | None = None
 
 
+#: The range each bounded DHIS2 numeric value type admits, as the `minValue` / `maxValue`
+#: extensions a question carries. Only the value types whose name *is* a constraint appear:
+#: `INTEGER` and `NUMBER` are unbounded in DHIS2, so a bound on them would invent a rule the
+#: instance does not enforce. A guard test asserts every key is a member of the generated
+#: `ValueType` enum across v41, v42, and v43.
+BOUNDS_BY_VALUE_TYPE = {
+    "INTEGER_POSITIVE": NumericBounds(minimum_value=1),
+    "INTEGER_ZERO_OR_POSITIVE": NumericBounds(minimum_value=0),
+    "INTEGER_NEGATIVE": NumericBounds(maximum_value=-1),
+    "PERCENTAGE": NumericBounds(minimum_value=0, maximum_value=100),
+    "UNIT_INTERVAL": NumericBounds(minimum_value=0, maximum_value=1),
+}
+
+
 class CategoryOptionComboIn(CodedProjectionIn):
     """One category option combo of a data element's disaggregation.
 

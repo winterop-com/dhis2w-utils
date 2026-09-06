@@ -39,6 +39,7 @@ from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory, generate_note
 from dhis2w_fhir.resources.option_sets.schemas import OptionConceptCodeIndex
 from dhis2w_fhir.resources.questionnaires.schemas import (
     BOUND_ELEMENTS_BY_ITEM_TYPE,
+    BOUNDS_BY_VALUE_TYPE,
     MAXIMUM_VALUE_EXTENSION_URL,
     MINIMUM_VALUE_EXTENSION_URL,
     ProgramRuleIn,
@@ -495,6 +496,14 @@ def _bound_of(comparison: RuleComparison, question: QuestionnaireItemIn) -> Prog
     99 admits up to and including 99. A strict refusal - anything from 99 up - has no inclusive
     complement in a decimal, which `minValue` and `maxValue` are the only elements for, so it is a
     bound only on a whole number, where the next admissible value is one step away.
+
+    A complement the question's own value type admits nothing of is no bound at all. `#{x} >= 0`
+    refuses every answer from zero up, whose complement is a maximum of -1, and a question typed
+    `INTEGER_ZERO_OR_POSITIVE` starts at zero - so the two together admit nothing, and a form
+    stating them asks a question no answer can satisfy. The rule is read as one this form cannot
+    express and published whole at tier 3 instead. A value type DHIS2 leaves open at that end -
+    `INTEGER`, `NUMBER` - admits the complement, so the bound stands there: DHIS2 really does
+    refuse every non-negative answer to such a question, and the form says so.
     """
     element = BOUND_ELEMENTS_BY_ITEM_TYPE.get(item_type(question))
     if element is None or question.option_set_uid is not None:
@@ -502,16 +511,29 @@ def _bound_of(comparison: RuleComparison, question: QuestionnaireItemIn) -> Prog
     is_maximum = comparison.operator in (">", ">=")
     url = MAXIMUM_VALUE_EXTENSION_URL if is_maximum else MINIMUM_VALUE_EXTENSION_URL
     admits_the_limit = comparison.operator in (">", "<")
+    bound: ProgramRuleBound | None
     if element == "valueInteger":
         limit = int(comparison.number)
         if float(limit) != comparison.number:
             return None
-        if admits_the_limit:
-            return ProgramRuleBound(url=url, element=element, integer=limit)
-        return ProgramRuleBound(url=url, element=element, integer=limit - 1 if is_maximum else limit + 1)
-    if not admits_the_limit:
+        step = 0 if admits_the_limit else (-1 if is_maximum else 1)
+        bound = ProgramRuleBound(url=url, element=element, integer=limit + step)
+    elif not admits_the_limit:
         return None
-    return ProgramRuleBound(url=url, element=element, decimal=comparison.number)
+    else:
+        bound = ProgramRuleBound(url=url, element=element, decimal=comparison.number)
+    return None if _admits_nothing(bound, question.value_type) else bound
+
+
+def _admits_nothing(bound: ProgramRuleBound, value_type: str) -> bool:
+    """Whether one rule-derived bound leaves the question's own value type no answer at all."""
+    stated = BOUNDS_BY_VALUE_TYPE.get(value_type)
+    if stated is None:
+        return False
+    limit = float(bound.integer if bound.integer is not None else (bound.decimal or 0.0))
+    if bound.url == MAXIMUM_VALUE_EXTENSION_URL:
+        return stated.minimum_value is not None and limit < stated.minimum_value
+    return stated.maximum_value is not None and limit > stated.maximum_value
 
 
 def _shown_when(

@@ -128,6 +128,7 @@ from dhis2w_fhir.resources.option_sets import (
     build_option_set_artifacts,
     build_option_set_concept_map_artifacts,
     build_option_set_identifier_artifacts,
+    option_concept_code_index,
     option_set_concept_map_file_prefix,
     option_set_identities,
 )
@@ -1989,7 +1990,13 @@ async def _emit_examples(
     if client is not None and project.config.generate.examples.per_target > 0:
         published_sources = _published_sources(sources)
         responses = await _example_responses(
-            client, published_sources, option_sets, project.config.generate.examples, notes, progress
+            client,
+            published_sources,
+            option_sets,
+            project.config.generate,
+            project.config.generate.examples,
+            notes,
+            progress,
         )
         build = build_example_artifacts(
             published_sources,
@@ -2104,6 +2111,7 @@ async def generate_load_set(
             placements=plan.placements,
             registration_program_uids=plan.registration_program_uids,
             salt=salt,
+            option_concept_codes=option_concept_code_index(option_sets, config),
         )
         notes.extend(synthetic.notes)
         build = build_example_documents(
@@ -2293,6 +2301,7 @@ async def _example_responses(
     client: Dhis2Client,
     sources: list[QuestionnaireSourceIn],
     option_sets: list[OptionSetIn],
+    config: GenerateConfig,
     selection: ExampleSelection,
     notes: list[GenerateNote],
     progress: _StepAnnouncer,
@@ -2310,7 +2319,14 @@ async def _example_responses(
         return []
     if selection.source == "instance":
         return await _fetch_instance_responses(client, sources, selection.per_target, root_uid, notes, progress)
-    synthetic = build_synthetic_responses(sources, option_sets, selection.per_target, root_uid, today)
+    synthetic = build_synthetic_responses(
+        sources,
+        option_sets,
+        selection.per_target,
+        root_uid,
+        today,
+        option_concept_codes=option_concept_code_index(option_sets, config),
+    )
     notes.extend(synthetic.notes)
     return synthetic.responses
 

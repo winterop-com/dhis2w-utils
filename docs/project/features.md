@@ -1287,6 +1287,13 @@ registration form become `Questionnaire` instances.
   by `[generate.examples]` `per_target` / `source`.
 - **`source = "synthetic"`** (the default) generates values locally from a
   SHA-256 seed - stable across machines and runs, every option combo filled.
+- **An example answers the form it answers.** Only the questions the form's own
+  `enableWhen` leaves enabled given the rest of the response are answered - the
+  sweep runs to a fixed point, because dropping an answer can close the question
+  that depended on it - and every numeric answer falls inside the question's
+  `minValue` / `maxValue`, its value type's and its program rules' both. A
+  question whose bounds admit no value at all is left unanswered, and both
+  outcomes are tallied into one aggregate note apiece.
 - **`source = "instance"`** reads real data value sets and tracker events off
   the server: an event program by `program`, a tracker stage by `programStage`
   plus its `program`, whose `fields` also carry `enrollment` and
