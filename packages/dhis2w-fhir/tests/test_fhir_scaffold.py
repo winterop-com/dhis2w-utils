@@ -531,6 +531,8 @@ def test_makefile_clean_keeps_the_terminology_cache() -> None:
     assert "rm -rf $(IG_DIR)/input-cache" not in clean_recipe
     assert "rm -rf $(IG_DIR)/input-cache" in makefile
     assert "docker volume rm $(CACHE_VOLUME)" in makefile
+    assert "-docker volume rm" not in makefile
+    assert 'echo "$(CACHE_VOLUME): no package cache volume to remove"' in makefile
 
 
 def test_makefile_uses_real_tabs() -> None:

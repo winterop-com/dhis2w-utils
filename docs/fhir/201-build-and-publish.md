@@ -394,7 +394,11 @@ both up:
 Both caches survive `make clean` and `make refresh` - a refresh pulls new
 tooling and regenerates, neither of which invalidates a cache keyed by what
 it holds. `make clean-all` is the deliberate wipe, and running it before a
-build is how you reproduce a cold one.
+build is how you reproduce a cold one. The package cache volume is named
+`fhir-ig-cache` in every scaffolded project, so it is one cache shared by every
+guide on the machine: a `make clean-all` in one project makes the next build of
+each of them cold, and a project whose `clean-all` finds the volume already gone
+says so and carries on.
 
 ## Publish it
 
