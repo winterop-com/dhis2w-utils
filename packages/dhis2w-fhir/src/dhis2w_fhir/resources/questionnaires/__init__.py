@@ -73,8 +73,12 @@ from dhis2w_fhir.notes import (
     verb_for_count,
 )
 from dhis2w_fhir.resources.attribute_combos.schemas import AttributeComboPlan
-from dhis2w_fhir.resources.option_sets import code_system_canonical, option_set_identity_index
-from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan
+from dhis2w_fhir.resources.option_sets import (
+    code_system_canonical,
+    option_concept_code_index,
+    option_set_identity_index,
+)
+from dhis2w_fhir.resources.option_sets.schemas import OptionSetIdentity, OptionSetIdentityPlan, OptionSetIn
 from dhis2w_fhir.resources.questionnaires.assignments import AssignmentPlan
 from dhis2w_fhir.resources.questionnaires.program_rules import (
     EnableWhenCondition,
@@ -659,6 +663,7 @@ def build_questionnaire_artifacts(
     ig_status: IgStatus,
     option_set_plan: OptionSetIdentityPlan,
     attribute_codes: AttributeCodeIndex,
+    option_sets: list[OptionSetIn] | None = None,
     stem_plan: QuestionnaireStemPlan | None = None,
     assignments: AssignmentPlan | None = None,
     attribute_combos: AttributeComboPlan | None = None,
@@ -669,9 +674,12 @@ def build_questionnaire_artifacts(
     `option_set_plan` is the identity plan the terminology target emits from, so an
     `answerValueSet` names the ValueSet the same run writes under either naming source.
     `attribute_codes` is the run's `uid -> code` join, which the D2AttributeValue extensions
-    read the attribute code out of. `stem_plan` is the questionnaire surface's identity-stem
-    plan; a caller building several targets off one fetch passes the run's plan, and a caller
-    without one gets it resolved here through the same `plan_questionnaire_stems` call.
+    read the attribute code out of. `option_sets` is the sets the forms bind, whose options decide
+    the concept code a program rule's coded `enableWhen` answer names; a build handed none states
+    every coded hide as its untranslated `D2ProgramRule` form instead. `stem_plan` is the
+    questionnaire surface's identity-stem plan; a caller building several targets off one fetch
+    passes the run's plan, and a caller without one gets it resolved here through the same
+    `plan_questionnaire_stems` call.
     `assignments` names the assignment List each form is scoped by; a form absent from the plan
     carries no assignment extension, which means the whole published registry may report it.
     `attribute_combos` names the attribute-option-combo ValueSet each form's responses are keyed
@@ -687,7 +695,8 @@ def build_questionnaire_artifacts(
     names = QuestionnaireNaming.from_naming(config.naming)
     foundation = FoundationNaming.from_naming(config.naming)
     index = option_set_identity_index(option_set_plan, bound_option_set_uids(sources), config)
-    rule_plan = plan_program_rules(sources)
+    rule_plan = plan_program_rules(sources, option_concept_code_index(option_sets or [], config))
+    build.notes.extend(rule_plan.notes)
     referenced = ReferencedObjects()
     colliding: list[str] = []
     template = _ENVIRONMENT.get_template("questionnaire.fsh.jinja")

@@ -233,7 +233,11 @@ carry: a single-comparison `SHOWERROR` on a numeric question becomes
 `item.enableWhen` with the condition inverted (plus an `exists` arm exactly
 where DHIS2's blank-answer semantics require one), and everything else is
 published whole on the repeating `d2-program-rule` extension - non-normative,
-so a consumer can state the rule without evaluating it. The grammar is
+so a consumer can state the rule without evaluating it. A hide on a coded answer
+names the concept code the bound CodeSystem publishes for the option the rule
+compares to, read out of the same concept-code assignment the terminology target
+emits from, so the answer follows `concept_code_source` and the hostile-name
+posture; a literal no option carries sends its rule to the third tier. The grammar is
 deliberately conservative - one `#{variable}` comparison against a literal,
 optionally guarded by `d2:hasValue` on the same variable, resolved through
 `programRuleVariables` to a question the same form asks - and the single

@@ -169,6 +169,7 @@ async def build_live_store(project: FhirProject, settings: ServeSettings, client
         ig_status=ig_status,
         option_set_plan=inputs.option_set_plan,
         attribute_codes=inputs.attribute_codes,
+        option_sets=inputs.option_sets,
         assignments=assignments.plan,
         attribute_combos=attribute_combos.plan,
     )

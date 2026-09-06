@@ -316,7 +316,7 @@ reject, and `d2w fhir forward` is the consumer that discovers it.
 | Rule shape | Carrier | Note |
 | --- | --- | --- |
 | A numeric bound on one variable (`#{hemoglobin} > 99` with `SHOWERROR`) | `minValue` / `maxValue` on the item - core R4, already used for value-type bounds | Unambiguous. A bound is a bound |
-| `HIDEFIELD` / `HIDESECTION` on a single-variable equality or comparison | `item.enableWhen` with the condition negated, plus `enableBehavior` | R4 `enableWhen` is a conjunction of simple comparisons, which is exactly this subset and no more |
+| `HIDEFIELD` / `HIDESECTION` on a single-variable equality or comparison | `item.enableWhen` with the condition negated, plus `enableBehavior` | R4 `enableWhen` is a conjunction of simple comparisons, which is exactly this subset and no more. A coded answer compares on the concept code the bound CodeSystem publishes for the option, so a literal no option carries sends the rule to the third tier |
 | Everything else | Published as a non-normative `D2ProgramRule` listing on the form: condition text, action type, target `linkId`, and message | Nothing is dropped silently; a client can display the rule even when it cannot evaluate it |
 
 **What the tiers deliberately refuse.** Conditional requiredness (`SETMANDATORYFIELD`)

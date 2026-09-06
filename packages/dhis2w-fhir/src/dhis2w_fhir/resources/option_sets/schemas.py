@@ -94,6 +94,33 @@ class ConceptAssignmentPlan(BaseModel):
         return next((assignment.code for assignment in self.assignments if assignment.option.uid == option_uid), None)
 
 
+class OptionConceptCodes(BaseModel):
+    """One set's options joined from the DHIS2 code the instance holds to the concept code the guide publishes."""
+
+    model_config = ConfigDict(frozen=True)
+
+    concept_codes_by_dhis2_code: dict[str, str] = Field(default_factory=dict)
+
+
+class OptionConceptCodeIndex(BaseModel):
+    """Every read option set's DHIS2-code-to-concept-code join, keyed by the option set's UID.
+
+    A DHIS2 program rule compares a coded answer against the option code the instance holds, and
+    the CodeSystem the answer resolves against codes its concepts by whatever
+    `[generate] concept_code_source` and the hostile-name posture decided. This is the join between
+    the two, so a translated rule names a concept the published CodeSystem really holds.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    sets: dict[str, OptionConceptCodes] = Field(default_factory=dict)
+
+    def concept_code(self, option_set_uid: str, dhis2_code: str) -> str | None:
+        """The concept code published for one DHIS2 option code, or None when the set carries no such option."""
+        codes = self.sets.get(option_set_uid)
+        return codes.concept_codes_by_dhis2_code.get(dhis2_code) if codes is not None else None
+
+
 class OptionSetIdentity(BaseModel):
     """One option set's emitted slug plus the FSH names and artifact ids derived from it.
 

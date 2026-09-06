@@ -1716,13 +1716,18 @@ async def generate_questionnaires(
     async with _instance_connection(profile, client) as client:
         sources = await _fetch_questionnaire_sources(client, config, notes)
         attribute_codes = await resolve_attribute_code_index(client)
+        # The option sets the forms bind, read here rather than only by the terminology target: a
+        # program rule hiding a question on a coded answer names the concept code the bound
+        # CodeSystem publishes for the option it compares to, which is decided from the options.
+        option_sets = await _fetch_example_option_sets(client, sources)
         # The categories the run publishes, read in this target's own fetch phase: the combo
         # vocabularies decompose every option combo into them, so the concept codes and the
         # CodeSystem canonicals a coding names come from the very selection the category target
         # emits rather than from a shape guessed off the combo.
         categories = await _fetch_categories(client, config, notes)
-        screening.decide(sources, categories)
+        screening.decide(sources, option_sets, categories)
         sources = screening.screen(sources, notes)
+        option_sets = screening.screen(option_sets, [])
         categories = screening.screen(categories, notes)
         option_set_plan = await _fetch_option_set_identity_plan(client, config, sources, screening)
         # The questionnaire surface resolves before the registry read, so a `source = "code"`
@@ -1735,6 +1740,7 @@ async def generate_questionnaires(
         project,
         sources=sources,
         option_set_plan=option_set_plan,
+        option_sets=option_sets,
         attribute_codes=attribute_codes,
         categories=categories,
         stem_plan=stem_plan,
@@ -1750,6 +1756,7 @@ def _emit_questionnaires(
     *,
     sources: list[QuestionnaireSourceIn],
     option_set_plan: OptionSetIdentityPlan,
+    option_sets: list[OptionSetIn],
     attribute_codes: AttributeCodeIndex,
     categories: list[CategoryIn],
     stem_plan: QuestionnaireStemPlan,
@@ -1770,7 +1777,8 @@ def _emit_questionnaires(
 
     `categories` is the selection the category target publishes, which the combo vocabularies
     decompose their concepts into - one property per category axis, coded into that category's own
-    CodeSystem.
+    CodeSystem. `option_sets` is the sets the forms bind, whose options decide the concept code a
+    program rule's coded `enableWhen` answer names.
     """
     generate = project.config.generate
     canonical = project.config.ig.canonical
@@ -1800,6 +1808,7 @@ def _emit_questionnaires(
         ig_status=ig_status,
         option_set_plan=option_set_plan,
         attribute_codes=attribute_codes,
+        option_sets=option_sets,
         stem_plan=stem_plan,
         assignments=assignment_build.plan,
         attribute_combos=attribute_combo_build.plan,
@@ -3063,6 +3072,7 @@ async def generate_full(
             project,
             sources=inputs.sources,
             option_set_plan=inputs.option_set_plan,
+            option_sets=_bound_option_sets(inputs.sources, inputs.option_sets),
             attribute_codes=inputs.attribute_codes,
             categories=inputs.categories,
             stem_plan=inputs.questionnaire_stems,
@@ -3320,6 +3330,7 @@ async def fetch_live_artifacts(
         ig_status=ig_status,
         option_set_plan=inputs.option_set_plan,
         attribute_codes=inputs.attribute_codes,
+        option_sets=_bound_option_sets(inputs.sources, inputs.option_sets),
         assignments=assignments.plan,
         attribute_combos=attribute_combos.plan,
     )
