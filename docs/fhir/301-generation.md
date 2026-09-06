@@ -49,8 +49,13 @@ An organisation unit's DHIS2 id is now labelled
 `https://moh.gov.sl/dhis2/id/organisation-unit`.
 
 **Default:** `"http://dhis2.org/fhir"` - **If you leave it out:** every
-identifier label starts with `http://dhis2.org/fhir`, which works fine and
-simply is not yours.
+identifier label starts with `http://dhis2.org/fhir`. That is a label under a
+domain that publishes nothing at it, not an address: the guide's own
+NamingSystems are the definitions a consumer resolves, so the guide validates
+and serves as it should, but the labels say the identifiers belong to a DHIS2
+in general rather than to yours. Set the stem before the first real publish;
+[the base, and what resolves](401-identifiers-and-extensions.md#identifier-base)
+lists every family built on it.
 
 **If you get it wrong:** a trailing slash is quietly removed. Beyond that
 nothing refuses this - you find out when the published identifier labels look

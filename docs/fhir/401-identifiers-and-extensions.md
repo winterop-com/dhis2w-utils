@@ -602,6 +602,37 @@ Every FHIR artifact representing a DHIS2 object exposes **both** DHIS2
 identifiers - the UID and the code - wherever FHIR gives it a slot. This is the
 standing rule for every generator, present and future.
 
+### The base, and what resolves { #identifier-base }
+
+Every identifier system on this page is `{base}` plus a path, and `{base}` is
+[`[generate] identifier_system_base`](301-generation.md#identifier_system_base),
+`http://dhis2.org/fhir` unless the project sets it.
+
+**The default is a label, not an address.** `dhis2.org` publishes nothing under
+`/fhir`, and DHIS2 defines no FHIR namespace there. A FHIR identifier system is a
+URI, and a URI need not resolve: what a consumer needs is the definition, and
+the guide carries it. `foundation/d2-naming-systems.fsh` declares a NamingSystem
+for each of the twenty-six fixed systems below, and for the six that the
+generated ConceptMaps target the guide also publishes a CodeSystem enumerating
+the identifiers the maps name, so the IG publisher validates a mapped
+identifier out of the guide instead of asking a terminology server. Those six
+are the `special-url` lines of `ig/sushi-config.yaml`: a canonical outside the
+guide's own address has to be declared there or the publisher calls it a
+mismatch.
+
+**Set the stem before the first real publish**, under a domain the owning
+organisation controls, so identifiers from this DHIS2 are labelled apart from
+any other country's. The stem is part of every identifier the guide publishes,
+so changing it later relabels all of them, and anyone matching records on the
+old labels stops matching.
+
+| Family | What it identifies | Declared by |
+| --- | --- | --- |
+| `{base}/id/<kind>` and `{base}/id/<kind>-code` | the DHIS2 UID and DHIS2 code of one object of that kind - [the fixed systems](#the-fixed-systems-and-their-namingsystems) | a NamingSystem per system, and a CodeSystem for the six the ConceptMaps target |
+| `{base}/attribute/<uid>` | the value of one unique DHIS2 metadata attribute - [a unique attribute's values](#a-unique-attributes-values-are-identifiers) | convention; the foundation layer never reads an instance |
+| `{base}/tracked-entity-attribute/<uid>` | the value of one unique tracked entity attribute, which is what names a person | convention, as above |
+| `{base}/property/<code>` | a fact about a concept rather than an identifier of one - [the concept-property namespace](#the-concept-property-namespace) | the `property` declarations of each CodeSystem |
+
 - **Instances** carry identifier slices discriminated on `system`:
   `{base}/id/<kind>` holds the UID and `{base}/id/<kind>-code` holds the code.
   Both slices are always emitted, on the Organization and on the Location alike.
