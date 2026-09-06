@@ -32,6 +32,9 @@ class InitOptions(BaseModel):
     never resolved or checked against an instance. `sushi_timeout` is the `[FSH] timeout` of
     `ig/fsh.ini`, the ceiling the IG publisher gives its internal SUSHI run. `max_level` caps the
     organisation-unit registry, the usual reason an IG is too large to compile inside that ceiling.
+    `identifier_system_base` is the stem the six `special-url` lines of `ig/sushi-config.yaml`
+    carry, and matches the default of `GenerateConfig.identifier_system_base` that a scaffolded
+    `fhir.toml` leaves unwritten.
     """
 
     ig_id: str
@@ -43,6 +46,7 @@ class InitOptions(BaseModel):
     publisher_url: str | None = None
     profile: str | None = None
     sushi_timeout: int = DEFAULT_SUSHI_TIMEOUT_SECONDS
+    identifier_system_base: str = "http://dhis2.org/fhir"
     max_level: int | None = None
     data_set_ids: list[str] = Field(default_factory=list)
     event_program_ids: list[str] = Field(default_factory=list)

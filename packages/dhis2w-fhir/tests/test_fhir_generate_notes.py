@@ -56,6 +56,7 @@ _EMISSION_INVENTORY: dict[str, dict[GenerateNoteCategory, int]] = {
         GenerateNoteCategory.INSTANCE_DATA_GAP: 3,
         GenerateNoteCategory.REFUSED_FORM: 1,
         GenerateNoteCategory.SELECTION_CLOSURE: 1,
+        GenerateNoteCategory.SCAFFOLD_DRIFT: 1,
         GenerateNoteCategory.SELECTION_MISMATCH: 3,
     },
 }
@@ -76,6 +77,7 @@ _ECHO_VERDICTS: dict[GenerateNoteCategory, bool] = {
     GenerateNoteCategory.INSTANCE_DATA_GAP: False,
     GenerateNoteCategory.BUILD_COST: False,
     GenerateNoteCategory.COMPILE_REMOVED: False,
+    GenerateNoteCategory.SCAFFOLD_DRIFT: False,
     GenerateNoteCategory.NAME_SUBSTITUTION: False,
     GenerateNoteCategory.CODE_SUBSTITUTION: False,
     GenerateNoteCategory.CODE_FALLBACK: True,

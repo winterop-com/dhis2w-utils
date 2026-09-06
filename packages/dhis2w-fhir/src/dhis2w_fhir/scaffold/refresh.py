@@ -9,6 +9,12 @@ exactly as it is and reported - as carrying the user's additions when it still h
 scaffold line, and as diverged when lines are missing in both directions, because the user's edits
 and a scaffold line that has since changed read identically to a line-preserving refresh.
 `fhir.toml` is the user's configuration and is never written at all.
+
+The identity lines of `ig/sushi-config.yaml` are the exception to line preservation, because
+`fhir.toml` declares them: the guide's id, canonical, name, title, description, status, publisher
+name, and the six `special-url` lines the `[generate] identifier_system_base` stem addresses are the
+scaffold's to write, so a refresh substitutes each of them into the file and reports it refreshed.
+Every other line of that file is the project's and survives byte-identical.
 """
 
 from __future__ import annotations
@@ -19,6 +25,7 @@ from pathlib import Path
 
 from dhis2w_fhir.config import FHIR_CONFIG_FILENAME, NoFhirProjectError, load_fhir_config
 from dhis2w_fhir.scaffold import FSH_INI_RELATIVE_PATH, SUSHI_CONFIG_RELATIVE_PATH, build_scaffold_files
+from dhis2w_fhir.scaffold.identity import adopt_scaffold_owned_lines
 from dhis2w_fhir.scaffold.schemas import (
     DEFAULT_SUSHI_TIMEOUT_SECONDS,
     InitOptions,
@@ -62,6 +69,7 @@ def read_project_scaffold_state(directory: Path) -> ProjectScaffoldState:
         publisher_url=publisher_url.group(1) if publisher_url else None,
         profile=config.profile,
         sushi_timeout=int(sushi_timeout.group(1)) if sushi_timeout else DEFAULT_SUSHI_TIMEOUT_SECONDS,
+        identifier_system_base=config.generate.identifier_system_base,
         max_level=config.generate.organisation_units.max_level,
         data_set_ids=list(config.generate.data_sets.include_ids),
         event_program_ids=list(config.generate.event_programs.include_ids),
@@ -94,12 +102,23 @@ def refresh_project(directory: Path) -> ScaffoldReport:
         current = _read_file(destination)
         if current is None:
             report.diverged_files.append(relative_path)
-        elif current == scaffold_file.content:
+            continue
+        comparable = (
+            adopt_scaffold_owned_lines(current, scaffold_file.content)
+            if relative_path == SUSHI_CONFIG_RELATIVE_PATH
+            else current
+        )
+        if current == scaffold_file.content:
             report.unchanged_files.append(relative_path)
-        elif preserves_every_line(current, scaffold_file.content):
+        elif preserves_every_line(comparable, scaffold_file.content):
             destination.write_text(scaffold_file.content, encoding="utf-8")
             report.refreshed_files.append(relative_path)
-        elif preserves_every_line(scaffold_file.content, current):
+        elif comparable != current:
+            # The identity fhir.toml declares lands on its own lines, and every other line the
+            # project wrote - its own additions included - stays exactly where it is.
+            destination.write_text(comparable, encoding="utf-8")
+            report.refreshed_files.append(relative_path)
+        elif preserves_every_line(scaffold_file.content, comparable):
             # The file holds every line the current render produces, plus lines of its own:
             # user additions on a current scaffold, with nothing for a refresh to add.
             report.extended_files.append(relative_path)

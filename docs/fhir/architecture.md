@@ -91,7 +91,15 @@ neither holds lines the current scaffold does not write and is `diverged`. Both
 are left byte-identical, and `diverged` names no author, because a line the user
 wrote and a scaffold line that has since changed look the same from here.
 `fhir.toml` is skipped before any comparison - it is the user's
-configuration, not a scaffold-managed file. `--force` and `--refresh` are
+configuration, not a scaffold-managed file. The identity lines of
+`sushi-config.yaml` sit outside `preserves_every_line` altogether:
+`adopt_scaffold_owned_lines` substitutes the rendered `id`, `canonical`,
+`name`, `title`, `description`, `status`, publisher name and six `special-url`
+lines into the file on disk, because `fhir.toml` declares them and nothing else
+does, and the file is written and reported `refreshed` whenever that
+substitution changes it. `d2w fhir generate` reads the same lines back on its
+foundation target and raises a `scaffold-drift` note when the two files state
+different identities. `--force` and `--refresh` are
 opposite answers to the same question and are rejected together.
 
 The full settings reference is the series'

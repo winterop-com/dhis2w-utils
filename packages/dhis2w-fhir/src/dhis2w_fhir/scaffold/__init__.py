@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 
-from dhis2w_fhir.config import GenerateConfig
 from dhis2w_fhir.scaffold.project_templates import ProjectTemplate, build_template_files, template_selection
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldFile, normalize_project_name
 
@@ -51,7 +50,7 @@ def build_scaffold_files(
             "sushi-config.yaml.jinja",
             options,
             year=year,
-            identifier_system_base=GenerateConfig().identifier_system_base,
+            identifier_system_base=options.identifier_system_base,
         ),
         _render("ig/ig.ini", "ig.ini.jinja", options),
         _render(FSH_INI_RELATIVE_PATH, "fsh.ini.jinja", options),

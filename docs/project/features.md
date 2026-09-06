@@ -567,6 +567,16 @@ chain in one command.
   written; `--force` is rejected; any flag the refresh would ignore is refused.
   The accepted consequence is that a scaffold line deliberately deleted is
   restored, since a deletion leaves the file a subsequence of the render.
+- **The refresh writes the `ig/sushi-config.yaml` lines `fhir.toml` declares.**
+  The guide's `id`, `canonical`, `name`, `title`, the description built from
+  the title, `status`, the publisher name, and the six `special-url` lines the
+  `[generate] identifier_system_base` stem addresses are the scaffold's, so an
+  edit to `fhir.toml` lands on them at the next refresh and the file is
+  reported refreshed. Every other line of that file is the project's and
+  survives byte-identical - `releaseLabel`, `version`, the publisher home page,
+  `copyrightYear`, the parameters, the menu, the path-resource globs. Until the
+  refresh runs, `d2w fhir generate` raises a `scaffold-drift` note naming the
+  keys the two files state differently.
 
 ### Build and publish
 
@@ -1377,8 +1387,8 @@ DHIS2 translations are carried through across the whole surface, filtered by
   kind - `selection-mismatch`, `selection-closure`, `empty-selection`,
   `selection-gap`, `refused-form`, `form-structure`, `skipped-question`,
   `answer-fallback`, `instance-data-gap`, `build-cost`, `compile-removed`,
-  `code-fallback`, `code-collision`, `stem-fallback` - beside its text and an `echoes_validate`
-  verdict derived from it.
+  `scaffold-drift`, `code-fallback`, `code-collision`, `stem-fallback` - beside
+  its text and an `echoes_validate` verdict derived from it.
 - **A bare run counts the three kinds that merely restate a `fhir validate`
   finding apart** from what generation itself found
   (`note: 3 note(s) across 2 target(s) (+8 validate echoes); full list in ...`),

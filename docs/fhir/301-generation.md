@@ -56,6 +56,11 @@ simply is not yours.
 nothing refuses this - you find out when the published identifier labels look
 wrong to the people consuming them.
 
+The six `special-url` lines of `ig/sushi-config.yaml` name the same stem, so
+the publisher accepts identifier labels that sit outside the guide's own
+address. They follow this option: the next `d2w fhir init --refresh` (`make
+update` in a scaffolded project) writes all six from what you set here.
+
 What these labelled identifiers look like in the output is covered in
 [Identifiers and the D2 extensions](401-identifiers-and-extensions.md).
 
