@@ -1,6 +1,6 @@
 # fhir.toml - configuration for `d2w fhir generate` (scaffolded by `d2w fhir init`).
 # Only the essentials live here; every available option is documented with its default
-# in fhir.toml.example beside this file, and explained in depth at
+# in fhir.example.toml beside this file, and explained in depth at
 # https://winterop-com.github.io/dhis2w-utils/fhir/301-fhir-toml/
 
 profile = "local_basic"           # DHIS2 profile to read metadata from

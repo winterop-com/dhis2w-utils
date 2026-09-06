@@ -36,7 +36,7 @@ no fhir.toml found in this directory or any parent. Run `d2w fhir init [DIRECTOR
 
 That error means "you are in the wrong folder", not "something is broken".
 
-## fhir.toml and fhir.toml.example
+## fhir.toml and fhir.example.toml
 
 The project folder holds two files with nearly the same name, and the split is
 deliberate:
@@ -44,7 +44,7 @@ deliberate:
 - **`fhir.toml`** is yours. It holds only what your project actually decides -
   the guide's identity, and whatever options you have set. Short is good: an
   option that is not in the file keeps its default.
-- **`fhir.toml.example`** is the catalog. It lists every option the commands
+- **`fhir.example.toml`** is the catalog. It lists every option the commands
   understand, each with its default value and a one-line comment pointing at
   the section of these pages that explains it. It is never read by any command -
   it exists so you can find an option, copy its line into `fhir.toml`, and
@@ -94,7 +94,7 @@ error: fhir.toml: unknown key 'listen_on_every_interface' in [serve]
 Every misspelling in the file is reported in one run, so you fix them in one
 edit rather than one command per typo. There is no such thing as an option that
 quietly does nothing: if `fhir.toml` loads, every line in it is a setting the
-commands understand. Copying option lines from `fhir.toml.example` is still the
+commands understand. Copying option lines from `fhir.example.toml` is still the
 easiest way to get the spelling right first time.
 
 **A wrong value is refused before anything is written.** Misspell a *value* -

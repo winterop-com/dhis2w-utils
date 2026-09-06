@@ -11,10 +11,14 @@ from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldFile, normalize_pr
 
 __all__ = [
     "CONFIG_EXAMPLE_RELATIVE_PATH",
+    "DOCKERFILE_RELATIVE_PATH",
     "FSH_INI_RELATIVE_PATH",
     "IG_INI_RELATIVE_PATH",
     "INDEX_PAGE_RELATIVE_PATH",
+    "MAKEFILE_RELATIVE_PATH",
+    "OWNED_WHOLE_RELATIVE_PATHS",
     "PYPROJECT_RELATIVE_PATH",
+    "PYTHON_VERSION_RELATIVE_PATH",
     "SUSHI_CONFIG_RELATIVE_PATH",
     "build_scaffold_files",
 ]
@@ -26,7 +30,7 @@ SUSHI_CONFIG_RELATIVE_PATH = "ig/sushi-config.yaml"
 FSH_INI_RELATIVE_PATH = "ig/fsh.ini"
 
 #: The catalog of every `fhir.toml` option with its default, which opens on the project's own `[ig]` table.
-CONFIG_EXAMPLE_RELATIVE_PATH = "fhir.toml.example"
+CONFIG_EXAMPLE_RELATIVE_PATH = "fhir.example.toml"
 
 #: The IG publisher's entry point, which names the ImplementationGuide file by the guide's id.
 IG_INI_RELATIVE_PATH = "ig/ig.ini"
@@ -36,6 +40,30 @@ INDEX_PAGE_RELATIVE_PATH = "ig/input/pagecontent/index.md"
 
 #: The uv project the scaffold is, whose PEP 508 name is normalised from the guide's id.
 PYPROJECT_RELATIVE_PATH = "pyproject.toml"
+
+#: The toolchain the project runs, and the docker image the IG publisher runs inside.
+MAKEFILE_RELATIVE_PATH = "Makefile"
+DOCKERFILE_RELATIVE_PATH = "Dockerfile"
+
+#: The Python the uv project resolves against.
+PYTHON_VERSION_RELATIVE_PATH = ".python-version"
+
+#: The files the scaffold owns whole, which `d2w fhir init --refresh` rewrites from the current render.
+#:
+#: Each is a toolchain file with no reason to be edited: the Makefile states every knob it has as a
+#: `?=` default (`D2W`, `TX_SERVER`, `JAVA_HEAP`) taken from the command line or the environment, the
+#: Dockerfile and `.python-version` pin the image and the interpreter, and `ig/ig.ini` and
+#: `ig/fsh.ini` carry values the project states elsewhere - the guide's id in `fhir.toml`, and the
+#: `[FSH] timeout` that `read_project_scaffold_state` recovers off the file and re-renders unchanged.
+#: A scaffold revision that replaces a line in one of them lands whole rather than reading as a
+#: divergence nobody authored.
+OWNED_WHOLE_RELATIVE_PATHS: tuple[str, ...] = (
+    MAKEFILE_RELATIVE_PATH,
+    DOCKERFILE_RELATIVE_PATH,
+    PYTHON_VERSION_RELATIVE_PATH,
+    IG_INI_RELATIVE_PATH,
+    FSH_INI_RELATIVE_PATH,
+)
 
 _ENVIRONMENT = Environment(
     loader=PackageLoader("dhis2w_fhir.scaffold", "templates"),
@@ -64,7 +92,7 @@ def build_scaffold_files(
     year = copyright_year if copyright_year is not None else datetime.now(tz=UTC).year
     files = [
         _render("fhir.toml", "fhir.toml.jinja", options, selection=template_selection(template) if template else None),
-        _render(CONFIG_EXAMPLE_RELATIVE_PATH, "fhir.toml.example.jinja", options),
+        _render(CONFIG_EXAMPLE_RELATIVE_PATH, "fhir.example.toml.jinja", options),
         _render(
             SUSHI_CONFIG_RELATIVE_PATH,
             "sushi-config.yaml.jinja",
@@ -83,9 +111,9 @@ def build_scaffold_files(
             options,
             project_name=normalize_project_name(options.ig_id),
         ),
-        _render(".python-version", "python-version.jinja", options),
-        _render("Makefile", "Makefile.jinja", options),
-        _render("Dockerfile", "Dockerfile.jinja", options),
+        _render(PYTHON_VERSION_RELATIVE_PATH, "python-version.jinja", options),
+        _render(MAKEFILE_RELATIVE_PATH, "Makefile.jinja", options),
+        _render(DOCKERFILE_RELATIVE_PATH, "Dockerfile.jinja", options),
         _render(".gitignore", "gitignore.jinja", options),
     ]
     if template is None:

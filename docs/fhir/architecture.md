@@ -64,7 +64,7 @@ which is a protocol of its own.
 
 ## The project on disk
 
-`d2w fhir init` renders thirteen files: `fhir.toml` and `fhir.toml.example`,
+`d2w fhir init` renders thirteen files: `fhir.toml` and `fhir.example.toml`,
 the project's own `pyproject.toml` + `.python-version` + `Makefile` +
 `Dockerfile` + `.gitignore`, and the IG skeleton (`ig/sushi-config.yaml`,
 `ig/ig.ini`, `ig/fsh.ini`, `ig/input/fsh/aliases.fsh`,
@@ -97,7 +97,7 @@ what each scaffold file owes to `fhir.toml`, and `adopt_scaffold_owned_lines`
 substitutes the rendered line into the file on disk for every entry -
 sushi-config's `id`, `canonical`, `name`, `title`, `description`, `status`,
 publisher name and six `special-url` lines; the `[ig]` table of
-`fhir.toml.example`; the front page's first-line heading; the `ig = ` line of
+`fhir.example.toml`; the front page's first-line heading; the `ig = ` line of
 `ig.ini`; the `[project] name` of `pyproject.toml`. A registry entry can name a
 region so a key spelled the same way elsewhere in the file is out of reach. The
 file is written and reported `refreshed` whenever that substitution changes

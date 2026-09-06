@@ -652,6 +652,8 @@ def _refresh_project(directory: Path) -> None:
     for relative_path in report.diverged_files:
         _line(f"  kept {relative_path} (holds lines the current scaffold does not write)")
     _hint("note", f"{FHIR_CONFIG_FILENAME} is yours - a refresh never writes it")
+    for note in report.notes:
+        _hint("note", note)
     if report.diverged_files:
         _hint(
             "note",

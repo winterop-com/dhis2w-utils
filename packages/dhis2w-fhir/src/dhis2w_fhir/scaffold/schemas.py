@@ -101,6 +101,10 @@ class ScaffoldReport(BaseModel):
     files. The payload is hundreds of files wide where the scaffold is thirteen, so it is counted
     apart from `created_files` rather than folded into it: a caller reading the report sees which
     files `d2w fhir init` composed and which tree it laid down beside them.
+
+    `notes` carries what a run has to say for itself beyond the per-file verdicts: a file the
+    project holds that the scaffold does not write, which a refresh names so the person can
+    delete it.
     """
 
     directory: Path
@@ -113,3 +117,4 @@ class ScaffoldReport(BaseModel):
     unchanged_files: list[str] = Field(default_factory=list)
     extended_files: list[str] = Field(default_factory=list)
     diverged_files: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)

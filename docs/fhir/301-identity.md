@@ -102,7 +102,7 @@ Stick to lowercase words separated by dots.
 
 The next `d2w fhir init --refresh` (`make update` in a scaffolded project)
 writes this id into every scaffold-managed file that carries it -
-`ig/sushi-config.yaml`, `fhir.toml.example`, `ig/ig.ini`, and the project's
+`ig/sushi-config.yaml`, `fhir.example.toml`, `ig/ig.ini`, and the project's
 `pyproject.toml` name - which is what puts it on the built package.
 
 ### `canonical`
@@ -144,7 +144,7 @@ guide does not actually live.
 
 The next `d2w fhir init --refresh` (`make update` in a scaffolded project)
 writes this address into every scaffold-managed file that carries it -
-`ig/sushi-config.yaml` and `fhir.toml.example` - which is what points the built
+`ig/sushi-config.yaml` and `fhir.example.toml` - which is what points the built
 guide at it.
 
 ### `name`
@@ -173,7 +173,7 @@ with a capital letter, is always safe.
 
 The next `d2w fhir init --refresh` (`make update` in a scaffolded project)
 writes this name into every scaffold-managed file that carries it -
-`ig/sushi-config.yaml` and `fhir.toml.example` - which is what carries it into
+`ig/sushi-config.yaml` and `fhir.example.toml` - which is what carries it into
 the compile.
 
 ### `title`
@@ -195,7 +195,7 @@ title = "Sierra Leone HMIS FHIR Guide"
 That exact text becomes the guide's page heading, and the guide's one-line
 description under it. The next `d2w fhir init --refresh` (`make update` in a
 scaffolded project) writes it into every scaffold-managed file that carries it -
-`ig/sushi-config.yaml`, `fhir.toml.example`, and the guide's front page at
+`ig/sushi-config.yaml`, `fhir.example.toml`, and the guide's front page at
 `ig/input/pagecontent/index.md` - which is what puts the new words on the
 published guide.
 
@@ -214,7 +214,7 @@ published guide's footer - typically the ministry or programme name.
 was entered wrong. Display text: no generated artifact depends on the wording.
 The next `d2w fhir init --refresh` (`make update` in a scaffolded project)
 writes it into every scaffold-managed file that carries it -
-`ig/sushi-config.yaml` and `fhir.toml.example` - which is what puts the new name
+`ig/sushi-config.yaml` and `fhir.example.toml` - which is what puts the new name
 in the published guide's footer.
 
 **Example.**
@@ -252,7 +252,7 @@ status = "active"
 The next generate marks every artifact in the guide as active and no longer
 experimental, and the next `d2w fhir init --refresh` (`make update` in a
 scaffolded project) writes the same status into every scaffold-managed file that
-carries it - `ig/sushi-config.yaml` and `fhir.toml.example` - which is what the
+carries it - `ig/sushi-config.yaml` and `fhir.example.toml` - which is what the
 published guide states about itself.
 
 **Default:** `"draft"` - **If you leave it out:** the guide and everything in
