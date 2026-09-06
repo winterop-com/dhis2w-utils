@@ -1,0 +1,113 @@
+name: IG publisher check
+
+# One full HL7 IG Publisher build of one small guide, weekly. `make verify-igs`
+# compiles the catalog with dockerized SUSHI alone, so a publisher release that
+# tightens validation reaches a user's project before it reaches this repository.
+# This job builds against whatever `publisher.jar` HL7 ships today and fails on
+# `errs > 0` in `ig/output/qa.json`, so a tightened rule lands as a red weekly run.
+#
+# Deliberately never on `pull_request` or `push`: one run is a cold docker build
+# plus a full publisher pass, and the Actions budget is scarce.
+on:
+  schedule:
+    - cron: "0 3 * * 0" # Sundays 03:00 UTC — clear of version-bump-check's Monday 06:00
+  workflow_dispatch:
+    inputs:
+      guide:
+        description: "Bundled template to build (aggregate-minimal, event-program, patient-summary)"
+        required: false
+        default: aggregate-minimal
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publisher-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: full publisher build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # The runner has 16 GB. The scaffolded Makefile wants the VM at heap + ~2G, and
+      # the smallest guide fits in 4g.
+      JAVA_HEAP: 4g
+      TX_SERVER: http://tx.fhir.org
+      GUIDE: ${{ inputs.guide || 'aggregate-minimal' }}
+      # A host directory rather than the scaffolded Makefile's named volume, so
+      # actions/cache can carry the FHIR package cache between runs. Docker reads an
+      # absolute path as a bind mount, so no edit to the scaffold is needed.
+      CACHE_VOLUME: /home/runner/fhir-ig-cache
+      PROJECT_DIR: /home/runner/ig-check
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install Python (pinned to 3.13 — matches CLAUDE.md)
+        run: uv python install 3.13
+
+      - name: Sync workspace
+        run: make install
+
+      - name: Restore the FHIR package cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CACHE_VOLUME }}
+          key: fhir-ig-cache-${{ env.GUIDE }}-${{ github.run_id }}
+          restore-keys: |
+            fhir-ig-cache-${{ env.GUIDE }}-
+            fhir-ig-cache-
+
+      - name: Scaffold the guide from its bundled template
+        # No `d2w fhir generate`: there is no DHIS2 instance in CI, and the committed
+        # trees under examples/fhir/igs/ carry their inputs alone — the generated FSH is
+        # gitignored. A bundled template lays down the complete pre-built guide instead.
+        run: |
+          mkdir -p "$PROJECT_DIR"
+          uv run d2w fhir init "$PROJECT_DIR" --template "$GUIDE"
+
+      - name: Build the image against today's publisher.jar
+        # `upgrade` rather than `setup`: --pull --no-cache is what makes "the latest
+        # publisher" the thing under test, and on a cold runner it costs the same.
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: make upgrade
+
+      - name: Compile the FSH
+        # The publisher runs its own SUSHI, but a FSH error is worth catching in a
+        # minute rather than at the end of a full publisher pass.
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: make sushi CACHE_VOLUME="$CACHE_VOLUME"
+
+      - name: Run the full IG publisher
+        working-directory: ${{ env.PROJECT_DIR }}
+        # D2W points at the checkout so the Makefile's artifact scan runs this
+        # repository's `d2w`, not the release the scaffolded pyproject pins.
+        run: |
+          make build \
+            CACHE_VOLUME="$CACHE_VOLUME" \
+            JAVA_HEAP="$JAVA_HEAP" \
+            TX_SERVER="$TX_SERVER" \
+            D2W="uv run --project $GITHUB_WORKSPACE d2w"
+
+      - name: Summarise the QA report
+        if: always()
+        run: uv run python infra/scripts/publisher_qa_summary.py --qa "$PROJECT_DIR/ig/output/qa.json"
+
+      - name: Upload the QA report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: publisher-qa-${{ env.GUIDE }}
+          path: |
+            ${{ env.PROJECT_DIR }}/ig/output/qa.json
+            ${{ env.PROJECT_DIR }}/ig/output/qa.txt
+          if-no-files-found: warn
+          retention-days: 14

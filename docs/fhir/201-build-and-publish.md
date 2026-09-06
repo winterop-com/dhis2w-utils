@@ -404,5 +404,37 @@ scaffolded with is where consumers will expect to find it. Before handing
 it over, read `ig/output/qa.html` - the publisher's own QA summary of
 errors, warnings, and broken links.
 
+## The weekly publisher check
+
+HL7 ships a new `publisher.jar` often, and a release that tightens validation
+turns a guide that built yesterday into a guide that does not. `make verify-igs`
+does not catch that: it compiles the example catalog with dockerized SUSHI, and
+SUSHI is not the pass that gets stricter. So the repository runs one full
+publisher build a week, in `.github/workflows/publisher-check.yml`.
+
+It scaffolds `aggregate-minimal` from its bundled template - the smallest
+complete guide, already generated against a DHIS2 instance, so no instance is
+needed - builds the image against whatever `publisher.jar` HL7 ships that day,
+compiles the FSH, and runs the publisher with a 4g heap against
+`http://tx.fhir.org`. The job fails when `ig/output/qa.json` reports any error,
+and prints the publisher version, the counts, and the error lines of `qa.txt`
+grouped by message shape, so a tightened rule reads as one family of sixty
+rather than sixty separate lines. The same summary runs over a local build:
+
+```bash
+make publisher-check-summary QA=ig/output/qa.json
+```
+
+Sundays 03:00 UTC on the schedule, and by hand whenever a publisher release
+looks worth testing early:
+
+```bash
+gh workflow run publisher-check.yml -f guide=aggregate-minimal
+```
+
+The `guide` input takes any bundled template - `aggregate-minimal`,
+`event-program`, `patient-summary` - since only those carry the generated FSH a
+build needs without a DHIS2 instance to generate it from.
+
 Next: [Serve the guide](201-serve.md) - the compiled guide, answered live as a
 FHIR endpoint.
