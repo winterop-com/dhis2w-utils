@@ -42,7 +42,7 @@ Usage: #definition
 * group[0].rule[0].target[0].contextType = #variable
 * group[0].rule[0].target[0].element = "dataSet"
 * group[0].rule[0].target[0].transform = #evaluate
-* group[0].rule[0].target[0].parameter[0].valueString = "%questionnaire.resolve().identifier.where(system = 'http://dhis2.org/fhir/id/data-set').value"
+* group[0].rule[0].target[0].parameter[0].valueString = "%questionnaire.resolve().identifier.where($this.system = 'http://dhis2.org/fhir/id/data-set').value"
 
 * group[0].rule[1].name = "period"
 * group[0].rule[1].documentation = "The DHIS2 ISO period is what the import is keyed by. The date range the same extension carries is a rendering of that period, and a range disagreeing with the ISO period is ignored rather than obeyed."
@@ -74,7 +74,7 @@ Usage: #definition
 * group[0].rule[2].target[0].contextType = #variable
 * group[0].rule[2].target[0].element = "orgUnit"
 * group[0].rule[2].target[0].transform = #evaluate
-* group[0].rule[2].target[0].parameter[0].valueString = "%subject.resolve().identifier.where(system = 'http://dhis2.org/fhir/id/org-unit').value"
+* group[0].rule[2].target[0].parameter[0].valueString = "%subject.resolve().identifier.where($this.system = 'http://dhis2.org/fhir/id/org-unit').value"
 
 * group[0].rule[3].name = "attributeOptionCombo"
 * group[0].rule[3].documentation = "The response names its attribute option combo as a coding of the vocabulary its own form declares. The code is the DHIS2 UID wherever the guide's concept codes are DHIS2 ids; where they are DHIS2 codes, the combo's own ConceptMap translates the code onto http://dhis2.org/fhir/id/category-option-combo and this rule is that translation's input. A data set on the default category combo names no combo at all, and DHIS2 fills the field itself."
@@ -152,7 +152,7 @@ Usage: #definition
 * group[1].rule[1].rule[0].target[0].contextType = #variable
 * group[1].rule[1].rule[0].target[0].element = "dataElement"
 * group[1].rule[1].rule[0].target[0].transform = #evaluate
-* group[1].rule[1].rule[0].target[0].parameter[0].valueString = "%linkId.substring(0, iif(contains('.'), indexOf('.'), length()))"
+* group[1].rule[1].rule[0].target[0].parameter[0].valueString = "%linkId.substring(0, %linkId.iif(%linkId.contains('.'), %linkId.indexOf('.'), %linkId.length()))"
 
 * group[1].rule[1].rule[1].name = "categoryOptionCombo"
 * group[1].rule[1].rule[1].source[0].context = "item"
@@ -162,15 +162,119 @@ Usage: #definition
 * group[1].rule[1].rule[1].target[0].contextType = #variable
 * group[1].rule[1].rule[1].target[0].element = "categoryOptionCombo"
 * group[1].rule[1].rule[1].target[0].transform = #evaluate
-* group[1].rule[1].rule[1].target[0].parameter[0].valueString = "%linkId.iif(contains('.'), substring(indexOf('.') + 1), {})"
+* group[1].rule[1].rule[1].target[0].parameter[0].valueString = "%linkId.iif(%linkId.contains('.'), %linkId.substring(%linkId.indexOf('.') + 1), {})"
 
-* group[1].rule[1].rule[2].name = "value"
-* group[1].rule[1].rule[2].documentation = "Every DHIS2 data value is a string on the wire, and which string an answer becomes is the one part of this map a transform cannot state: a TRUE_ONLY question answered false drops the whole cell, a MULTI_TEXT answer is the comma-joined set of its codes, a decimal keeps the lexical form it was captured in, a coded answer is resolved through the question's own terminology, and a zoned timestamp is read to the wall clock DHIS2 stores. `dhis2w_fhir.conversion.values` is the reference implementation of that table."
+* group[1].rule[1].rule[2].name = "booleanValue"
+* group[1].rule[1].rule[2].documentation = "Every DHIS2 data value is a string on the wire, and one rule per answered `value[x]` type is what states that string: the validator types an evaluate expression against the element it reads, so a branch naming its own type is the form an expression over a choice can take. What no transform can state stays in prose: a TRUE_ONLY question answered false drops the whole cell, a MULTI_TEXT answer is the comma-joined set of its codes, a decimal keeps the lexical form it was captured in, a coded answer is resolved through the question's own terminology, and a zoned timestamp is read to the wall clock DHIS2 stores. `dhis2w_fhir.conversion.values` is the reference implementation of that table. An attachment answers no data value at all - DHIS2 stores a file resource through a separate upload - so no branch reads one."
 * group[1].rule[1].rule[2].source[0].context = "answer"
 * group[1].rule[1].rule[2].source[0].element = "value"
-* group[1].rule[1].rule[2].source[0].variable = "answerValue"
+* group[1].rule[1].rule[2].source[0].type = "boolean"
+* group[1].rule[1].rule[2].source[0].variable = "answerBoolean"
 * group[1].rule[1].rule[2].target[0].context = "dataValue"
 * group[1].rule[1].rule[2].target[0].contextType = #variable
 * group[1].rule[1].rule[2].target[0].element = "value"
 * group[1].rule[1].rule[2].target[0].transform = #evaluate
-* group[1].rule[1].rule[2].target[0].parameter[0].valueString = "%answerValue.toString()"
+* group[1].rule[1].rule[2].target[0].parameter[0].valueString = "%answerBoolean.toString()"
+
+* group[1].rule[1].rule[3].name = "decimalValue"
+* group[1].rule[1].rule[3].documentation = "A decimal keeps the lexical form the answer was captured in, so a whole number stays whole."
+* group[1].rule[1].rule[3].source[0].context = "answer"
+* group[1].rule[1].rule[3].source[0].element = "value"
+* group[1].rule[1].rule[3].source[0].type = "decimal"
+* group[1].rule[1].rule[3].source[0].variable = "answerDecimal"
+* group[1].rule[1].rule[3].target[0].context = "dataValue"
+* group[1].rule[1].rule[3].target[0].contextType = #variable
+* group[1].rule[1].rule[3].target[0].element = "value"
+* group[1].rule[1].rule[3].target[0].transform = #evaluate
+* group[1].rule[1].rule[3].target[0].parameter[0].valueString = "%answerDecimal.toString()"
+
+* group[1].rule[1].rule[4].name = "integerValue"
+* group[1].rule[1].rule[4].source[0].context = "answer"
+* group[1].rule[1].rule[4].source[0].element = "value"
+* group[1].rule[1].rule[4].source[0].type = "integer"
+* group[1].rule[1].rule[4].source[0].variable = "answerInteger"
+* group[1].rule[1].rule[4].target[0].context = "dataValue"
+* group[1].rule[1].rule[4].target[0].contextType = #variable
+* group[1].rule[1].rule[4].target[0].element = "value"
+* group[1].rule[1].rule[4].target[0].transform = #evaluate
+* group[1].rule[1].rule[4].target[0].parameter[0].valueString = "%answerInteger.toString()"
+
+* group[1].rule[1].rule[5].name = "dateValue"
+* group[1].rule[1].rule[5].source[0].context = "answer"
+* group[1].rule[1].rule[5].source[0].element = "value"
+* group[1].rule[1].rule[5].source[0].type = "date"
+* group[1].rule[1].rule[5].source[0].variable = "answerDate"
+* group[1].rule[1].rule[5].target[0].context = "dataValue"
+* group[1].rule[1].rule[5].target[0].contextType = #variable
+* group[1].rule[1].rule[5].target[0].element = "value"
+* group[1].rule[1].rule[5].target[0].transform = #evaluate
+* group[1].rule[1].rule[5].target[0].parameter[0].valueString = "%answerDate.toString()"
+
+* group[1].rule[1].rule[6].name = "dateTimeValue"
+* group[1].rule[1].rule[6].documentation = "A zoned timestamp is read back to the zone-less wall clock DHIS2 stores before it is written; the copy below is the structural claim, not the zone arithmetic."
+* group[1].rule[1].rule[6].source[0].context = "answer"
+* group[1].rule[1].rule[6].source[0].element = "value"
+* group[1].rule[1].rule[6].source[0].type = "dateTime"
+* group[1].rule[1].rule[6].source[0].variable = "answerDateTime"
+* group[1].rule[1].rule[6].target[0].context = "dataValue"
+* group[1].rule[1].rule[6].target[0].contextType = #variable
+* group[1].rule[1].rule[6].target[0].element = "value"
+* group[1].rule[1].rule[6].target[0].transform = #evaluate
+* group[1].rule[1].rule[6].target[0].parameter[0].valueString = "%answerDateTime.toString()"
+
+* group[1].rule[1].rule[7].name = "timeValue"
+* group[1].rule[1].rule[7].source[0].context = "answer"
+* group[1].rule[1].rule[7].source[0].element = "value"
+* group[1].rule[1].rule[7].source[0].type = "time"
+* group[1].rule[1].rule[7].source[0].variable = "answerTime"
+* group[1].rule[1].rule[7].target[0].context = "dataValue"
+* group[1].rule[1].rule[7].target[0].contextType = #variable
+* group[1].rule[1].rule[7].target[0].element = "value"
+* group[1].rule[1].rule[7].target[0].transform = #evaluate
+* group[1].rule[1].rule[7].target[0].parameter[0].valueString = "%answerTime.toString()"
+
+* group[1].rule[1].rule[8].name = "stringValue"
+* group[1].rule[1].rule[8].source[0].context = "answer"
+* group[1].rule[1].rule[8].source[0].element = "value"
+* group[1].rule[1].rule[8].source[0].type = "string"
+* group[1].rule[1].rule[8].source[0].variable = "answerString"
+* group[1].rule[1].rule[8].target[0].context = "dataValue"
+* group[1].rule[1].rule[8].target[0].contextType = #variable
+* group[1].rule[1].rule[8].target[0].element = "value"
+* group[1].rule[1].rule[8].target[0].transform = #evaluate
+* group[1].rule[1].rule[8].target[0].parameter[0].valueString = "%answerString.toString()"
+
+* group[1].rule[1].rule[9].name = "uriValue"
+* group[1].rule[1].rule[9].source[0].context = "answer"
+* group[1].rule[1].rule[9].source[0].element = "value"
+* group[1].rule[1].rule[9].source[0].type = "uri"
+* group[1].rule[1].rule[9].source[0].variable = "answerUri"
+* group[1].rule[1].rule[9].target[0].context = "dataValue"
+* group[1].rule[1].rule[9].target[0].contextType = #variable
+* group[1].rule[1].rule[9].target[0].element = "value"
+* group[1].rule[1].rule[9].target[0].transform = #evaluate
+* group[1].rule[1].rule[9].target[0].parameter[0].valueString = "%answerUri.toString()"
+
+* group[1].rule[1].rule[10].name = "codedValue"
+* group[1].rule[1].rule[10].documentation = "A coded answer is stored as the code of the option it names, which is the DHIS2 option code wherever the guide's concept codes are DHIS2 codes."
+* group[1].rule[1].rule[10].source[0].context = "answer"
+* group[1].rule[1].rule[10].source[0].element = "value"
+* group[1].rule[1].rule[10].source[0].type = "Coding"
+* group[1].rule[1].rule[10].source[0].variable = "answerCoding"
+* group[1].rule[1].rule[10].target[0].context = "dataValue"
+* group[1].rule[1].rule[10].target[0].contextType = #variable
+* group[1].rule[1].rule[10].target[0].element = "value"
+* group[1].rule[1].rule[10].target[0].transform = #evaluate
+* group[1].rule[1].rule[10].target[0].parameter[0].valueString = "%answerCoding.code"
+
+* group[1].rule[1].rule[11].name = "organisationUnitValue"
+* group[1].rule[1].rule[11].documentation = "An organisation-unit answer references a published Location, and the data value is that Location's http://dhis2.org/fhir/id/org-unit identifier."
+* group[1].rule[1].rule[11].source[0].context = "answer"
+* group[1].rule[1].rule[11].source[0].element = "value"
+* group[1].rule[1].rule[11].source[0].type = "Reference"
+* group[1].rule[1].rule[11].source[0].variable = "answerReference"
+* group[1].rule[1].rule[11].target[0].context = "dataValue"
+* group[1].rule[1].rule[11].target[0].contextType = #variable
+* group[1].rule[1].rule[11].target[0].element = "value"
+* group[1].rule[1].rule[11].target[0].transform = #evaluate
+* group[1].rule[1].rule[11].target[0].parameter[0].valueString = "%answerReference.resolve().identifier.where($this.system = 'http://dhis2.org/fhir/id/org-unit').value"

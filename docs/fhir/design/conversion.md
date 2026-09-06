@@ -284,12 +284,37 @@ StructureMap resource either way; the syntax it was written in is not part of it
 **`evaluate` takes one parameter: the expression.** The IG publisher's validator holds the
 transform to a single parameter and reports `Transform evaluate takes 1 parameter(s) but 2 were
 found` on the two-parameter form, even though R4's mapping-language page describes a focus
-parameter beside the expression. The six evaluate transforms therefore carry the FHIRPath alone,
+parameter beside the expression. Every evaluate transform therefore carries the FHIRPath alone,
 and an expression reaching for its rule's source names that variable inside the path -
-`%questionnaire.resolve().identifier.where(system = '$DHIS2-DS').value`, `%answerValue.toString()` -
-so the expression stands on its own whatever focus an engine hands it.
+`%questionnaire.resolve().identifier.where($this.system = '$DHIS2-DS').value` - so the expression
+stands on its own whatever focus an engine hands it.
 
-**Four rules carry documentation because their meaning exceeds what a transform states.**
+**A call in an argument is typed against the outer focus, so every call names its variable.**
+The validator reads `%linkId.substring(0, iif(contains('.'), ...))` as calling `contains` on the
+data value the rule is writing rather than on the link id the enclosing call is walking, and
+reports `The function contains can only be used on string, uri, url, code, id`. The link-id
+expressions therefore root every call at the variable outright:
+
+```
+%linkId.substring(0, %linkId.iif(%linkId.contains('.'), %linkId.indexOf('.'), %linkId.length()))
+%linkId.iif(%linkId.contains('.'), %linkId.substring(%linkId.indexOf('.') + 1), {})
+```
+
+**A choice element is written one type at a time.** `answer.value` is the whole `value[x]` union,
+which is no primitive, so `%answerValue.toString()` draws `The function toString can only be used
+on primitives`. The value of a data value is written by one rule per answered type instead - each
+naming its type on `source.type` and reading its own variable:
+
+| Answered type | Expression |
+| --- | --- |
+| `boolean`, `decimal`, `integer`, `date`, `dateTime`, `time`, `string`, `uri` | `%answer<Type>.toString()` |
+| `Coding` | `%answerCoding.code` |
+| `Reference` | `%answerReference.resolve().identifier.where($this.system = '$DHIS2-OU').value` |
+
+An attachment answers no data value at all - DHIS2 stores a file resource through a separate
+upload - so no branch reads one.
+
+**Some rules carry documentation because their meaning exceeds what a transform states.**
 This is the FML residue the plan predicted, and it is recorded on the artifact rather than
 in prose beside it:
 
@@ -300,7 +325,7 @@ in prose beside it:
   is only correct where the guide names its Locations by DHIS2 id.
 - `attributeOptionCombo` is a coding of the form's own vocabulary, and under
   `concept_code_source = "code"` the combo's ConceptMap is what turns that code into the UID.
-- `dataValues.value` is the whole wire-serialisation table: a `TRUE_ONLY` question answered
+- the value branches carry the whole wire-serialisation table: a `TRUE_ONLY` question answered
   false drops the cell, a `MULTI_TEXT` answer is comma-joined, a decimal keeps its lexical
   form, a coded answer resolves through the question's terminology, a zoned timestamp is read
   to the wall clock. `dhis2w_fhir.conversion.values` is the reference implementation of it.

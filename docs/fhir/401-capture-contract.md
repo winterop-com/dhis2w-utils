@@ -562,12 +562,12 @@ what it *becomes*, for the aggregate kind:
   `<dataElement>.<categoryOptionCombo>` out of the link id.
 
 The map is a **contract, not an engine**. Nothing in this project executes
-it, and four of its rules carry `documentation` stating what a transform
+it, and several of its rules carry `documentation` stating what a transform
 cannot: the data set comes off the *Questionnaire's* DHIS2 identifier rather
 than off the response, the organisation unit needs the published Location
 resolved, the attribute option combo goes through a ConceptMap where the
 guide's concept codes are DHIS2 codes, and the wire value is the whole
-serialisation table. Read those four before building a bridge from the map
+serialisation table. Read those before building a bridge from the map
 alone.
 
 Next: [Consume the FHIR API](401-consume-the-fhir-api.md) - the running
