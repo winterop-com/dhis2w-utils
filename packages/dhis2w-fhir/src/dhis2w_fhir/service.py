@@ -1995,6 +1995,7 @@ async def _emit_examples(
             option_sets,
             project.config.generate,
             project.config.generate.examples,
+            published_organisation_unit_uids,
             notes,
             progress,
         )
@@ -2085,13 +2086,13 @@ async def generate_load_set(
         option_sets = await _fetch_example_option_sets(client, sources)
         option_set_plan = await _fetch_option_set_identity_plan(client, config, sources, HostileNameGate())
         organisation_unit_stems = await _fetch_published_organisation_unit_stems(client, config)
-        root_uid = await _root_organisation_unit_uid(client)
+        capture_organisation_unit_uid = await _example_organisation_unit_uid(client, config)
         assignments = await _fetch_load_set_assignments(client, sources)
     progress.complete(f"{len(sources):,} questionnaire target(s)")
     progress.step("load set", f"writing {_LOAD_DIRECTORY}")
     documents: list[QuestionnaireResponse] = []
     covered_sources: list[QuestionnaireSourceIn] = []
-    if root_uid is None:
+    if capture_organisation_unit_uid is None:
         notes.append(
             generate_note(
                 GenerateNoteCategory.EMPTY_SELECTION,
@@ -2106,7 +2107,7 @@ async def generate_load_set(
             plan.sources,
             option_sets,
             per_target,
-            root_uid,
+            capture_organisation_unit_uid,
             datetime.now(tz=UTC).date(),
             placements=plan.placements,
             registration_program_uids=plan.registration_program_uids,
@@ -2303,13 +2304,14 @@ async def _example_responses(
     option_sets: list[OptionSetIn],
     config: GenerateConfig,
     selection: ExampleSelection,
+    published_organisation_unit_uids: frozenset[str],
     notes: list[GenerateNote],
     progress: _StepAnnouncer,
 ) -> list[ExampleResponseIn]:
     """Collect the example responses from whichever source the project configured."""
     today = datetime.now(tz=UTC).date()
-    root_uid = await _root_organisation_unit_uid(client)
-    if root_uid is None:
+    example_organisation_unit_uid = await _example_organisation_unit_uid(client, config)
+    if example_organisation_unit_uid is None:
         notes.append(
             generate_note(
                 GenerateNoteCategory.EMPTY_SELECTION,
@@ -2317,13 +2319,24 @@ async def _example_responses(
             )
         )
         return []
+    if published_organisation_unit_uids and example_organisation_unit_uid not in published_organisation_unit_uids:
+        notes.append(
+            generate_note(
+                GenerateNoteCategory.SELECTION_GAP,
+                f"organisation unit {example_organisation_unit_uid} sits outside the organisation-unit "
+                "selection, which the guide publishes no Location for; no examples emitted",
+            )
+        )
+        return []
     if selection.source == "instance":
-        return await _fetch_instance_responses(client, sources, selection.per_target, root_uid, notes, progress)
+        return await _fetch_instance_responses(
+            client, sources, selection.per_target, example_organisation_unit_uid, notes, progress
+        )
     synthetic = build_synthetic_responses(
         sources,
         option_sets,
         selection.per_target,
-        root_uid,
+        example_organisation_unit_uid,
         today,
         option_concept_codes=option_concept_code_index(option_sets, config),
     )
@@ -2331,8 +2344,16 @@ async def _example_responses(
     return synthetic.responses
 
 
-async def _root_organisation_unit_uid(client: Dhis2Client) -> str | None:
-    """The instance's root organisation unit - the one every example is subject to."""
+async def _example_organisation_unit_uid(client: Dhis2Client, config: GenerateConfig) -> str | None:
+    """The organisation unit an example is captured at - the organisation-unit selection's own root.
+
+    `[generate.organisation_units] root` names the unit the registry walk hangs off, and the
+    registry publishes a Location for that unit by construction, so an example subject to it
+    resolves in the built guide. A selection naming no root spans the whole hierarchy, where the
+    instance's own level-1 unit is the root every example is captured at.
+    """
+    if config.organisation_units.root is not None:
+        return config.organisation_units.root
     roots = await client.resources.organisation_units.list(fields="id", filters=["level:eq:1"], paging=False)
     return next((model.id for model in roots if model.id), None)
 

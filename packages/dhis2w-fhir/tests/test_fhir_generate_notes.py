@@ -57,6 +57,7 @@ _EMISSION_INVENTORY: dict[str, dict[GenerateNoteCategory, int]] = {
         GenerateNoteCategory.INSTANCE_DATA_GAP: 3,
         GenerateNoteCategory.REFUSED_FORM: 1,
         GenerateNoteCategory.SELECTION_CLOSURE: 1,
+        GenerateNoteCategory.SELECTION_GAP: 1,
         GenerateNoteCategory.SCAFFOLD_DRIFT: 1,
         GenerateNoteCategory.SELECTION_MISMATCH: 3,
     },

@@ -6,6 +6,7 @@ seven solo commands read the same collections seven times over, one full run rea
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -14,6 +15,7 @@ import respx
 from dhis2w_core.profile import resolve_profile
 from dhis2w_fhir import GenerateFullReport, GenerateReport, InitOptions, UnsupportedProgramError, load_project, service
 from dhis2w_fhir.notes import GenerateNote, GenerateNoteCategory
+from dhis2w_fhir.resources.examples import EXAMPLES_DIRECTORY
 from dhis2w_fhir.service import GenerateSubject, _target_counts
 
 _HOST = "https://dhis2.example"
@@ -136,7 +138,7 @@ class _RecordingReporter:
         raise AssertionError("the fhir service never bounds the run")
 
 
-async def _scaffold_project(directory: Path) -> None:
+async def _scaffold_project(directory: Path, **generate_lines: str) -> None:
     """Scaffold a minimal project so the generate targets have a fhir.toml and an ig tree."""
     options = InitOptions(
         ig_id="dhis2.fhir.full",
@@ -146,6 +148,11 @@ async def _scaffold_project(directory: Path) -> None:
         publisher="Full Org",
     )
     await service.init_project(directory, options)
+    config_path = directory / "fhir.toml"
+    body = config_path.read_text(encoding="utf-8")
+    for table, entries in generate_lines.items():
+        body += f"\n[generate.{table}]\n{entries}\n"
+    config_path.write_text(body, encoding="utf-8")
 
 
 def _mock_instance(
@@ -582,6 +589,55 @@ async def test_the_organisation_unit_target_counts_units_apart_from_the_files_th
     registry_files = [name for name in organisation_units.written_files if name.startswith("registry/")]
     assert len(registry_files) == 2 * organisation_units.organisation_unit_count
     assert len(organisation_units.written_files) > organisation_units.organisation_unit_count
+
+
+def _selected_organisation_units(request: httpx.Request) -> httpx.Response:
+    """Answer the organisation-unit read the way DHIS2 does: `path:like` narrows it to a sub-tree."""
+    roots = [
+        value.removeprefix("path:like:")
+        for value in request.url.params.get_list("filter")
+        if value.startswith("path:like:")
+    ]
+    units = [
+        unit
+        for unit in _ORGANISATION_UNITS_PAYLOAD["organisationUnits"]
+        if all(root in str(unit["path"]) for root in roots)
+    ]
+    return httpx.Response(200, json={"organisationUnits": units})
+
+
+@respx.mock
+async def test_a_full_run_captures_every_example_inside_the_registry_selection(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    mock_attributes: Callable[..., None],
+    mock_organisation_unit_levels: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """Every Location an example references is one the organisation-unit target published a file for.
+
+    The selection hangs off a district, so the instance's level-1 unit is published nowhere - and
+    an example captured there is a reference the IG publisher's build cannot resolve.
+    """
+    _mock_instance(mock_system_info, mock_attributes, mock_organisation_unit_levels)
+    respx.get(f"{_HOST}/api/organisationUnits", name="organisationUnits").mock(side_effect=_selected_organisation_units)
+    await _scaffold_project(tmp_path, organisation_units='root = "O6uvpzGd5pu"')
+
+    report = await service.generate_full(resolve_profile("probe"), load_project(tmp_path))
+
+    published = {
+        name.removeprefix("registry/Location-").removesuffix(".json")
+        for name in report.organisation_units.written_files
+        if name.startswith("registry/Location-")
+    }
+    assert published == {"O6uvpzGd5pu"}
+    referenced = {
+        stem
+        for path in (tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY).glob("*.fsh")
+        for stem in re.findall(r"Location/([A-Za-z0-9]+)", path.read_text(encoding="utf-8"))
+    }
+    assert referenced
+    assert referenced <= published
 
 
 def test_a_target_completion_leads_with_the_subject_it_covers() -> None:

@@ -7,7 +7,7 @@ Description: "Example QuestionnaireResponse against the DHIS2 tracked entity typ
 Usage: #example
 * id = "nEenWmSyUEp-example-1"
 * extension[D2FormType].valueCode = #tracked-entity
-* extension[D2OrganisationUnit].valueReference = Reference(Location/ImspTQPwCqd)
+* extension[D2OrganisationUnit].valueReference = Reference(Location/bL4ooGhyHRQ)
 * questionnaire = "http://example.org/fhir/examples/event-program/Questionnaire/nEenWmSyUEp"
 * status = #completed
 * subject.type = "Patient"

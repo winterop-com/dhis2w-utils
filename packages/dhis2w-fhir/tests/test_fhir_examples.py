@@ -59,6 +59,7 @@ _HOST = "https://dhis2.example"
 _CANONICAL = "http://example.org/fhir"
 _TODAY = datetime.date(2026, 8, 2)
 _ROOT_ORG_UNIT = "ImspTQPwCqd"
+_SELECTION_ROOT_ORG_UNIT = "PMa2VCrupOd"
 
 _DEFAULT_COMBO = CategoryComboIn(uid="bjDvmb4bfuf", name="default", is_default=True)
 _AGE_COMBO = CategoryComboIn(
@@ -1026,13 +1027,18 @@ async def _scaffold_project(directory: Path, **generate_lines: str) -> None:
 
 def _mock_metadata() -> None:
     """Mock the metadata endpoints every example run reads before it looks at any data."""
+    _mock_metadata_apart_from_the_organisation_units()
+    respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ROOT_PAYLOAD))
+
+
+def _mock_metadata_apart_from_the_organisation_units() -> None:
+    """The same metadata mocks, leaving the organisation-unit endpoint for the caller to answer."""
     respx.get(f"{_HOST}/api/dataSets").mock(return_value=httpx.Response(200, json=_DATA_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/programs").mock(return_value=httpx.Response(200, json=_PROGRAMS_PAYLOAD))
     respx.get(f"{_HOST}/api/programRules").mock(return_value=httpx.Response(200, json={"programRules": []}))
     respx.get(f"{_HOST}/api/trackedEntityTypes").mock(return_value=httpx.Response(200, json={"trackedEntityTypes": []}))
     respx.get(f"{_HOST}/api/optionSets").mock(return_value=httpx.Response(200, json=_OPTION_SETS_PAYLOAD))
     respx.get(f"{_HOST}/api/categories").mock(return_value=httpx.Response(200, json={"categories": []}))
-    respx.get(f"{_HOST}/api/organisationUnits").mock(return_value=httpx.Response(200, json=_ROOT_PAYLOAD))
 
 
 @respx.mock
@@ -1384,6 +1390,63 @@ async def test_the_solo_target_reads_the_registry_selection_the_location_guard_c
     assert len(selection) == 1
     assert selection[0]["fields"] == "id,code,name"
     assert selection[0]["paging"] == "false"
+
+
+@respx.mock
+async def test_a_configured_root_is_the_unit_every_example_is_captured_at(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """`[generate.organisation_units] root` names the unit every example is subject to.
+
+    The registry publishes a Location for its own root by construction, so an example captured
+    there resolves in the built guide. The instance's level-1 unit sits above the selection and
+    the guide publishes no Location for it, so the run never asks the instance for it either.
+    """
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path, organisation_units=f'root = "{_SELECTION_ROOT_ORG_UNIT}"\nmax_level = 4')
+    _mock_metadata_apart_from_the_organisation_units()
+    organisation_units = respx.get(f"{_HOST}/api/organisationUnits", name="organisationUnits").mock(
+        return_value=httpx.Response(
+            200, json={"organisationUnits": [{"id": _SELECTION_ROOT_ORG_UNIT, "name": "Kambia"}]}
+        )
+    )
+
+    report = await service.generate_examples(resolve_profile("probe"), load_project(tmp_path))
+
+    filters = [value for call in organisation_units.calls for value in call.request.url.params.get_list("filter")]
+    assert "level:eq:1" not in filters
+    assert f"path:like:{_SELECTION_ROOT_ORG_UNIT}" in filters
+    assert report.example_count == 2
+    content = (tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY / "BfMAe6Itzgt-1.fsh").read_text(encoding="utf-8")
+    assert f"* subject = Reference(Location/{_SELECTION_ROOT_ORG_UNIT})" in content
+    assert _ROOT_ORG_UNIT not in content
+    event = (tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY / "VBqh0ynB2wv-1.fsh").read_text(encoding="utf-8")
+    assert f"Reference(Location/{_SELECTION_ROOT_ORG_UNIT})" in event
+    assert _ROOT_ORG_UNIT not in event
+
+
+@respx.mock
+async def test_a_selection_naming_no_root_captures_at_the_instance_root(
+    probe_profile: None,  # noqa: ARG001
+    mock_system_info: Callable[..., None],
+    tmp_path: Path,
+) -> None:
+    """A selection spanning the whole hierarchy captures every example at the level-1 unit it reads."""
+    mock_system_info("v42")
+    await _scaffold_project(tmp_path)
+    _mock_metadata_apart_from_the_organisation_units()
+    organisation_units = respx.get(f"{_HOST}/api/organisationUnits", name="organisationUnits").mock(
+        return_value=httpx.Response(200, json=_ROOT_PAYLOAD)
+    )
+
+    await service.generate_examples(resolve_profile("probe"), load_project(tmp_path))
+
+    filters = [value for call in organisation_units.calls for value in call.request.url.params.get_list("filter")]
+    assert filters == ["level:eq:1"]
+    content = (tmp_path / "ig" / "input" / "fsh" / EXAMPLES_DIRECTORY / "BfMAe6Itzgt-1.fsh").read_text(encoding="utf-8")
+    assert f"* subject = Reference(Location/{_ROOT_ORG_UNIT})" in content
 
 
 @respx.mock
