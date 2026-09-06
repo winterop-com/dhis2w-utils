@@ -100,6 +100,11 @@ below).
 you find out when the compile step (SUSHI) refuses the package name.
 Stick to lowercase words separated by dots.
 
+The next `d2w fhir init --refresh` (`make update` in a scaffolded project)
+writes this id into every scaffold-managed file that carries it -
+`ig/sushi-config.yaml`, `fhir.toml.example`, `ig/ig.ini`, and the project's
+`pyproject.toml` name - which is what puts it on the built package.
+
 ### `canonical`
 
 **In plain words.** The guide's permanent web address - the stem every page
@@ -137,6 +142,11 @@ ig.canonical
 you find out when the published guide's internal links point somewhere the
 guide does not actually live.
 
+The next `d2w fhir init --refresh` (`make update` in a scaffolded project)
+writes this address into every scaffold-managed file that carries it -
+`ig/sushi-config.yaml` and `fhir.toml.example` - which is what points the built
+guide at it.
+
 ### `name`
 
 **In plain words.** The guide's computer-facing name: one word, letters and
@@ -161,14 +171,19 @@ name = "Dhis2FhirSl"
 when the compile step (SUSHI) complains about it. One word, starting
 with a capital letter, is always safe.
 
+The next `d2w fhir init --refresh` (`make update` in a scaffolded project)
+writes this name into every scaffold-managed file that carries it -
+`ig/sushi-config.yaml` and `fhir.toml.example` - which is what carries it into
+the compile.
+
 ### `title`
 
 **In plain words.** The human title shown at the top of every page of the
 published guide - "Sierra Leone HMIS FHIR Guide", not `Dhis2FhirSl`.
 
 **When you would change it.** Whenever the people naming the publication want
-different words on the cover. It is display text: changing it is safe and
-breaks nothing.
+different words on the cover. It is display text: no generated artifact
+depends on the wording.
 
 **Example.**
 
@@ -177,7 +192,12 @@ breaks nothing.
 title = "Sierra Leone HMIS FHIR Guide"
 ```
 
-That exact text becomes the guide's page heading.
+That exact text becomes the guide's page heading, and the guide's one-line
+description under it. The next `d2w fhir init --refresh` (`make update` in a
+scaffolded project) writes it into every scaffold-managed file that carries it -
+`ig/sushi-config.yaml`, `fhir.toml.example`, and the guide's front page at
+`ig/input/pagecontent/index.md` - which is what puts the new words on the
+published guide.
 
 **Default:** none, required - **If you leave it out:** the run refuses with
 `ig.title  Field required`.
@@ -191,7 +211,11 @@ you type is what readers see.
 published guide's footer - typically the ministry or programme name.
 
 **When you would change it.** When the owning organisation's name changes or
-was entered wrong. Display text, safe to edit.
+was entered wrong. Display text: no generated artifact depends on the wording.
+The next `d2w fhir init --refresh` (`make update` in a scaffolded project)
+writes it into every scaffold-managed file that carries it -
+`ig/sushi-config.yaml` and `fhir.toml.example` - which is what puts the new name
+in the published guide's footer.
 
 **Example.**
 
@@ -226,7 +250,10 @@ status = "active"
 ```
 
 The next generate marks every artifact in the guide as active and no longer
-experimental.
+experimental, and the next `d2w fhir init --refresh` (`make update` in a
+scaffolded project) writes the same status into every scaffold-managed file that
+carries it - `ig/sushi-config.yaml` and `fhir.toml.example` - which is what the
+published guide states about itself.
 
 **Default:** `"draft"` - **If you leave it out:** the guide and everything in
 it is generated as draft and experimental, which is right while you are

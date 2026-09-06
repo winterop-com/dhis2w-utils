@@ -510,3 +510,34 @@ async def test_a_target_that_writes_only_predefined_json_leaves_the_compile_alon
     assert report.written_files
     assert (compiled / "resources" / "CodeSystem-d2-os-Age.json").is_file()
     assert _compile_notes(report) == []
+
+
+def _scaffold_drift_notes(report: GenerateReport) -> list[GenerateNote]:
+    """Every note the report carries about the project's own files disagreeing."""
+    return [note for note in report.notes if note.category is GenerateNoteCategory.SCAFFOLD_DRIFT]
+
+
+async def test_a_title_edited_after_scaffolding_is_named_as_scaffold_drift(tmp_path: Path) -> None:
+    """fhir.toml states the guide's title and sushi-config carries it, so the run names the refresh that lands it."""
+    await _scaffold_project(tmp_path)
+    config_path = tmp_path / "fhir.toml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace('title = "Full IG"', 'title = "National IG"'),
+        encoding="utf-8",
+    )
+
+    report = await service.generate_foundation(load_project(tmp_path))
+
+    notes = _scaffold_drift_notes(report)
+    assert len(notes) == 1
+    assert "ig/sushi-config.yaml does not carry what fhir.toml states (title, description)" in notes[0].message
+    assert "d2w fhir init --refresh" in notes[0].message
+
+
+async def test_a_project_whose_two_files_agree_raises_no_scaffold_drift(tmp_path: Path) -> None:
+    """A project straight off `d2w fhir init` states one identity in both files, so there is nothing to say."""
+    await _scaffold_project(tmp_path)
+
+    report = await service.generate_foundation(load_project(tmp_path))
+
+    assert _scaffold_drift_notes(report) == []

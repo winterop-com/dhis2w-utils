@@ -43,6 +43,9 @@ class GenerateNoteCategory(StrEnum):
     #: The compiled guide removed, because this run rewrote the FSH sources SUSHI compiled it from.
     COMPILE_REMOVED = "compile-removed"
 
+    #: The project's own files disagree: fhir.toml states an identity ig/sushi-config.yaml does not carry.
+    SCAFFOLD_DRIFT = "scaffold-drift"
+
     #: A DHIS2 name the IG publisher's build cannot survive, published in rewritten wording.
     NAME_SUBSTITUTION = "name-substitution"
 

@@ -178,15 +178,15 @@ def test_init_refresh_rewrites_an_untouched_support_file(workdir: Path) -> None:
 def test_init_refresh_keeps_a_rewritten_file_and_claims_no_author(workdir: Path) -> None:
     """A rewritten file stays byte-identical, and the verdict states the fact rather than who caused it."""
     project = _scaffold(workdir)
-    index = project / "ig" / "input" / "pagecontent" / "index.md"
-    edited = "# Sierra Leone Demo\n\nOur own narrative.\n"
-    index.write_text(edited, encoding="utf-8")
+    suppressed = project / "ig" / "input" / "ignoreWarnings.txt"
+    edited = "== Ours ==\n\nOur own suppression.\n"
+    suppressed.write_text(edited, encoding="utf-8")
 
     result = _runner.invoke(build_app(), ["fhir", "init", "project", "--refresh"])
 
     assert result.exit_code == 0, result.output
-    assert index.read_text(encoding="utf-8") == edited
-    assert "kept ig/input/pagecontent/index.md (holds lines the current scaffold does not write)" in result.output
+    assert suppressed.read_text(encoding="utf-8") == edited
+    assert "kept ig/input/ignoreWarnings.txt (holds lines the current scaffold does not write)" in result.output
     assert "you edited" not in result.output
     assert "your edits, or scaffold lines that have since changed" in result.output
 
@@ -335,14 +335,14 @@ def test_init_refresh_names_every_flag_it_refuses(workdir: Path) -> None:
 def test_init_refresh_labels_the_files_it_kept(workdir: Path) -> None:
     """The summary row for a diverged file says the file was kept, not that the refresh skipped work."""
     project = _scaffold(workdir)
-    index = project / "ig" / "input" / "pagecontent" / "index.md"
-    index.write_text("# Ours\n", encoding="utf-8")
+    suppressed = project / "ig" / "input" / "ignoreWarnings.txt"
+    suppressed.write_text("== Ours ==\n", encoding="utf-8")
 
     result = _runner.invoke(build_app(), ["fhir", "init", "project", "--refresh"])
 
     assert result.exit_code == 0, result.output
     assert "diverged (kept)" in result.stderr
-    assert "kept ig/input/pagecontent/index.md (holds lines the current scaffold does not write)" in result.stderr
+    assert "kept ig/input/ignoreWarnings.txt (holds lines the current scaffold does not write)" in result.stderr
 
 
 def test_init_renders_its_narration_on_stderr(workdir: Path) -> None:  # noqa: ARG001

@@ -9,6 +9,7 @@ import yaml
 from dhis2w_fhir.config import FhirProjectConfig, HostileNamePosture, NoFhirProjectError
 from dhis2w_fhir.resources.pages import SITE_PAGE_FILENAMES
 from dhis2w_fhir.scaffold import build_scaffold_files
+from dhis2w_fhir.scaffold.identity import adopt_scaffold_owned_lines
 from dhis2w_fhir.scaffold.refresh import preserves_every_line, read_project_scaffold_state, refresh_project
 from dhis2w_fhir.scaffold.schemas import DEFAULT_SUSHI_TIMEOUT_SECONDS, InitOptions, normalize_project_name
 
@@ -597,6 +598,7 @@ def test_refresh_adds_the_path_resource_block_to_a_stale_sushi_config(tmp_path: 
     report = refresh_project(tmp_path)
 
     assert report.refreshed_files == ["ig/sushi-config.yaml"]
+    assert report.diverged_files == []
     parameters = yaml.safe_load(sushi_config.read_text(encoding="utf-8"))["parameters"]
     assert parameters["path-resource"] == [
         "input/resources/registry/*",
@@ -816,3 +818,188 @@ def test_every_committed_guide_example_matches_the_current_render() -> None:
         "committed guide examples have gone stale - in each guide, delete fhir.toml.example and "
         "run `d2w fhir init --refresh .`:\n  " + "\n  ".join(stale)
     )
+
+
+def _edit_fhir_toml(directory: Path, old: str, new: str) -> None:
+    """Rewrite part of the project's fhir.toml, standing in for a person editing the file."""
+    config_path = directory / "fhir.toml"
+    body = config_path.read_text(encoding="utf-8")
+    assert old in body
+    config_path.write_text(body.replace(old, new), encoding="utf-8")
+
+
+def test_refresh_lands_the_edited_identity_in_sushi_config(tmp_path: Path) -> None:
+    """fhir.toml declares the guide's identity, so an edited title, status and publisher land on refresh."""
+    _write_project(tmp_path)
+    _edit_fhir_toml(tmp_path, 'title = "DHIS2 FHIR Test IG"', 'title = "Sierra Leone HMIS FHIR Guide"')
+    _edit_fhir_toml(tmp_path, 'status = "draft"', 'status = "active"')
+    _edit_fhir_toml(tmp_path, 'publisher = "Test Organisation"', 'publisher = "Ministry of Health and Sanitation"')
+
+    report = refresh_project(tmp_path)
+
+    assert "ig/sushi-config.yaml" in report.refreshed_files
+    assert report.diverged_files == []
+    published = yaml.safe_load((tmp_path / "ig" / "sushi-config.yaml").read_text(encoding="utf-8"))
+    assert published["title"] == "Sierra Leone HMIS FHIR Guide"
+    assert published["description"] == "Sierra Leone HMIS FHIR Guide, generated from DHIS2 metadata by d2w fhir."
+    assert published["status"] == "active"
+    assert published["publisher"]["name"] == "Ministry of Health and Sanitation"
+
+
+def test_refresh_lands_the_identity_and_keeps_a_menu_entry_the_project_added(tmp_path: Path) -> None:
+    """The identity lines are the scaffold's; every other line of sushi-config is the project's."""
+    _write_project(tmp_path)
+    sushi_config = tmp_path / "ig" / "sushi-config.yaml"
+    sushi_config.write_text(sushi_config.read_text(encoding="utf-8") + "  Custom: custom.html\n", encoding="utf-8")
+    _edit_fhir_toml(tmp_path, 'title = "DHIS2 FHIR Test IG"', 'title = "Sierra Leone HMIS FHIR Guide"')
+
+    report = refresh_project(tmp_path)
+
+    assert "ig/sushi-config.yaml" in report.refreshed_files
+    assert report.diverged_files == []
+    written = sushi_config.read_text(encoding="utf-8")
+    assert written.endswith("  Custom: custom.html\n")
+    assert "title: Sierra Leone HMIS FHIR Guide\n" in written
+    assert "releaseLabel: ci-build\n" in written
+
+
+def test_refresh_lands_an_edited_identifier_system_base_on_the_special_urls(tmp_path: Path) -> None:
+    """The six `special-url` lines follow `[generate] identifier_system_base`, so an edit lands on all six."""
+    _write_project(tmp_path)
+    _edit_fhir_toml(
+        tmp_path,
+        'hostile_names = "substitute"',
+        'hostile_names = "substitute"\nidentifier_system_base = "https://moh.gov.sl/fhir"',
+    )
+
+    report = refresh_project(tmp_path)
+
+    assert report.refreshed_files == ["ig/sushi-config.yaml"]
+    assert report.diverged_files == []
+    parameters = yaml.safe_load((tmp_path / "ig" / "sushi-config.yaml").read_text(encoding="utf-8"))["parameters"]
+    assert parameters["special-url"] == [
+        "https://moh.gov.sl/fhir/id/option",
+        "https://moh.gov.sl/fhir/id/option-code",
+        "https://moh.gov.sl/fhir/id/category-option",
+        "https://moh.gov.sl/fhir/id/category-option-code",
+        "https://moh.gov.sl/fhir/id/category-option-combo",
+        "https://moh.gov.sl/fhir/id/category-option-combo-code",
+    ]
+
+
+def test_refresh_of_a_project_scaffolded_on_a_custom_identifier_base_writes_nothing(tmp_path: Path) -> None:
+    """A project whose sushi-config already carries its own identifier stem is current, so nothing is written."""
+    _write_project(tmp_path, _OPTIONS.model_copy(update={"identifier_system_base": "https://moh.gov.sl/fhir"}))
+    _edit_fhir_toml(
+        tmp_path,
+        'hostile_names = "substitute"',
+        'hostile_names = "substitute"\nidentifier_system_base = "https://moh.gov.sl/fhir"',
+    )
+
+    report = refresh_project(tmp_path)
+
+    assert report.refreshed_files == []
+    assert report.diverged_files == []
+    assert "ig/sushi-config.yaml" in report.unchanged_files
+
+
+def test_adopt_scaffold_owned_lines_replaces_the_identity_and_nothing_else() -> None:
+    """Every line fhir.toml does not declare - the release label, publisher home page, year, menu - survives."""
+    current = _by_path()["ig/sushi-config.yaml"].replace("releaseLabel: ci-build", "releaseLabel: release")
+    current = current.replace("publisher:\n", "publisher:\n  url: https://moh.gov.sl\n", 1)
+    current = current.replace("  Home: index.html\n", "  Home: index.html\n  Custom: custom.html\n", 1)
+    current = current.replace('  excludexml: "true"', '  excludexml: "false"')
+    rendered = {
+        file.relative_path: file.content
+        for file in build_scaffold_files(_OPTIONS.model_copy(update={"title": "Another Title"}), copyright_year=2031)
+    }["ig/sushi-config.yaml"]
+
+    adopted = adopt_scaffold_owned_lines("ig/sushi-config.yaml", current, rendered)
+
+    assert "title: Another Title\n" in adopted
+    assert "description: Another Title, generated from DHIS2 metadata by d2w fhir.\n" in adopted
+    assert "releaseLabel: release\n" in adopted
+    assert "  url: https://moh.gov.sl\n" in adopted
+    assert "copyrightYear: 2031+\n" not in adopted
+    assert "  Custom: custom.html\n" in adopted
+    assert '  excludexml: "false"\n' in adopted
+
+
+def test_refresh_lands_an_edited_identity_in_every_file_that_carries_it(tmp_path: Path) -> None:
+    """Four scaffold files render the identity, so one refresh lands an `[ig]` edit in all four."""
+    _write_project(tmp_path)
+    _edit_fhir_toml(tmp_path, 'title = "DHIS2 FHIR Test IG"', 'title = "Sierra Leone HMIS FHIR Guide"')
+    _edit_fhir_toml(tmp_path, 'id = "dhis2.fhir.test"', 'id = "dhis2.fhir.sl"')
+
+    report = refresh_project(tmp_path)
+
+    assert sorted(report.refreshed_files) == [
+        "fhir.toml.example",
+        "ig/ig.ini",
+        "ig/input/pagecontent/index.md",
+        "ig/sushi-config.yaml",
+        "pyproject.toml",
+    ]
+    assert report.diverged_files == []
+    published = yaml.safe_load((tmp_path / "ig" / "sushi-config.yaml").read_text(encoding="utf-8"))
+    assert published["id"] == "dhis2.fhir.sl"
+    assert published["title"] == "Sierra Leone HMIS FHIR Guide"
+    example = tomllib.loads((tmp_path / "fhir.toml.example").read_text(encoding="utf-8"))
+    assert example["ig"]["id"] == "dhis2.fhir.sl"
+    assert example["ig"]["title"] == "Sierra Leone HMIS FHIR Guide"
+    assert (
+        (tmp_path / "ig" / "input" / "pagecontent" / "index.md")
+        .read_text(encoding="utf-8")
+        .startswith("# Sierra Leone HMIS FHIR Guide\n")
+    )
+    assert "ig = fsh-generated/resources/ImplementationGuide-dhis2.fhir.sl.json" in (
+        tmp_path / "ig" / "ig.ini"
+    ).read_text(encoding="utf-8")
+    assert tomllib.loads((tmp_path / "pyproject.toml").read_text(encoding="utf-8"))["project"]["name"] == (
+        "dhis2-fhir-sl"
+    )
+
+
+def test_refresh_lands_the_title_on_the_front_page_and_keeps_the_prose_below_it(tmp_path: Path) -> None:
+    """Only the front page's first line is the guide's title, so prose and later headings stay."""
+    _write_project(tmp_path)
+    index_page = tmp_path / "ig" / "input" / "pagecontent" / "index.md"
+    index_page.write_text(
+        index_page.read_text(encoding="utf-8") + "\n## How to read this guide\n\nAsk the data team first.\n",
+        encoding="utf-8",
+    )
+    _edit_fhir_toml(tmp_path, 'title = "DHIS2 FHIR Test IG"', 'title = "Sierra Leone HMIS FHIR Guide"')
+
+    report = refresh_project(tmp_path)
+
+    assert "ig/input/pagecontent/index.md" in report.refreshed_files
+    written = index_page.read_text(encoding="utf-8")
+    assert written.startswith("# Sierra Leone HMIS FHIR Guide\n")
+    assert written.endswith("\n## How to read this guide\n\nAsk the data team first.\n")
+
+
+def test_refresh_lands_the_identity_in_the_example_and_keeps_an_option_the_project_uncommented(
+    tmp_path: Path,
+) -> None:
+    """The example's `[ig]` table follows fhir.toml; every other line of the catalog is the project's."""
+    _write_project(tmp_path)
+    example = tmp_path / "fhir.toml.example"
+    example.write_text(
+        example.read_text(encoding="utf-8").replace('# profile = "myserver"', 'profile = "hmis"'), encoding="utf-8"
+    )
+    _edit_fhir_toml(tmp_path, 'title = "DHIS2 FHIR Test IG"', 'title = "Sierra Leone HMIS FHIR Guide"')
+
+    report = refresh_project(tmp_path)
+
+    assert "fhir.toml.example" in report.refreshed_files
+    written = example.read_text(encoding="utf-8")
+    assert 'profile = "hmis"\n' in written
+    assert 'title = "Sierra Leone HMIS FHIR Guide"\n' in written
+    assert 'name = "OpenStreetMap"\n' in written
+
+
+def test_adopt_scaffold_owned_lines_leaves_a_file_the_scaffold_owns_no_line_of(tmp_path: Path) -> None:
+    """The Makefile carries no identity, so nothing in it is the scaffold's to substitute."""
+    rendered = _by_path()["Makefile"]
+
+    assert adopt_scaffold_owned_lines("Makefile", "mine\n", rendered) == "mine\n"

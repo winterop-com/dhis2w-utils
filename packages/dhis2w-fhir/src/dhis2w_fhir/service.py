@@ -185,7 +185,8 @@ from dhis2w_fhir.resources.questionnaires.schemas import (
     ordered_option_combos,
     plan_questionnaire_stems,
 )
-from dhis2w_fhir.scaffold import build_scaffold_files
+from dhis2w_fhir.scaffold import SUSHI_CONFIG_RELATIVE_PATH, build_scaffold_files
+from dhis2w_fhir.scaffold.identity import sushi_config_identity_disagreements
 from dhis2w_fhir.scaffold.project_templates import ProjectTemplate
 from dhis2w_fhir.scaffold.schemas import InitOptions, ScaffoldReport
 from dhis2w_fhir.spool import (
@@ -1308,6 +1309,29 @@ def _remove_stale_compile(project: FhirProject, *fsh_syncs: SyncReport) -> list[
     ]
 
 
+def _scaffold_identity_notes(project: FhirProject) -> list[GenerateNote]:
+    """Say so when fhir.toml states an identity ig/sushi-config.yaml does not carry.
+
+    The `[ig]` table is where the guide's id, address, name, title, publisher and status are
+    stated, and `ig/sushi-config.yaml` is where the IG publisher reads them, so an edit to
+    `fhir.toml` reaches the published guide's cover through `d2w fhir init --refresh`. This note is
+    raised on the foundation target, the one target that reads nothing off the instance and runs
+    first in every whole-run generate, so the file is read once per run.
+    """
+    disagreements = sushi_config_identity_disagreements(project)
+    if not disagreements:
+        return []
+    keys = ", ".join(disagreement.key for disagreement in disagreements)
+    return [
+        generate_note(
+            GenerateNoteCategory.SCAFFOLD_DRIFT,
+            f"{SUSHI_CONFIG_RELATIVE_PATH} does not carry what fhir.toml states ({keys}): run "
+            "`d2w fhir init --refresh` (or `make update` in a scaffolded project) to bring the "
+            "scaffold-managed files up to date",
+        )
+    ]
+
+
 async def generate_foundation(project: FhirProject, *, reporter: ProgressReporter | None = None) -> GenerateReport:
     """Generate the instance-independent `foundation/` artifacts: DHIS2 identifier aliases and D2Period."""
     return _emit_foundation(project, progress=_StepAnnouncer(reporter, GENERATE_FOUNDATION_STEPS))
@@ -1326,7 +1350,7 @@ def _emit_foundation(project: FhirProject, *, progress: _StepAnnouncer) -> Gener
         deleted_files=sync.deleted,
         written_files=sync.written,
         unchanged_count=len(sync.unchanged),
-        notes=_remove_stale_compile(project, sync),
+        notes=_scaffold_identity_notes(project) + _remove_stale_compile(project, sync),
     )
     progress.complete(_target_counts(report))
     return report

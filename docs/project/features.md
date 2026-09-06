@@ -567,6 +567,20 @@ chain in one command.
   written; `--force` is rejected; any flag the refresh would ignore is refused.
   The accepted consequence is that a scaffold line deliberately deleted is
   restored, since a deletion leaves the file a subsequence of the render.
+- **The refresh writes the scaffold lines `fhir.toml` declares.** Five files
+  carry the guide's identity, and one refresh lands an `[ig]` edit in all of
+  them: `ig/sushi-config.yaml` (`id`, `canonical`, `name`, `title`, the
+  description built from the title, `status`, the publisher name, and the six
+  `special-url` lines the `[generate] identifier_system_base` stem addresses),
+  the `[ig]` table of `fhir.toml.example`, the first-line heading of
+  `ig/input/pagecontent/index.md`, the `ig = ` line of `ig/ig.ini`, and the
+  `[project] name` of `pyproject.toml`. Each is reported refreshed. Every other
+  line of those files is the project's and survives byte-identical -
+  `releaseLabel`, `version`, the publisher home page, `copyrightYear`, the
+  parameters, the menu, the path-resource globs, the project's own prose and
+  headings, an option it uncommented in the example. Until the refresh runs,
+  `d2w fhir generate` raises a `scaffold-drift` note naming the keys `fhir.toml`
+  and `ig/sushi-config.yaml` state differently.
 
 ### Build and publish
 
@@ -1377,8 +1391,8 @@ DHIS2 translations are carried through across the whole surface, filtered by
   kind - `selection-mismatch`, `selection-closure`, `empty-selection`,
   `selection-gap`, `refused-form`, `form-structure`, `skipped-question`,
   `answer-fallback`, `instance-data-gap`, `build-cost`, `compile-removed`,
-  `code-fallback`, `code-collision`, `stem-fallback` - beside its text and an `echoes_validate`
-  verdict derived from it.
+  `scaffold-drift`, `code-fallback`, `code-collision`, `stem-fallback` - beside
+  its text and an `echoes_validate` verdict derived from it.
 - **A bare run counts the three kinds that merely restate a `fhir validate`
   finding apart** from what generation itself found
   (`note: 3 note(s) across 2 target(s) (+8 validate echoes); full list in ...`),
